@@ -18,9 +18,9 @@ docker compose up --build
 
 После запуска:
 
-- Frontend: http://localhost:3000
-- Backend API health: http://localhost:8000/api/health
-- Swagger docs: http://localhost:8000/docs
+- Frontend: http://localhost:3003
+- Backend API health: http://localhost:8003/api/health
+- Swagger docs: http://localhost:8003/docs
 
 ## Структура
 
