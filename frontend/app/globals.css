@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-shell text-ink;
+  font-family: "Segoe UI", "Inter", sans-serif;
+}
+
+@layer components {
+  .neu-card {
+    @apply rounded-neu-lg bg-shell shadow-neu;
+  }
+
+  .neu-panel {
+    @apply rounded-neu bg-shell shadow-neu;
+  }
+
+  .neu-inset {
+    @apply rounded-neu bg-shell shadow-neu-inset;
+  }
+
+  .neu-btn {
+    @apply rounded-xl bg-shell px-4 py-2 font-medium text-ink shadow-neu transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[12px_12px_20px_#d2d7dd,-12px_-12px_20px_#ffffff] active:translate-y-0 active:shadow-neu-inset;
+  }
+}
+
