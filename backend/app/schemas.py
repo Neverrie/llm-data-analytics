@@ -16,9 +16,10 @@ class Lab1StatusResponse(BaseModel):
 
 
 class Lab2RunRequest(BaseModel):
-    limit: int = Field(default=10, ge=1, le=100)
+    limit: int = Field(default=10, ge=1)
     min_score: int | None = Field(default=None, ge=1, le=5)
     max_score: int | None = Field(default=None, ge=1, le=5)
+    batch_size: int = Field(default=5, ge=1, le=20)
 
 
 class UberReviewInput(BaseModel):
@@ -52,8 +53,12 @@ class Lab2RunResponse(BaseModel):
     status: str
     model: str
     dataset: str
+    rows_requested: int
     rows_processed: int
+    batch_size: int
+    batches_processed: int
     output_file: str
+    warnings: list[str] = Field(default_factory=list)
     results: list[ReviewClassification]
 
 

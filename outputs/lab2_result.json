@@ -3,98 +3,57 @@
   "status": "completed",
   "model": "qwen3:8b",
   "dataset": "customers_reviews.csv",
-  "rows_processed": 10,
+  "rows_requested": 5,
+  "rows_processed": 5,
+  "batch_size": 5,
+  "batches_processed": 1,
   "output_file": "/outputs/lab2_result.json",
+  "warnings": [],
   "results": [
     {
       "row_id": 1,
       "sentiment": "positive",
-      "issue_type": "none",
-      "topic": "none",
+      "issue_type": "no_issue",
+      "topic": "general",
       "urgency": "low",
-      "summary": "Хорошая оценка",
-      "suggested_action": "Игнорировать"
+      "summary": "Пользователь оставил положительный отзыв о приложении.",
+      "suggested_action": "Игнорировать, так как отзыв положительный и не содержит жалоб."
     },
     {
       "row_id": 2,
       "sentiment": "positive",
-      "issue_type": "none",
-      "topic": "none",
+      "issue_type": "no_issue",
+      "topic": "general",
       "urgency": "low",
-      "summary": "Хорошая оценка",
-      "suggested_action": "Игнорировать"
+      "summary": "Пользователь оставил положительный отзыв о приложении.",
+      "suggested_action": "Игнорировать, так как отзыв положительный и не содержит жалоб."
     },
     {
       "row_id": 3,
       "sentiment": "positive",
-      "issue_type": "none",
-      "topic": "none",
+      "issue_type": "no_issue",
+      "topic": "general",
       "urgency": "low",
-      "summary": "Очень удобно",
-      "suggested_action": "Игнорировать"
+      "summary": "Пользователь оставил положительный отзыв о приложении.",
+      "suggested_action": "Игнорировать, так как отзыв положительный и не содержит жалоб."
     },
     {
       "row_id": 4,
       "sentiment": "positive",
-      "issue_type": "none",
-      "topic": "none",
+      "issue_type": "no_issue",
+      "topic": "general",
       "urgency": "low",
-      "summary": "Хорошая оценка",
-      "suggested_action": "Игнорировать"
+      "summary": "Пользователь оставил положительный отзыв о приложении.",
+      "suggested_action": "Игнорировать, так как отзыв положительный и не содержит жалоб."
     },
     {
       "row_id": 5,
       "sentiment": "positive",
-      "issue_type": "none",
-      "topic": "none",
+      "issue_type": "no_issue",
+      "topic": "general",
       "urgency": "low",
-      "summary": "Отлично",
-      "suggested_action": "Игнорировать"
-    },
-    {
-      "row_id": 6,
-      "sentiment": "positive",
-      "issue_type": "none",
-      "topic": "none",
-      "urgency": "low",
-      "summary": "Дружелюбный персонал",
-      "suggested_action": "Игнорировать"
-    },
-    {
-      "row_id": 7,
-      "sentiment": "positive",
-      "issue_type": "none",
-      "topic": "none",
-      "urgency": "low",
-      "summary": "Дешево",
-      "suggested_action": "Игнорировать"
-    },
-    {
-      "row_id": 8,
-      "sentiment": "positive",
-      "issue_type": "none",
-      "topic": "none",
-      "urgency": "low",
-      "summary": "Хорошая служба",
-      "suggested_action": "Игнорировать"
-    },
-    {
-      "row_id": 9,
-      "sentiment": "positive",
-      "issue_type": "none",
-      "topic": "none",
-      "urgency": "low",
-      "summary": "Отлично",
-      "suggested_action": "Игнорировать"
-    },
-    {
-      "row_id": 10,
-      "sentiment": "positive",
-      "issue_type": "none",
-      "topic": "none",
-      "urgency": "low",
-      "summary": "Хорошо",
-      "suggested_action": "Игнорировать"
+      "summary": "Пользователь оставил положительный отзыв о приложении.",
+      "suggested_action": "Игнорировать, так как отзыв положительный и не содержит жалоб."
     }
   ]
 }

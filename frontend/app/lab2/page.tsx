@@ -45,8 +45,12 @@ type Lab2RunResponse = {
   status: string;
   model: string;
   dataset: string;
+  rows_requested: number;
   rows_processed: number;
+  batch_size: number;
+  batches_processed: number;
   output_file: string;
+  warnings: string[];
   results: ReviewClassification[];
 };
 
@@ -61,6 +65,7 @@ export default function Lab2Page() {
   const [runResult, setRunResult] = useState<Lab2RunResponse | null>(null);
 
   const [limit, setLimit] = useState(10);
+  const [batchSize, setBatchSize] = useState(5);
   const [minScore, setMinScore] = useState("");
   const [maxScore, setMaxScore] = useState("");
 
@@ -77,7 +82,7 @@ export default function Lab2Page() {
         const data = await api.getLab2Status<Lab2Status>();
         setStatus(data);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "?? ??????? ???????? ?????? Lab 2");
+        setError(err instanceof Error ? err.message : "Не удалось получить статус Lab 2");
       } finally {
         setLoadingStatus(false);
       }
@@ -111,7 +116,7 @@ export default function Lab2Page() {
       });
       setSampleData(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "?? ??????? ????????? sample data");
+      setError(err instanceof Error ? err.message : "Не удалось загрузить sample data");
     } finally {
       setLoadingSample(false);
     }
@@ -121,16 +126,18 @@ export default function Lab2Page() {
     setLoadingRun(true);
     setError(null);
     try {
-      const data = await api.runLab2Pipeline<Lab2RunResponse, { limit: number; min_score: number | null; max_score: number | null }>(
-        {
-          limit,
-          min_score: parsedMinScore,
-          max_score: parsedMaxScore
-        }
-      );
+      const data = await api.runLab2Pipeline<
+        Lab2RunResponse,
+        { limit: number; batch_size: number; min_score: number | null; max_score: number | null }
+      >({
+        limit,
+        batch_size: batchSize,
+        min_score: parsedMinScore,
+        max_score: parsedMaxScore
+      });
       setRunResult(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "?? ??????? ????????? pipeline");
+      setError(err instanceof Error ? err.message : "Не удалось запустить pipeline");
     } finally {
       setLoadingRun(false);
     }
@@ -138,20 +145,20 @@ export default function Lab2Page() {
 
   return (
     <div className="space-y-6">
-      <SectionCard title="???? 2 ? API Pipeline">
+      <SectionCard title="Лаба 2 — API Pipeline">
         <p>
-          ???????? ?????? ???????? ?????? ????????????? Uber ?? CSV, ?????????? ?? ? ????????? LLM ????? Ollama API ?
-          ????????? ????????????????? JSON ? ?????????????? ???????.
+          Пайплайн читает реальные отзывы пользователей Uber из CSV, отправляет их в локальную LLM через Ollama API и
+          сохраняет структурированный JSON с классификацией отзывов.
         </p>
       </SectionCard>
 
-      <SectionCard title="???????">
+      <SectionCard title="Датасет">
         <ul className="list-disc space-y-1 pl-6">
           <li>Uber Customer Reviews Dataset (2024)</li>
-          <li>???????????? ????????? ???????: content</li>
-          <li>?????????????? ????: score, thumbsUpCount, reviewCreatedVersion, at, appVersion</li>
-          <li>????: {status?.dataset ?? "????????..."}</li>
-          <li>??????: {status?.model ?? "????????..."}</li>
+          <li>Используемая текстовая колонка: content</li>
+          <li>Дополнительные поля: score, thumbsUpCount, reviewCreatedVersion, at, appVersion</li>
+          <li>Файл: {status?.dataset ?? "загрузка..."}</li>
+          <li>Модель: {status?.model ?? "загрузка..."}</li>
         </ul>
       </SectionCard>
 
@@ -168,21 +175,35 @@ export default function Lab2Page() {
       </SectionCard>
 
       <section className="neu-card space-y-4 p-6">
-        <h2 className="text-xl font-semibold">????????? ???????</h2>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <h2 className="text-xl font-semibold">Настройки запуска</h2>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <label className="space-y-2">
-            <span className="text-sm font-medium">limit (?? ????????? 10)</span>
+            <span className="text-sm font-medium">limit</span>
+            <p className="text-xs text-slate-600">Сколько отзывов обработать. Backend ограничит максимум.</p>
             <input
               type="number"
               min={1}
-              max={100}
+              max={1000}
               value={limit}
               onChange={(e) => setLimit(Number(e.target.value) || 10)}
               className="neu-inset w-full px-3 py-2 text-sm"
             />
           </label>
           <label className="space-y-2">
-            <span className="text-sm font-medium">min_score (???????????)</span>
+            <span className="text-sm font-medium">batch_size</span>
+            <p className="text-xs text-slate-600">Сколько отзывов отправлять в модель за один запрос.</p>
+            <input
+              type="number"
+              min={1}
+              max={20}
+              value={batchSize}
+              onChange={(e) => setBatchSize(Number(e.target.value) || 5)}
+              className="neu-inset w-full px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="space-y-2">
+            <span className="text-sm font-medium">min_score (опционально)</span>
+            <p className="text-xs text-slate-600">Нижняя граница фильтра по оценке.</p>
             <input
               type="number"
               min={1}
@@ -190,11 +211,12 @@ export default function Lab2Page() {
               value={minScore}
               onChange={(e) => setMinScore(e.target.value)}
               className="neu-inset w-full px-3 py-2 text-sm"
-              placeholder="????????, 1"
+              placeholder="например, 1"
             />
           </label>
           <label className="space-y-2">
-            <span className="text-sm font-medium">max_score (???????????)</span>
+            <span className="text-sm font-medium">max_score (опционально)</span>
+            <p className="text-xs text-slate-600">Верхняя граница фильтра по оценке.</p>
             <input
               type="number"
               min={1}
@@ -202,21 +224,21 @@ export default function Lab2Page() {
               value={maxScore}
               onChange={(e) => setMaxScore(e.target.value)}
               className="neu-inset w-full px-3 py-2 text-sm"
-              placeholder="????????, 5"
+              placeholder="например, 5"
             />
           </label>
         </div>
 
         <div className="flex flex-wrap gap-3">
           <button className="neu-btn" onClick={handleLoadSample} disabled={loadingSample || loadingRun}>
-            {loadingSample ? "???????? sample data..." : "???????? sample data"}
+            {loadingSample ? "Загрузка sample data..." : "Показать sample data"}
           </button>
           <button className="neu-btn" onClick={handleRunPipeline} disabled={loadingRun || loadingSample}>
-            {loadingRun ? "?????? pipeline..." : "????????? pipeline"}
+            {loadingRun ? "Запуск pipeline..." : "Запустить pipeline"}
           </button>
         </div>
 
-        {loadingStatus ? <p className="text-sm text-slate-600">???????? ??????? Lab 2...</p> : null}
+        {loadingStatus ? <p className="text-sm text-slate-600">Загрузка статуса Lab 2...</p> : null}
         {error ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
       </section>
 
@@ -224,7 +246,7 @@ export default function Lab2Page() {
         <section className="neu-card space-y-4 p-6">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-xl font-semibold">Sample Data</h2>
-            <p className="text-sm text-slate-600">????? ????? ????????: {sampleData.total_rows}</p>
+            <p className="text-sm text-slate-600">Всего после фильтров: {sampleData.total_rows}</p>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
@@ -255,7 +277,7 @@ export default function Lab2Page() {
 
       {runResult ? (
         <section className="neu-card space-y-4 p-6">
-          <h2 className="text-xl font-semibold">????????? pipeline</h2>
+          <h2 className="text-xl font-semibold">Результат pipeline</h2>
           <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
             <p>
               <span className="font-medium">model:</span> {runResult.model}
@@ -264,12 +286,32 @@ export default function Lab2Page() {
               <span className="font-medium">dataset:</span> {runResult.dataset}
             </p>
             <p>
+              <span className="font-medium">rows_requested:</span> {runResult.rows_requested}
+            </p>
+            <p>
               <span className="font-medium">rows_processed:</span> {runResult.rows_processed}
             </p>
             <p>
+              <span className="font-medium">batch_size:</span> {runResult.batch_size}
+            </p>
+            <p>
+              <span className="font-medium">batches_processed:</span> {runResult.batches_processed}
+            </p>
+            <p className="md:col-span-2">
               <span className="font-medium">output_file:</span> {runResult.output_file}
             </p>
           </div>
+
+          {runResult.warnings.length > 0 ? (
+            <div className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-700">
+              <p className="font-medium">Warnings:</p>
+              <ul className="list-disc pl-5">
+                {runResult.warnings.map((warning, index) => (
+                  <li key={`${warning}-${index}`}>{warning}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
@@ -311,7 +353,7 @@ export default function Lab2Page() {
             target="_blank"
             rel="noreferrer"
           >
-            ??????? result.json
+            Скачать result.json
           </a>
         </section>
       ) : null}

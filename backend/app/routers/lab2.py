@@ -5,7 +5,14 @@ from fastapi.responses import FileResponse
 
 from app.config import settings
 from app.schemas import Lab2RunRequest, Lab2RunResponse, Lab2SampleDataResponse, Lab2StatusResponse
-from app.services.lab2_service import Lab2PipelineError, find_dataset_file, get_sample_data, load_last_result, run_pipeline
+from app.services.lab2_service import (
+    MAX_LIMIT,
+    Lab2PipelineError,
+    find_dataset_file,
+    get_sample_data,
+    load_last_result,
+    run_pipeline,
+)
 
 router = APIRouter(prefix="/lab2", tags=["lab2"])
 
@@ -20,7 +27,7 @@ def lab2_status() -> Lab2StatusResponse:
     return Lab2StatusResponse(
         lab=2,
         name="API Pipeline",
-        status="ready",
+        status="ready-batching",
         dataset=dataset_file,
         model=settings.ollama_model,
         pipeline=[
@@ -44,7 +51,7 @@ def lab2_status() -> Lab2StatusResponse:
 
 @router.get("/sample-data", response_model=Lab2SampleDataResponse)
 def lab2_sample_data(
-    limit: int = Query(default=5, ge=1, le=50),
+    limit: int = Query(default=5, ge=1, le=MAX_LIMIT),
     min_score: int | None = Query(default=None, ge=1, le=5),
     max_score: int | None = Query(default=None, ge=1, le=5),
 ) -> Lab2SampleDataResponse:

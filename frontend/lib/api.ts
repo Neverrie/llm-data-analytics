@@ -9,7 +9,7 @@ async function getJson<T>(path: string): Promise<T> {
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`?????? API: ${response.status}. ${errorText}`);
+    throw new Error(`Ошибка API: ${response.status}. ${errorText}`);
   }
 
   return (await response.json()) as T;
@@ -25,7 +25,7 @@ async function postJson<TResponse, TBody>(path: string, body: TBody): Promise<TR
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`?????? API: ${response.status}. ${errorText}`);
+    throw new Error(`Ошибка API: ${response.status}. ${errorText}`);
   }
 
   return (await response.json()) as TResponse;
