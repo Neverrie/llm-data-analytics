@@ -1,0 +1,100 @@
+{
+  "lab": 2,
+  "status": "completed",
+  "model": "qwen3:8b",
+  "dataset": "customers_reviews.csv",
+  "rows_processed": 10,
+  "output_file": "/outputs/lab2_result.json",
+  "results": [
+    {
+      "row_id": 1,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "none",
+      "urgency": "low",
+      "summary": "Хорошая оценка",
+      "suggested_action": "Игнорировать"
+    },
+    {
+      "row_id": 2,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "none",
+      "urgency": "low",
+      "summary": "Хорошая оценка",
+      "suggested_action": "Игнорировать"
+    },
+    {
+      "row_id": 3,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "none",
+      "urgency": "low",
+      "summary": "Очень удобно",
+      "suggested_action": "Игнорировать"
+    },
+    {
+      "row_id": 4,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "none",
+      "urgency": "low",
+      "summary": "Хорошая оценка",
+      "suggested_action": "Игнорировать"
+    },
+    {
+      "row_id": 5,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "none",
+      "urgency": "low",
+      "summary": "Отлично",
+      "suggested_action": "Игнорировать"
+    },
+    {
+      "row_id": 6,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "none",
+      "urgency": "low",
+      "summary": "Дружелюбный персонал",
+      "suggested_action": "Игнорировать"
+    },
+    {
+      "row_id": 7,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "none",
+      "urgency": "low",
+      "summary": "Дешево",
+      "suggested_action": "Игнорировать"
+    },
+    {
+      "row_id": 8,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "none",
+      "urgency": "low",
+      "summary": "Хорошая служба",
+      "suggested_action": "Игнорировать"
+    },
+    {
+      "row_id": 9,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "none",
+      "urgency": "low",
+      "summary": "Отлично",
+      "suggested_action": "Игнорировать"
+    },
+    {
+      "row_id": 10,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "none",
+      "urgency": "low",
+      "summary": "Хорошо",
+      "suggested_action": "Игнорировать"
+    }
+  ]
+}

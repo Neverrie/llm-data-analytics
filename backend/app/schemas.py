@@ -1,6 +1,6 @@
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class HealthResponse(BaseModel):
@@ -15,19 +15,62 @@ class Lab1StatusResponse(BaseModel):
     planned_features: list[str]
 
 
-class Lab2SampleResult(BaseModel):
-    dataset: str
-    rows: int
-    columns: int
+class Lab2RunRequest(BaseModel):
+    limit: int = Field(default=10, ge=1, le=100)
+    min_score: int | None = Field(default=None, ge=1, le=5)
+    max_score: int | None = Field(default=None, ge=1, le=5)
+
+
+class UberReviewInput(BaseModel):
+    row_id: int
+    content: str
+    score: float | int | None = None
+    thumbs_up_count: int | None = None
+    review_created_version: str | None = None
+    at: str | None = None
+    app_version: str | None = None
+
+
+class ReviewClassification(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    row_id: int
+    sentiment: Literal["positive", "negative", "neutral", "mixed"]
+    issue_type: str
+    topic: str
+    urgency: Literal["low", "medium", "high"]
     summary: str
+    suggested_action: str
 
 
-class Lab2DemoResponse(BaseModel):
+class Lab2ResultPayload(BaseModel):
+    results: list[ReviewClassification]
+
+
+class Lab2RunResponse(BaseModel):
+    lab: int
+    status: str
+    model: str
+    dataset: str
+    rows_processed: int
+    output_file: str
+    results: list[ReviewClassification]
+
+
+class Lab2SampleDataResponse(BaseModel):
+    dataset: str
+    total_rows: int
+    sample: list[UberReviewInput]
+
+
+class Lab2StatusResponse(BaseModel):
     lab: int
     name: str
     status: str
+    dataset: str
+    model: str
     pipeline: list[str]
-    sample_result: Lab2SampleResult
+    available_endpoints: list[str]
 
 
 class Lab3Architecture(BaseModel):
@@ -45,14 +88,8 @@ class Lab3StatusResponse(BaseModel):
     security: list[str]
 
 
-class OllamaChatMessage(BaseModel):
-    role: str
-    content: str
-
-
-class OllamaChatResponse(BaseModel):
+class OllamaGenerateResponse(BaseModel):
     model: str
-    message: OllamaChatMessage
+    response: str
     done: bool
     raw: dict[str, Any]
-
