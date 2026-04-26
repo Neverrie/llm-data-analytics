@@ -93,6 +93,63 @@ class Lab3StatusResponse(BaseModel):
     security: list[str]
 
 
+class Lab3DatasetItem(BaseModel):
+    name: str
+    path: str
+    type: str
+
+
+class Lab3DatasetsResponse(BaseModel):
+    datasets: list[Lab3DatasetItem]
+
+
+class RoleMatch(BaseModel):
+    column: str | None
+    confidence: float
+    reason: str
+
+
+class Lab3ColumnMapping(BaseModel):
+    roles: dict[str, RoleMatch]
+    numeric_columns: list[str] = Field(default_factory=list)
+    categorical_columns: list[str] = Field(default_factory=list)
+
+
+class Lab3ProfileResponse(BaseModel):
+    dataset_name: str
+    total_rows: int
+    total_columns: int
+    columns: list[str]
+    dtypes: dict[str, str]
+    missing_values: dict[str, int]
+    sample_values: dict[str, list[str]]
+    numeric_columns: list[str]
+    text_like_columns: list[str]
+    date_like_columns: list[str]
+    categorical_columns: list[str]
+    column_mapping: Lab3ColumnMapping
+
+
+class Lab3MapColumnsRequest(BaseModel):
+    dataset_name: str
+    user_overrides: dict[str, str | None] = Field(default_factory=dict)
+
+
+class Lab3RunToolRequest(BaseModel):
+    dataset_name: str
+    tool: str
+    arguments: dict[str, Any] = Field(default_factory=dict)
+    column_overrides: dict[str, str | None] = Field(default_factory=dict)
+
+
+class Lab3AskRequest(BaseModel):
+    dataset_name: str
+    question: str
+    column_overrides: dict[str, str | None] = Field(default_factory=dict)
+    max_tool_calls: int = Field(default=8, ge=1, le=20)
+    use_critic: bool = True
+
+
 class OllamaGenerateResponse(BaseModel):
     model: str
     response: str

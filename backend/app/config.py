@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     datasets_dir: str = str(BASE_DIR / "datasets")
     outputs_dir: str = str(BASE_DIR / "outputs")
     lab2_dataset_filename: str = "customer_reviews"
+    lab3_planner_model: str = "qwen3:8b"
+    lab3_tool_caller_model: str = "qwen2.5-coder:7b"
+    lab3_critic_model: str = "deepseek-r1:8b"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

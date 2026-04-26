@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { SectionCard } from "../../components/SectionCard";
@@ -147,23 +147,23 @@ export default function Lab2Page() {
     <div className="space-y-6">
       <SectionCard title="Лаба 2 — API Pipeline">
         <p>
-          Пайплайн читает реальные отзывы пользователей Uber из CSV, отправляет их в локальную LLM через Ollama API и
-          сохраняет структурированный JSON с классификацией отзывов.
+          Пайплайн читает реальные отзывы пользователей Uber из CSV, отправляет их в локальную LLM через Ollama API
+          и сохраняет структурированный JSON с классификацией отзывов.
         </p>
       </SectionCard>
 
-      <SectionCard title="Датасет">
-        <ul className="list-disc space-y-1 pl-6">
-          <li>Uber Customer Reviews Dataset (2024)</li>
-          <li>Используемая текстовая колонка: content</li>
-          <li>Дополнительные поля: score, thumbsUpCount, reviewCreatedVersion, at, appVersion</li>
-          <li>Файл: {status?.dataset ?? "загрузка..."}</li>
-          <li>Модель: {status?.model ?? "загрузка..."}</li>
-        </ul>
-      </SectionCard>
+      <section className="neu-card space-y-4 p-6">
+        <h2 className="text-xl font-semibold">Датасет</h2>
+        <p>Uber Customer Reviews Dataset (2024)</p>
+        <p className="text-sm text-slate-600">
+          Текстовая колонка: <code>content</code>. Дополнительные поля: <code>score</code>, <code>thumbsUpCount</code>,
+          <code> reviewCreatedVersion</code>, <code>at</code>, <code>appVersion</code>.
+        </p>
+      </section>
 
-      <SectionCard title="Pipeline">
-        <ol className="list-decimal space-y-1 pl-6">
+      <section className="neu-card space-y-4 p-6">
+        <h2 className="text-xl font-semibold">Pipeline</h2>
+        <ol className="list-decimal space-y-1 pl-6 text-sm text-slate-700">
           <li>read dataset</li>
           <li>filter reviews</li>
           <li>build prompt</li>
@@ -172,82 +172,88 @@ export default function Lab2Page() {
           <li>validate with Pydantic</li>
           <li>save result.json</li>
         </ol>
-      </SectionCard>
+      </section>
 
       <section className="neu-card space-y-4 p-6">
         <h2 className="text-xl font-semibold">Настройки запуска</h2>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <p className="text-sm text-slate-600">
+          `limit` — сколько отзывов обработать. `batch_size` — сколько отзывов отправлять в модель за один запрос.
+          Backend ограничивает максимум по limit автоматически.
+        </p>
+
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <label className="space-y-2">
             <span className="text-sm font-medium">limit</span>
-            <p className="text-xs text-slate-600">Сколько отзывов обработать. Backend ограничит максимум.</p>
             <input
               type="number"
               min={1}
-              max={1000}
               value={limit}
-              onChange={(e) => setLimit(Number(e.target.value) || 10)}
+              onChange={(event) => setLimit(Number(event.target.value) || 10)}
               className="neu-inset w-full px-3 py-2 text-sm"
             />
           </label>
+
           <label className="space-y-2">
             <span className="text-sm font-medium">batch_size</span>
-            <p className="text-xs text-slate-600">Сколько отзывов отправлять в модель за один запрос.</p>
             <input
               type="number"
               min={1}
               max={20}
               value={batchSize}
-              onChange={(e) => setBatchSize(Number(e.target.value) || 5)}
+              onChange={(event) => setBatchSize(Number(event.target.value) || 5)}
               className="neu-inset w-full px-3 py-2 text-sm"
             />
           </label>
+
           <label className="space-y-2">
             <span className="text-sm font-medium">min_score (опционально)</span>
-            <p className="text-xs text-slate-600">Нижняя граница фильтра по оценке.</p>
             <input
               type="number"
               min={1}
               max={5}
               value={minScore}
-              onChange={(e) => setMinScore(e.target.value)}
+              onChange={(event) => setMinScore(event.target.value)}
               className="neu-inset w-full px-3 py-2 text-sm"
-              placeholder="например, 1"
             />
           </label>
+
           <label className="space-y-2">
             <span className="text-sm font-medium">max_score (опционально)</span>
-            <p className="text-xs text-slate-600">Верхняя граница фильтра по оценке.</p>
             <input
               type="number"
               min={1}
               max={5}
               value={maxScore}
-              onChange={(e) => setMaxScore(e.target.value)}
+              onChange={(event) => setMaxScore(event.target.value)}
               className="neu-inset w-full px-3 py-2 text-sm"
-              placeholder="например, 5"
             />
           </label>
         </div>
 
-        <div className="flex flex-wrap gap-3">
-          <button className="neu-btn" onClick={handleLoadSample} disabled={loadingSample || loadingRun}>
-            {loadingSample ? "Загрузка sample data..." : "Показать sample data"}
+        <div className="flex flex-wrap gap-2">
+          <button className="neu-btn" onClick={handleLoadSample} disabled={loadingSample}>
+            {loadingSample ? "Загрузка..." : "Показать sample data"}
           </button>
-          <button className="neu-btn" onClick={handleRunPipeline} disabled={loadingRun || loadingSample}>
-            {loadingRun ? "Запуск pipeline..." : "Запустить pipeline"}
+          <button className="neu-btn" onClick={handleRunPipeline} disabled={loadingRun}>
+            {loadingRun ? "Запуск..." : "Запустить pipeline"}
           </button>
         </div>
 
-        {loadingStatus ? <p className="text-sm text-slate-600">Загрузка статуса Lab 2...</p> : null}
+        {loadingStatus ? <p className="text-sm">Загрузка статуса Lab 2...</p> : null}
+        {status ? (
+          <p className="text-sm text-slate-700">
+            Модель: <span className="font-medium">{status.model}</span> | Датасет: <span className="font-medium">{status.dataset}</span>
+          </p>
+        ) : null}
         {error ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
       </section>
 
       {sampleData ? (
         <section className="neu-card space-y-4 p-6">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-xl font-semibold">Sample Data</h2>
-            <p className="text-sm text-slate-600">Всего после фильтров: {sampleData.total_rows}</p>
-          </div>
+          <h2 className="text-xl font-semibold">Sample data</h2>
+          <p className="text-sm text-slate-600">
+            Dataset: {sampleData.dataset} | Rows after filtering: {sampleData.total_rows}
+          </p>
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead>
@@ -266,7 +272,7 @@ export default function Lab2Page() {
                     <td className="p-2">{row.score ?? "-"}</td>
                     <td className="p-2">{row.thumbs_up_count ?? "-"}</td>
                     <td className="p-2">{row.at ?? "-"}</td>
-                    <td className="p-2">{truncate(row.content, 160)}</td>
+                    <td className="p-2">{truncate(row.content, 140)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -278,36 +284,22 @@ export default function Lab2Page() {
       {runResult ? (
         <section className="neu-card space-y-4 p-6">
           <h2 className="text-xl font-semibold">Результат pipeline</h2>
-          <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
-            <p>
-              <span className="font-medium">model:</span> {runResult.model}
-            </p>
-            <p>
-              <span className="font-medium">dataset:</span> {runResult.dataset}
-            </p>
-            <p>
-              <span className="font-medium">rows_requested:</span> {runResult.rows_requested}
-            </p>
-            <p>
-              <span className="font-medium">rows_processed:</span> {runResult.rows_processed}
-            </p>
-            <p>
-              <span className="font-medium">batch_size:</span> {runResult.batch_size}
-            </p>
-            <p>
-              <span className="font-medium">batches_processed:</span> {runResult.batches_processed}
-            </p>
-            <p className="md:col-span-2">
-              <span className="font-medium">output_file:</span> {runResult.output_file}
-            </p>
+          <div className="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
+            <p>model: {runResult.model}</p>
+            <p>dataset: {runResult.dataset}</p>
+            <p>rows_requested: {runResult.rows_requested}</p>
+            <p>rows_processed: {runResult.rows_processed}</p>
+            <p>batch_size: {runResult.batch_size}</p>
+            <p>batches_processed: {runResult.batches_processed}</p>
+            <p className="md:col-span-2">output_file: {runResult.output_file}</p>
           </div>
 
           {runResult.warnings.length > 0 ? (
-            <div className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-700">
-              <p className="font-medium">Warnings:</p>
+            <div className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <p className="font-medium">Предупреждения:</p>
               <ul className="list-disc pl-5">
-                {runResult.warnings.map((warning, index) => (
-                  <li key={`${warning}-${index}`}>{warning}</li>
+                {runResult.warnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
                 ))}
               </ul>
             </div>
@@ -327,15 +319,15 @@ export default function Lab2Page() {
                 </tr>
               </thead>
               <tbody>
-                {runResult.results.map((row) => (
-                  <tr key={row.row_id} className="border-t border-slate-200/70 align-top">
-                    <td className="p-2">{row.row_id}</td>
-                    <td className="p-2">{row.sentiment}</td>
-                    <td className="p-2">{row.issue_type}</td>
-                    <td className="p-2">{row.topic}</td>
-                    <td className="p-2">{row.urgency}</td>
-                    <td className="p-2">{row.summary}</td>
-                    <td className="p-2">{row.suggested_action}</td>
+                {runResult.results.map((item) => (
+                  <tr key={item.row_id} className="border-t border-slate-200/70 align-top">
+                    <td className="p-2">{item.row_id}</td>
+                    <td className="p-2">{item.sentiment}</td>
+                    <td className="p-2">{item.issue_type}</td>
+                    <td className="p-2">{item.topic}</td>
+                    <td className="p-2">{item.urgency}</td>
+                    <td className="p-2">{item.summary}</td>
+                    <td className="p-2">{item.suggested_action}</td>
                   </tr>
                 ))}
               </tbody>
@@ -344,12 +336,12 @@ export default function Lab2Page() {
 
           <details className="neu-inset p-4">
             <summary className="cursor-pointer font-medium">Raw JSON</summary>
-            <pre className="mt-3 overflow-x-auto text-xs md:text-sm">{JSON.stringify(runResult, null, 2)}</pre>
+            <pre className="mt-2 overflow-x-auto text-xs md:text-sm">{JSON.stringify(runResult, null, 2)}</pre>
           </details>
 
           <a
             href={`${apiBaseUrl}/lab2/download`}
-            className="inline-flex rounded-xl px-4 py-2 text-sm font-medium text-accent underline"
+            className="inline-flex rounded-xl px-3 py-2 font-medium text-accent underline"
             target="_blank"
             rel="noreferrer"
           >

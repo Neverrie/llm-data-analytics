@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8003/api";
+﻿const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8003/api";
 
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -45,7 +45,16 @@ export const api = {
   },
   runLab2Pipeline: <TResponse, TBody>(body: TBody) => postJson<TResponse, TBody>("/lab2/run", body),
   getLab2Result: <T>() => getJson<T>("/lab2/result"),
-  getLab3Status: <T>() => getJson<T>("/lab3/status")
+  getLab3Status: <T>() => getJson<T>("/lab3/status"),
+  getLab3Datasets: <T>() => getJson<T>("/lab3/datasets"),
+  getLab3Profile: <T>(datasetName: string) =>
+    getJson<T>(`/lab3/profile?dataset_name=${encodeURIComponent(datasetName)}`),
+  mapLab3Columns: <TResponse, TBody>(body: TBody) => postJson<TResponse, TBody>("/lab3/map-columns", body),
+  getLab3Tools: <T>() => getJson<T>("/lab3/tools"),
+  runLab3Tool: <TResponse, TBody>(body: TBody) => postJson<TResponse, TBody>("/lab3/run-tool", body),
+  askLab3Agent: <TResponse, TBody>(body: TBody) => postJson<TResponse, TBody>("/lab3/ask", body),
+  getLab3Result: <T>() => getJson<T>("/lab3/result")
 };
 
 export const apiBaseUrl = API_BASE_URL;
+

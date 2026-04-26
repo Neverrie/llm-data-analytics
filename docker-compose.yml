@@ -13,6 +13,9 @@ services:
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_MODEL: qwen3:8b
       LAB2_DATASET_FILENAME: customer_reviews
+      LAB3_PLANNER_MODEL: qwen3:8b
+      LAB3_TOOL_CALLER_MODEL: qwen2.5-coder:7b
+      LAB3_CRITIC_MODEL: deepseek-r1:8b
       DATASETS_DIR: /datasets
       OUTPUTS_DIR: /outputs
 
