@@ -52,7 +52,7 @@ type AskResult = {
   planner_output: { plan: string; tool_calls: Array<{ tool: string; arguments: Record<string, unknown> }> };
   executed_tools: Array<Record<string, unknown>>;
   final_answer: string;
-  critic_review?: { passed: boolean; issues: string[]; recommendations: string[] } | null;
+  critic_review?: { passed: boolean | null; issues: string[]; recommendations: string[] } | null;
   output_files?: Record<string, string>;
 };
 
@@ -149,6 +149,16 @@ const MODE_LABEL: Record<AskResult["analysis_mode"], string> = {
   balanced: "Сбалансированный",
   full: "Полный",
 };
+
+function criticBadge(critic: AskResult["critic_review"]) {
+  if (!critic || critic.passed === null) {
+    return { label: "Critic недоступен", className: "app-badge-muted" };
+  }
+  if (critic.passed) {
+    return { label: "Проверка пройдена", className: "app-badge-primary" };
+  }
+  return { label: "Есть замечания", className: "app-badge-muted" };
+}
 
 function shortSession(sessionId: string | null) {
   if (!sessionId) return "-";
@@ -400,10 +410,29 @@ export default function Lab3Page() {
               </div>
             ) : null}
             {payload.critic_review ? (
-              <details className="app-expansion">
-                <summary>Critic review</summary>
-                <pre className="app-code-block m-3">{JSON.stringify(payload.critic_review, null, 2)}</pre>
-              </details>
+              <div className="app-card-compact space-y-2 p-3">
+                <span className={`app-badge ${criticBadge(payload.critic_review).className}`}>{criticBadge(payload.critic_review).label}</span>
+                {payload.critic_review.issues.length > 0 ? (
+                  <div>
+                    <p className="text-xs font-semibold">Замечания</p>
+                    <ul className="list-disc pl-4 text-xs app-muted">
+                      {payload.critic_review.issues.map((issue) => (
+                        <li key={`${message.id}-issue-${issue}`}>{issue}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                {payload.critic_review.recommendations.length > 0 ? (
+                  <div>
+                    <p className="text-xs font-semibold">Рекомендации</p>
+                    <ul className="list-disc pl-4 text-xs app-muted">
+                      {payload.critic_review.recommendations.map((rec) => (
+                        <li key={`${message.id}-rec-${rec}`}>{rec}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </div>
             ) : null}
           </div>
         ) : null}

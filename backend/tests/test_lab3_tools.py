@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import pandas as pd
 
@@ -79,7 +79,26 @@ def test_describe_categorical_columns() -> None:
     frame = pd.DataFrame({"passed": ["yes", "no", "yes"], "class_group": ["A", "B", "A"]})
     result = describe_categorical_columns(frame, _mapping(text=None, rating=None, categorical=["passed", "class_group"]), {"max_columns": 10})
     assert result["status"] == "success"
-    assert "passed" in result["data"]
+    assert "passed" in result["data"]["categorical_columns"]
+
+
+def test_describe_categorical_columns_separates_score_and_count() -> None:
+    frame = pd.DataFrame(
+        {
+            "score": [1, 5, 5, 4],
+            "thumbsUpCount": [0, 0, 1, 20],
+            "appVersion": ["1.0", "1.0", "2.0", "2.0"],
+        }
+    )
+    result = describe_categorical_columns(
+        frame,
+        _mapping(text=None, rating="score", numeric=["score", "thumbsUpCount"], categorical=["appVersion"]),
+        {"max_columns": 10},
+    )
+    assert result["status"] == "success"
+    assert "appVersion" in result["data"]["categorical_columns"]
+    assert "score" in result["data"]["ordinal_or_low_cardinality_numeric"]
+    assert "thumbsUpCount" in result["data"]["numeric_count_like_columns"]
 
 
 def test_infer_potential_target_columns() -> None:

@@ -105,14 +105,91 @@ def describe_numeric_columns(frame: pd.DataFrame, mapping: dict[str, Any], argum
 def describe_categorical_columns(frame: pd.DataFrame, mapping: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
     max_columns = int(arguments.get("max_columns", 10))
     top_n = int(arguments.get("top_n", 10))
-    columns = _categorical_columns(frame, mapping)[:max_columns]
-    if not columns:
+    categorical_candidates = _categorical_columns(frame, mapping)[: max_columns * 2]
+    numeric_cols = _numeric_columns(frame, mapping)
+    if not categorical_candidates and not numeric_cols:
         return _tool_result("describe_categorical_columns", "warning", {}, ["no categorical columns detected"])
-    data: dict[str, Any] = {}
-    for column in columns:
-        counts = frame[column].fillna("<NA>").astype(str).value_counts().head(top_n)
-        data[column] = {"unique_count": int(frame[column].nunique(dropna=True)), "top_values": counts.to_dict()}
-    return _tool_result("describe_categorical_columns", "success", data)
+
+    categorical_data: dict[str, Any] = {}
+    ordinal_data: dict[str, Any] = {}
+    count_like_data: dict[str, Any] = {}
+    warnings: list[str] = []
+
+    for column in categorical_candidates:
+        if column not in frame.columns:
+            continue
+        series = frame[column]
+        low = column.lower()
+        if pd.api.types.is_numeric_dtype(series):
+            continue
+        counts = series.fillna("<NA>").astype(str).value_counts().head(top_n)
+        categorical_data[column] = {
+            "unique_count": int(series.nunique(dropna=True)),
+            "top_values": counts.to_dict(),
+        }
+
+    for column in numeric_cols[:max_columns]:
+        if column not in frame.columns:
+            continue
+        series = pd.to_numeric(frame[column], errors="coerce").dropna()
+        if series.empty:
+            continue
+        unique_count = int(series.nunique(dropna=True))
+        low = column.lower()
+        top_values = series.value_counts().sort_index().head(top_n).to_dict()
+
+        is_low_cardinality = unique_count <= 12
+        is_rating_like = any(token in low for token in ["score", "rating", "stars", "grade", "балл", "оцен"])
+        is_count_like = any(token in low for token in ["count", "num", "qty", "quantity", "total", "колич"])
+
+        if is_count_like:
+            count_like_data[column] = {
+                "unique_count": unique_count,
+                "min": float(series.min()),
+                "max": float(series.max()),
+                "median": float(series.median()),
+                "top_values": top_values,
+            }
+            continue
+
+        if is_rating_like and is_low_cardinality:
+            ordinal_data[column] = {
+                "kind": "rating",
+                "unique_count": unique_count,
+                "min": float(series.min()),
+                "max": float(series.max()),
+                "distribution": top_values,
+            }
+            continue
+
+        if is_low_cardinality:
+            ordinal_data[column] = {
+                "kind": "ordinal_numeric",
+                "unique_count": unique_count,
+                "min": float(series.min()),
+                "max": float(series.max()),
+                "distribution": top_values,
+            }
+
+    if ordinal_data:
+        ordinal_name = next(iter(ordinal_data.keys()))
+        warnings.append(
+            f"{ordinal_name} является числовым рейтингом/порядковой переменной, но его можно анализировать как распределение категорий."
+        )
+    if count_like_data:
+        count_name = next(iter(count_like_data.keys()))
+        warnings.append(
+            f"{count_name} является числовым счётчиком, поэтому частоты значений полезны, но это не классическая категориальная переменная."
+        )
+
+    data = {
+        "categorical_columns": categorical_data,
+        "ordinal_or_low_cardinality_numeric": ordinal_data,
+        "numeric_count_like_columns": count_like_data,
+    }
+    if not any(data.values()):
+        return _tool_result("describe_categorical_columns", "warning", data, ["no categorical-like columns detected"])
+    return _tool_result("describe_categorical_columns", "success", data, warnings=warnings)
 
 
 def describe_rating(frame: pd.DataFrame, mapping: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:

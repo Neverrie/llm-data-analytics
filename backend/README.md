@@ -1,4 +1,4 @@
-﻿# Backend (FastAPI)
+# Backend (FastAPI)
 
 Backend-часть проекта LLM Data Analyst Lab.
 
@@ -53,6 +53,13 @@ Lab 3 поддерживает универсальный анализ CSV/XLSX 
 - `llm_calls_count`
 - `elapsed_seconds`
 - `warnings`
+
+Дополнительно:
+
+- critic формирует JSON-отзыв на русском языке;
+- финальный ответ агента может быть Markdown (critic не требует JSON от final answer);
+- если planner вернул невалидный JSON, backend использует rule-based fallback с коротким warning;
+- tool `describe_categorical_columns` разделяет признаки на `categorical`, `ordinal_or_low_cardinality_numeric` и `numeric_count_like_columns`.
 
 ### Upload endpoint
 

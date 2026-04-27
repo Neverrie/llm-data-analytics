@@ -1,4 +1,4 @@
-﻿# llm-data-analytics-final
+# llm-data-analytics-final
 
 Учебный проект **LLM Data Analyst Lab** с веб-интерфейсом (Next.js) и backend API (FastAPI).
 
@@ -68,6 +68,16 @@ Lab 3 — универсальный аналитический агент дл�
 - `fast`: heuristic mapping + rule-based planner + один LLM-вызов для финального ответа.
 - `balanced`: heuristic mapping + LLM planner + финальный ответ (+ critic опционально).
 - `full`: heuristic + LLM-assisted mapping + LLM planner + финальный ответ (+ critic опционально).
+
+Обновления качества Lab 3:
+
+- critic возвращает JSON с русскими замечаниями и рекомендациями;
+- финальный ответ пользователя может быть Markdown, JSON от него не требуется;
+- при невалидном planner JSON показывается короткий warning и включается fallback;
+- категориальный анализ разделяет признаки на:
+  - классические категориальные,
+  - ordinal/rating,
+  - count-like числовые.
 
 В ответе агента возвращаются:
 
