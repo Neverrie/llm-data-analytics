@@ -494,7 +494,7 @@ export default function Lab3Page() {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
         <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
-          <section className="app-card space-y-3 p-4">
+          <section className="app-card min-h-[240px] space-y-3 p-4">
             <h2 className="app-section-title text-base">Выбор датасета</h2>
             <select className="app-select" value={selectedDataset} onChange={(event) => setSelectedDataset(event.target.value)}>
               {datasets.map((dataset) => (
