@@ -1,5 +1,6 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
+import warnings
 from pathlib import Path
 
 import pandas as pd
@@ -109,6 +110,24 @@ def test_student_id_not_text_and_attendance_not_date(mapper_paths: Path) -> None
     assert mapping.roles["date_column"].column is None
     assert mapping.roles["rating_column"].column == "final_score"
     assert mapping.roles["target_column"].column in {"final_score", "passed"}
+
+
+def test_date_detection_no_warning_for_numeric_rate(mapper_paths: Path) -> None:
+    _write_student_dataset(mapper_paths / "student_performance.csv")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        profile = lab3_column_mapper.profile_dataset("student_performance.csv")
+    assert profile["date_like_columns"] == []
+    assert not any("Could not infer format" in str(item.message) for item in caught)
+
+
+def test_date_detection_for_iso_string(mapper_paths: Path) -> None:
+    frame = pd.DataFrame({"created_at": ["2024-01-01", "2024-01-02", "2024-01-03"], "value": [1, 2, 3]})
+    frame.to_csv(mapper_paths / "iso_dates.csv", index=False)
+    profile = lab3_column_mapper.profile_dataset("iso_dates.csv")
+    mapping = lab3_column_mapper.infer_column_roles_heuristic(profile)
+    assert "created_at" in profile["date_like_columns"]
+    assert mapping.roles["date_column"].column == "created_at"
 
 
 @pytest.mark.asyncio

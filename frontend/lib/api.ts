@@ -73,7 +73,9 @@ export const api = {
   getLab3Tools: <T>() => getJson<T>("/lab3/tools"),
   runLab3Tool: <TResponse, TBody>(body: TBody) => postJson<TResponse, TBody>("/lab3/run-tool", body),
   askLab3Agent: <TResponse, TBody>(body: TBody) => postJson<TResponse, TBody>("/lab3/ask", body),
-  getLab3Result: <T>() => getJson<T>("/lab3/result")
+  getLab3Result: <T>() => getJson<T>("/lab3/result"),
+  resetLab3Session: <TResponse, TBody>(body: TBody) => postJson<TResponse, TBody>("/lab3/reset-session", body),
+  getLab3Session: <T>(sessionId: string) => getJson<T>(`/lab3/session?session_id=${encodeURIComponent(sessionId)}`)
 };
 
 export const apiBaseUrl = API_BASE_URL;

@@ -2,6 +2,7 @@
 
 import json
 import re
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -41,8 +42,35 @@ TEXT_NAME_PATTERNS = [
     "текст",
     "описан",
 ]
-DATE_NAME_PATTERNS = ["date", "time", "created", "created_at", "timestamp", "at", "дата", "время"]
-DATE_EXCLUDE_PATTERNS = ["rate", "ratio", "percent", "percentage", "attendance_rate", "score", "grade"]
+DATE_NAME_PATTERNS = [
+    "date",
+    "time",
+    "created",
+    "created_at",
+    "updated",
+    "timestamp",
+    "at",
+    "repliedat",
+    "replied_at",
+    "дата",
+    "время",
+]
+DATE_EXCLUDE_PATTERNS = [
+    "rate",
+    "ratio",
+    "percent",
+    "percentage",
+    "score",
+    "grade",
+    "amount",
+    "price",
+    "count",
+    "total",
+    "age",
+    "id",
+    "code",
+    "key",
+]
 RATING_NAME_PATTERNS = ["final_score", "score", "rating", "stars", "star", "grade", "previous_score", "балл", "оцен"]
 TARGET_NAME_PATTERNS = [
     "target",
@@ -114,11 +142,48 @@ def _sample_values(series: pd.Series, max_items: int = 3) -> list[str]:
     return [str(item) for item in series.dropna().astype(str).head(max_items).tolist()]
 
 
-def _is_date_like_series(series: pd.Series) -> bool:
-    sample = series.dropna().astype(str).head(200)
+def looks_like_date_string(value: str) -> bool:
+    text = value.strip()
+    if not text:
+        return False
+    patterns = [
+        r"^\d{4}-\d{2}-\d{2}$",
+        r"^\d{4}/\d{2}/\d{2}$",
+        r"^\d{2}\.\d{2}\.\d{4}$",
+        r"^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$",
+        r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(?:\.\d+)?(?:Z|[+\-]\d{2}:\d{2})?$",
+    ]
+    return any(re.match(pattern, text) for pattern in patterns)
+
+
+def _parse_datetimes_safely(sample: pd.Series) -> pd.Series:
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=UserWarning)
+        try:
+            return pd.to_datetime(sample, errors="coerce", utc=False, format="mixed")
+        except TypeError:
+            return pd.to_datetime(sample, errors="coerce", utc=False)
+
+
+def _is_date_like_series(column_name: str, series: pd.Series) -> bool:
+    if pd.api.types.is_numeric_dtype(series) or pd.api.types.is_bool_dtype(series):
+        return False
+    low_name = column_name.lower()
+    if any(part in low_name for part in DATE_EXCLUDE_PATTERNS):
+        return False
+
+    sample = series.dropna().astype(str).str.strip().head(200)
     if sample.empty:
         return False
-    parsed = pd.to_datetime(sample, errors="coerce")
+
+    looks_like_ratio = sample.apply(looks_like_date_string).mean()
+    name_is_date_like = _column_name_has(column_name, DATE_NAME_PATTERNS)
+    if not name_is_date_like and looks_like_ratio < 0.5:
+        return False
+    if name_is_date_like and looks_like_ratio < 0.15:
+        return False
+
+    parsed = _parse_datetimes_safely(sample)
     return parsed.notna().mean() >= 0.7
 
 
@@ -130,11 +195,7 @@ def profile_dataset(dataset_name: str) -> dict[str, Any]:
 
     numeric_columns = [column for column in frame.columns if pd.api.types.is_numeric_dtype(frame[column])]
     text_like_columns = [column for column in frame.columns if pd.api.types.is_object_dtype(frame[column]) or pd.api.types.is_string_dtype(frame[column])]
-    date_like_columns = [
-        column
-        for column in frame.columns
-        if not pd.api.types.is_numeric_dtype(frame[column]) and _is_date_like_series(frame[column])
-    ]
+    date_like_columns = [column for column in frame.columns if _is_date_like_series(column, frame[column])]
 
     categorical_columns: list[str] = []
     for column in frame.columns:
@@ -288,7 +349,7 @@ def infer_column_roles_heuristic(profile: dict[str, Any]) -> Lab3ColumnMapping:
         series = frame[column]
         if pd.api.types.is_numeric_dtype(series):
             continue
-        if _column_name_has(column, DATE_NAME_PATTERNS) and _is_date_like_series(series):
+        if _column_name_has(column, DATE_NAME_PATTERNS) and _is_date_like_series(column, series):
             date_column = column
             break
     if not date_column:

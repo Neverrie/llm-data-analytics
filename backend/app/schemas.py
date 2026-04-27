@@ -149,6 +149,34 @@ class Lab3AskRequest(BaseModel):
     max_tool_calls: int = Field(default=6, ge=1, le=20)
     use_critic: bool = False
     analysis_mode: Literal["fast", "balanced", "full"] = "fast"
+    session_id: str | None = None
+    include_history: bool = True
+    reset_session: bool = False
+
+
+class Lab3AskResponse(BaseModel):
+    lab: int
+    status: str
+    dataset: str
+    question: str
+    analysis_mode: Literal["fast", "balanced", "full"]
+    llm_calls_count: int
+    elapsed_seconds: float
+    warnings: list[str] = Field(default_factory=list)
+    session_id: str
+    history_length: int = 0
+    conversation_summary: str = ""
+    column_mapping: dict[str, Any]
+    planner_output: dict[str, Any]
+    planner_warnings: list[str] = Field(default_factory=list)
+    executed_tools: list[dict[str, Any]] = Field(default_factory=list)
+    final_answer: str
+    critic_review: dict[str, Any] | None = None
+    output_files: dict[str, str] | None = None
+
+
+class Lab3ResetSessionRequest(BaseModel):
+    session_id: str
 
 
 class OllamaGenerateResponse(BaseModel):

@@ -37,6 +37,9 @@ Lab 3 поддерживает универсальный анализ CSV/XLSX 
 - allowlisted tools
 - режимы `fast` / `balanced` / `full`
 - trace и отчёты в `outputs/lab3`
+- session context для follow-up вопросов (`outputs/lab3/sessions`)
+- markdown-ответы в workspace UI
+- исправлен warning pandas date parsing в column mapper
 
 Режимы:
 
@@ -69,6 +72,8 @@ Lab 3 поддерживает универсальный анализ CSV/XLSX 
 - `GET /api/lab3/tools`
 - `POST /api/lab3/run-tool`
 - `POST /api/lab3/ask`
+- `GET /api/lab3/session?session_id=...`
+- `POST /api/lab3/reset-session`
 - `GET /api/lab3/result`
 - `GET /api/lab3/download-report`
 

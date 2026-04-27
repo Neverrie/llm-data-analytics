@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import time
@@ -9,7 +9,13 @@ from app.config import settings
 from app.ollama_client import OllamaClient, OllamaClientError
 from app.services.lab2_service import Lab2PipelineError
 from app.services.lab3_column_mapper import get_effective_column_mapping
-from app.services.lab3_security import ALLOWED_TOOLS, validate_tool_call
+from app.services.lab3_security import validate_tool_call
+from app.services.lab3_session import (
+    append_turn,
+    build_context_for_followup,
+    create_session_id,
+    reset_session as reset_session_state,
+)
 from app.services.lab3_tools import TOOL_METADATA, execute_tool
 
 
@@ -22,6 +28,27 @@ def _parse_json_or_raise(raw_text: str, error_prefix: str) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise Lab2PipelineError(f"{error_prefix}. LLM output must be a JSON object.")
     return data
+
+
+def _tool_summary_item(tool_result: dict[str, Any]) -> str:
+    name = str(tool_result.get("tool", "unknown"))
+    status = str(tool_result.get("status", "unknown"))
+    warnings = tool_result.get("warnings", [])
+    extra = f", warnings={len(warnings)}" if isinstance(warnings, list) and warnings else ""
+    return f"{name} ({status}{extra})"
+
+
+def _extract_key_findings(executed_tools: list[dict[str, Any]]) -> list[str]:
+    findings: list[str] = []
+    for item in executed_tools[:6]:
+        tool = str(item.get("tool", "unknown"))
+        data = item.get("data")
+        if isinstance(data, dict):
+            keys = ", ".join(list(data.keys())[:3])
+            findings.append(f"{tool}: ключи данных [{keys}]")
+        else:
+            findings.append(f"{tool}: получен результат")
+    return findings
 
 
 def _add_tool_if_valid(
@@ -55,61 +82,46 @@ def build_rule_based_plan(
     candidates: list[str] = []
     available = set(available_tools)
 
-    # Always useful.
     _add_tool_if_valid(candidates, warnings, "get_dataset_schema", column_mapping, available)
     _add_tool_if_valid(candidates, warnings, "get_missing_values_report", column_mapping, available)
 
     if any(token in question_low for token in ["обзор", "структур", "dataset", "датасет", "данные"]):
         _add_tool_if_valid(candidates, warnings, "describe_numeric_columns", column_mapping, available)
-
     if any(token in question_low for token in ["качество", "пропуск", "missing", "дубликат"]):
         _add_tool_if_valid(candidates, warnings, "get_duplicate_text_report", column_mapping, available)
-
     if any(token in question_low for token in ["числ", "numeric", "статист", "средн", "median"]):
         _add_tool_if_valid(candidates, warnings, "describe_numeric_columns", column_mapping, available)
         _add_tool_if_valid(candidates, warnings, "get_correlation_matrix", column_mapping, available)
-
     if any(token in question_low for token in ["оцен", "рейтинг", "score", "балл"]):
         _add_tool_if_valid(candidates, warnings, "describe_rating", column_mapping, available)
         _add_tool_if_valid(candidates, warnings, "get_rating_distribution", column_mapping, available)
-
     if any(token in question_low for token in ["низк", "плох", "negative", "негатив"]):
         _add_tool_if_valid(candidates, warnings, "get_low_rating_rows", column_mapping, available)
         _add_tool_if_valid(candidates, warnings, "extract_top_keywords", column_mapping, available)
-
     if any(token in question_low for token in ["высок", "хорош", "positive", "позитив"]):
         _add_tool_if_valid(candidates, warnings, "get_high_rating_rows", column_mapping, available)
-
     if any(token in question_low for token in ["текст", "отзыв", "comments", "keywords", "слова", "темы"]):
         _add_tool_if_valid(candidates, warnings, "get_text_length_stats", column_mapping, available)
         _add_tool_if_valid(candidates, warnings, "extract_top_keywords", column_mapping, available)
         _add_tool_if_valid(candidates, warnings, "cluster_texts_by_topic_simple", column_mapping, available)
-
     if any(token in question_low for token in ["дата", "время", "динам", "месяц", "trend", "тренд"]):
         _add_tool_if_valid(candidates, warnings, "get_rows_by_month", column_mapping, available)
         _add_tool_if_valid(candidates, warnings, "get_average_rating_by_month", column_mapping, available)
-
     if any(token in question_low for token in ["верс", "app", "version"]):
         _add_tool_if_valid(candidates, warnings, "get_rows_by_version", column_mapping, available)
         _add_tool_if_valid(candidates, warnings, "get_average_rating_by_version", column_mapping, available)
         _add_tool_if_valid(candidates, warnings, "find_problematic_versions", column_mapping, available)
-
     if any(token in question_low for token in ["корреля", "correlation", "зависим", "влияет"]):
         _add_tool_if_valid(candidates, warnings, "get_correlation_matrix", column_mapping, available)
-
     if any(token in question_low for token in ["аномал", "выброс", "anomaly", "outlier"]):
         _add_tool_if_valid(candidates, warnings, "detect_numeric_outliers", column_mapping, available)
-
     if any(token in question_low for token in ["категори", "categorical"]):
         _add_tool_if_valid(candidates, warnings, "describe_categorical_columns", column_mapping, available)
-
     if any(token in question_low for token in ["target", "label", "целев", "результат"]):
         _add_tool_if_valid(candidates, warnings, "infer_potential_target_columns", column_mapping, available)
-
     if any(token in question_low for token in ["prompt injection", "injection", "jailbreak", "промпт"]):
         _add_tool_if_valid(candidates, warnings, "detect_text_prompt_injection_patterns", column_mapping, available)
         _add_tool_if_valid(candidates, warnings, "explain_prompt_injection_protection", column_mapping, available)
-
     if any(token in question_low for token in ["отчет", "отчёт", "report", "полный"]):
         _add_tool_if_valid(candidates, warnings, "describe_numeric_columns", column_mapping, available)
         _add_tool_if_valid(candidates, warnings, "describe_categorical_columns", column_mapping, available)
@@ -119,7 +131,6 @@ def build_rule_based_plan(
     for tool in candidates:
         if tool not in unique_calls:
             unique_calls.append(tool)
-
     unique_calls = unique_calls[:max_tool_calls]
     tool_calls = [{"tool": tool, "arguments": {}} for tool in unique_calls]
     return {"plan": "Rule-based plan for fast mode.", "tool_calls": tool_calls}, warnings
@@ -199,16 +210,42 @@ async def _planner_output_llm(
     return {"plan": planner_data.get("plan", ""), "tool_calls": valid_calls}, warnings
 
 
-async def _final_answer(question: str, mapping: dict[str, Any], executed_tools: list[dict[str, Any]]) -> str:
+def _build_history_block(history_context: dict[str, Any], mapping: dict[str, Any]) -> str:
+    if not history_context or history_context.get("history_length", 0) == 0:
+        return "История диалога отсутствует."
+    turns = history_context.get("turns", [])
+    summary = history_context.get("conversation_summary", "")
+    payload = {
+        "history_length": history_context.get("history_length", 0),
+        "conversation_summary": summary,
+        "recent_turns": turns,
+        "known_mapping": mapping.get("roles", {}),
+    }
+    return json.dumps(payload, ensure_ascii=False)
+
+
+async def _final_answer(
+    question: str,
+    mapping: dict[str, Any],
+    executed_tools: list[dict[str, Any]],
+    history_context: dict[str, Any] | None,
+) -> str:
     client = OllamaClient(settings.ollama_base_url)
+    history_block = _build_history_block(history_context or {}, mapping)
     prompt = (
-        "You are a data analyst. Answer in Russian.\n"
-        "Use only evidence from tool outputs. Do not invent columns or facts.\n"
-        "Structure:\n"
-        "1) Краткий ответ\n2) Ключевые наблюдения\n3) Подтверждающие данные\n"
-        "4) Ограничения\n5) Что проверить дальше\n"
-        f"Question: {question}\n"
-        f"Column mapping: {json.dumps(mapping, ensure_ascii=False)}\n"
+        "Ты аналитик данных. Пиши только на русском языке.\n"
+        "Отвечай на ПОСЛЕДНИЙ вопрос пользователя. Если вопрос короткий (например 'подробнее'), используй историю.\n"
+        "Используй только данные из tool outputs и краткого history context. Не выдумывай факты.\n"
+        "Не повторяй полностью предыдущий отчет, если это follow-up.\n"
+        "Формат ответа:\n"
+        "## Краткий ответ\n"
+        "## Что показывают данные\n"
+        "## Подтверждение\n"
+        "## Ограничения\n"
+        "## Что проверить дальше\n"
+        f"Вопрос: {question}\n"
+        f"Карта колонок: {json.dumps(mapping, ensure_ascii=False)}\n"
+        f"History context: {history_block}\n"
         f"Tool outputs: {json.dumps(executed_tools, ensure_ascii=False)}"
     )
     response = await client.generate_text(settings.lab3_planner_model, prompt)
@@ -261,10 +298,27 @@ async def run_agent(
     max_tool_calls: int,
     use_critic: bool,
     analysis_mode: str,
+    session_id: str | None = None,
+    include_history: bool = True,
+    reset_session: bool = False,
 ) -> dict[str, Any]:
     started_at = time.perf_counter()
     warnings: list[str] = []
     llm_calls_count = 0
+
+    session_id_value = session_id or create_session_id()
+    if reset_session and session_id:
+        try:
+            reset_session_state(session_id)
+        except Lab2PipelineError as exc:
+            warnings.append(f"Session reset skipped: {exc.message}")
+
+    history_context: dict[str, Any] = {"history_length": 0, "conversation_summary": "", "turns": []}
+    if include_history:
+        history_context = build_context_for_followup(session_id_value, dataset_name)
+        history_warning = history_context.get("warning")
+        if history_warning:
+            warnings.append(str(history_warning))
 
     use_llm_mapping = analysis_mode == "full"
     profile, mapping_model, mapping_llm_used = await get_effective_column_mapping(
@@ -296,7 +350,6 @@ async def run_agent(
         )
         llm_calls_count += 1
         use_critic_effective = use_critic
-
     warnings.extend(planner_warnings)
 
     executed_tools: list[dict[str, Any]] = []
@@ -306,7 +359,7 @@ async def run_agent(
 
     final_answer = ""
     try:
-        final_answer = await _final_answer(question, mapping, executed_tools)
+        final_answer = await _final_answer(question, mapping, executed_tools, history_context=history_context)
         llm_calls_count += 1
     except OllamaClientError as exc:
         final_answer = f"Не удалось получить финальный ответ от модели: {exc}"
@@ -322,8 +375,18 @@ async def run_agent(
             critic_review = {"passed": False, "issues": [str(exc)], "recommendations": []}
 
     report_tool = execute_tool(dataset_name, "generate_markdown_report", mapping, {"tool_outputs": executed_tools})
-
     elapsed_seconds = round(time.perf_counter() - started_at, 3)
+
+    session_state = append_turn(
+        session_id=session_id_value,
+        user_question=question,
+        agent_answer=final_answer,
+        tool_summary=[_tool_summary_item(item) for item in executed_tools],
+        column_mapping=mapping,
+        dataset_name=dataset_name,
+        key_findings=_extract_key_findings(executed_tools),
+    )
+
     result_payload: dict[str, Any] = {
         "lab": 3,
         "status": "success",
@@ -333,6 +396,9 @@ async def run_agent(
         "llm_calls_count": llm_calls_count,
         "elapsed_seconds": elapsed_seconds,
         "warnings": warnings,
+        "session_id": session_id_value,
+        "history_length": len(session_state.get("turns", [])),
+        "conversation_summary": session_state.get("conversation_summary", ""),
         "column_mapping": mapping,
         "planner_output": planner_output,
         "planner_warnings": planner_warnings,
@@ -342,13 +408,15 @@ async def run_agent(
     }
 
     export_tool = execute_tool(dataset_name, "export_lab3_result_json", mapping, {"result_payload": result_payload})
-
     trace = {
         "question": question,
         "dataset": dataset_name,
         "analysis_mode": analysis_mode,
         "elapsed_seconds": elapsed_seconds,
         "llm_calls_count": llm_calls_count,
+        "session_id": session_id_value,
+        "history_length": len(session_state.get("turns", [])),
+        "conversation_summary": session_state.get("conversation_summary", ""),
         "profile_summary": {
             "total_rows": profile["total_rows"],
             "total_columns": profile["total_columns"],
