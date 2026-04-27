@@ -110,12 +110,12 @@ ollama pull deepseek-r1:8b
 
 ## Доступ из интернета
 
-Docker Compose уже публикует порты на все интерфейсы хоста.
-Если вы откроете порты на роутере/фаерволе, проект будет доступен по вашему публичному IP:
+Docker Compose публикует порты на все интерфейсы хоста.
+После открытия портов на роутере/фаерволе сервис будет доступен по вашему публичному IP и выбранным портам:
 
-- Frontend: `http://82.162.61.44:3003`
-- Backend API: `http://82.162.61.44:8003/api/health`
-- Swagger: `http://82.162.61.44:8003/docs`
+- Frontend: `http://<PUBLIC_IP>:3003`
+- Backend API: `http://<PUBLIC_IP>:8003/api/health`
+- Swagger: `http://<PUBLIC_IP>:8003/docs`
 
 Рекомендуется ограничить доступ к backend (IP allowlist / reverse proxy / basic auth), если сервис публикуется в интернет.
 
