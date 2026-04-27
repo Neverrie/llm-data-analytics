@@ -33,21 +33,26 @@ export default function Lab1Page() {
     <div className="space-y-6">
       <SectionCard title="Лаба 1 — Prompt Engineering EDA">
         <ul className="list-disc space-y-1 pl-6">
-          <li>загрузка CSV;</li>
-          <li>4 промпта;</li>
-          <li>ответы LLM;</li>
-          <li>комментарии студента;</li>
-          <li>экспорт Markdown/PDF.</li>
+          <li>Загрузка CSV</li>
+          <li>4 промпт-блока</li>
+          <li>Ответы LLM</li>
+          <li>Комментарии студента</li>
+          <li>Экспорт Markdown/PDF</li>
         </ul>
       </SectionCard>
 
-      <section className="neu-card p-6">
-        <button className="neu-btn px-4 py-2" onClick={handleCheck} disabled={loading}>
+      <section className="app-card space-y-4 p-6">
+        <button className="app-button app-button-primary" onClick={handleCheck} disabled={loading}>
           {loading ? "Проверка..." : "Проверить API лабы 1"}
         </button>
 
-        {error ? <p className="error-box mt-4 px-3 py-2 text-sm">{error}</p> : null}
-        {result ? <pre className="neu-inset mt-4 overflow-x-auto p-4 text-xs md:text-sm">{JSON.stringify(result, null, 2)}</pre> : null}
+        {error ? (
+          <p className="rounded-lg px-3 py-2 text-sm" style={{ background: "color-mix(in srgb, var(--danger) 14%, transparent)", color: "var(--danger)" }}>
+            {error}
+          </p>
+        ) : null}
+
+        {result ? <pre className="app-code-block">{JSON.stringify(result, null, 2)}</pre> : null}
       </section>
     </div>
   );

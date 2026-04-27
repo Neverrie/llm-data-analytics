@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ThemeToggle } from "./ThemeToggle";
 
 const links = [
@@ -9,19 +12,30 @@ const links = [
 ];
 
 export function Header() {
+  const pathname = usePathname();
+
   return (
-    <header className="neu-panel mb-8 px-5 py-4">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4">
-        <Link href="/" className="text-lg font-semibold tracking-tight app-text">
+    <header className="app-header mb-6 px-4 py-3">
+      <div className="mx-auto flex h-12 max-w-[1400px] items-center justify-between gap-4">
+        <Link href="/" className="text-lg font-bold tracking-tight">
           LLM Data Analyst Lab
         </Link>
-        <div className="flex flex-wrap items-center gap-3">
-          <nav className="flex flex-wrap gap-3">
-            {links.map((link) => (
-              <Link key={link.href} href={link.href} className="neu-inset px-4 py-2 text-sm font-medium app-text transition hover:text-[var(--accent)]">
-                {link.label}
-              </Link>
-            ))}
+
+        <div className="flex items-center gap-2">
+          <nav className="hidden flex-wrap items-center gap-2 md:flex">
+            {links.map((link) => {
+              const isActive = pathname === link.href;
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`app-button ${isActive ? "app-button-secondary" : "app-button-ghost"}`}
+                  style={isActive ? { color: "var(--primary)", background: "var(--primary-soft)" } : undefined}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
           </nav>
           <ThemeToggle />
         </div>

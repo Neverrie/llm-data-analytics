@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { SectionCard } from "../../components/SectionCard";
@@ -87,7 +87,6 @@ export default function Lab2Page() {
         setLoadingStatus(false);
       }
     };
-
     fetchStatus();
   }, []);
 
@@ -112,7 +111,7 @@ export default function Lab2Page() {
       const data = await api.getLab2SampleData<Lab2SampleDataResponse>({
         limit,
         min_score: parsedMinScore,
-        max_score: parsedMaxScore
+        max_score: parsedMaxScore,
       });
       setSampleData(data);
     } catch (err) {
@@ -133,7 +132,7 @@ export default function Lab2Page() {
         limit,
         batch_size: batchSize,
         min_score: parsedMinScore,
-        max_score: parsedMaxScore
+        max_score: parsedMaxScore,
       });
       setRunResult(data);
     } catch (err) {
@@ -146,24 +145,19 @@ export default function Lab2Page() {
   return (
     <div className="space-y-6">
       <SectionCard title="Лаба 2 — API Pipeline">
-        <p>
-          Пайплайн читает реальные отзывы пользователей Uber из CSV, отправляет их в локальную LLM через Ollama API
-          и сохраняет структурированный JSON с классификацией отзывов.
-        </p>
+        <p>Пайплайн читает отзывы Uber из CSV, отправляет их в локальную LLM через Ollama API и сохраняет структурированный JSON с классификацией отзывов.</p>
       </SectionCard>
 
-      <section className="neu-card space-y-4 p-6">
-        <h2 className="text-xl font-semibold">Датасет</h2>
-        <p>Uber Customer Reviews Dataset (2024)</p>
-        <p className="text-sm muted-text">
-          Текстовая колонка: <code>content</code>. Дополнительные поля: <code>score</code>, <code>thumbsUpCount</code>,
-          <code> reviewCreatedVersion</code>, <code>at</code>, <code>appVersion</code>.
+      <section className="app-card space-y-3 p-6">
+        <h2 className="app-section-title">Датасет</h2>
+        <p className="text-sm app-muted">
+          Uber Customer Reviews Dataset (2024). Текстовая колонка: <code>content</code>. Дополнительные поля: <code>score</code>, <code>thumbsUpCount</code>, <code>reviewCreatedVersion</code>, <code>at</code>, <code>appVersion</code>.
         </p>
       </section>
 
-      <section className="neu-card space-y-4 p-6">
-        <h2 className="text-xl font-semibold">Pipeline</h2>
-        <ol className="list-decimal space-y-1 pl-6 text-sm muted-text">
+      <section className="app-card space-y-3 p-6">
+        <h2 className="app-section-title">Pipeline</h2>
+        <ol className="list-decimal space-y-1 pl-6 text-sm app-muted">
           <li>read dataset</li>
           <li>filter reviews</li>
           <li>build prompt</li>
@@ -174,105 +168,76 @@ export default function Lab2Page() {
         </ol>
       </section>
 
-      <section className="neu-card space-y-4 p-6">
-        <h2 className="text-xl font-semibold">Настройки запуска</h2>
-        <p className="text-sm muted-text">
+      <section className="app-card space-y-4 p-6">
+        <h2 className="app-section-title">Настройки запуска</h2>
+        <p className="text-sm app-muted">
           `limit` — сколько отзывов обработать. `batch_size` — сколько отзывов отправлять в модель за один запрос.
-          Backend ограничивает максимум по limit автоматически.
         </p>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <label className="space-y-2">
+          <label className="space-y-1">
             <span className="text-sm font-medium">limit</span>
-            <input
-              type="number"
-              min={1}
-              value={limit}
-              onChange={(event) => setLimit(Number(event.target.value) || 10)}
-              className="neu-inset w-full px-3 py-2 text-sm"
-            />
+            <input type="number" min={1} value={limit} onChange={(event) => setLimit(Number(event.target.value) || 10)} className="app-input" />
           </label>
-
-          <label className="space-y-2">
+          <label className="space-y-1">
             <span className="text-sm font-medium">batch_size</span>
-            <input
-              type="number"
-              min={1}
-              max={20}
-              value={batchSize}
-              onChange={(event) => setBatchSize(Number(event.target.value) || 5)}
-              className="neu-inset w-full px-3 py-2 text-sm"
-            />
+            <input type="number" min={1} max={20} value={batchSize} onChange={(event) => setBatchSize(Number(event.target.value) || 5)} className="app-input" />
           </label>
-
-          <label className="space-y-2">
+          <label className="space-y-1">
             <span className="text-sm font-medium">min_score (опционально)</span>
-            <input
-              type="number"
-              min={1}
-              max={5}
-              value={minScore}
-              onChange={(event) => setMinScore(event.target.value)}
-              className="neu-inset w-full px-3 py-2 text-sm"
-            />
+            <input type="number" min={1} max={5} value={minScore} onChange={(event) => setMinScore(event.target.value)} className="app-input" />
           </label>
-
-          <label className="space-y-2">
+          <label className="space-y-1">
             <span className="text-sm font-medium">max_score (опционально)</span>
-            <input
-              type="number"
-              min={1}
-              max={5}
-              value={maxScore}
-              onChange={(event) => setMaxScore(event.target.value)}
-              className="neu-inset w-full px-3 py-2 text-sm"
-            />
+            <input type="number" min={1} max={5} value={maxScore} onChange={(event) => setMaxScore(event.target.value)} className="app-input" />
           </label>
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <button className="neu-btn" onClick={handleLoadSample} disabled={loadingSample}>
+          <button className="app-button app-button-secondary" onClick={handleLoadSample} disabled={loadingSample}>
             {loadingSample ? "Загрузка..." : "Показать sample data"}
           </button>
-          <button className="neu-btn" onClick={handleRunPipeline} disabled={loadingRun}>
+          <button className="app-button app-button-primary" onClick={handleRunPipeline} disabled={loadingRun}>
             {loadingRun ? "Запуск..." : "Запустить pipeline"}
           </button>
         </div>
 
-        {loadingStatus ? <p className="text-sm">Загрузка статуса Lab 2...</p> : null}
+        {loadingStatus ? <p className="text-sm app-muted">Загрузка статуса Lab 2...</p> : null}
         {status ? (
-          <p className="text-sm muted-text">
-            Модель: <span className="font-medium">{status.model}</span> | Датасет: <span className="font-medium">{status.dataset}</span>
+          <p className="text-sm app-muted">
+            Модель: <strong>{status.model}</strong> | Датасет: <strong>{status.dataset}</strong>
           </p>
         ) : null}
-        {error ? <p className="error-box px-3 py-2 text-sm">{error}</p> : null}
+        {error ? (
+          <p className="rounded-lg px-3 py-2 text-sm" style={{ background: "color-mix(in srgb, var(--danger) 14%, transparent)", color: "var(--danger)" }}>
+            {error}
+          </p>
+        ) : null}
       </section>
 
       {sampleData ? (
-        <section className="neu-card space-y-4 p-6">
-          <h2 className="text-xl font-semibold">Sample data</h2>
-          <p className="text-sm muted-text">
-            Dataset: {sampleData.dataset} | Rows after filtering: {sampleData.total_rows}
-          </p>
+        <section className="app-card space-y-4 p-6">
+          <h2 className="app-section-title">Sample data</h2>
+          <p className="text-sm app-muted">Dataset: {sampleData.dataset} | Rows after filtering: {sampleData.total_rows}</p>
           <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
+            <table className="app-table">
               <thead>
-                <tr className="muted-text">
-                  <th className="p-2">row_id</th>
-                  <th className="p-2">score</th>
-                  <th className="p-2">thumbs_up_count</th>
-                  <th className="p-2">at</th>
-                  <th className="p-2">content</th>
+                <tr>
+                  <th>row_id</th>
+                  <th>score</th>
+                  <th>thumbs_up_count</th>
+                  <th>at</th>
+                  <th>content</th>
                 </tr>
               </thead>
               <tbody>
                 {sampleData.sample.map((row) => (
-                  <tr key={row.row_id} className="soft-border border-t">
-                    <td className="p-2">{row.row_id}</td>
-                    <td className="p-2">{row.score ?? "-"}</td>
-                    <td className="p-2">{row.thumbs_up_count ?? "-"}</td>
-                    <td className="p-2">{row.at ?? "-"}</td>
-                    <td className="p-2">{truncate(row.content, 140)}</td>
+                  <tr key={row.row_id}>
+                    <td>{row.row_id}</td>
+                    <td>{row.score ?? "-"}</td>
+                    <td>{row.thumbs_up_count ?? "-"}</td>
+                    <td>{row.at ?? "-"}</td>
+                    <td>{truncate(row.content, 140)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -282,8 +247,9 @@ export default function Lab2Page() {
       ) : null}
 
       {runResult ? (
-        <section className="neu-card space-y-4 p-6">
-          <h2 className="text-xl font-semibold">Результат pipeline</h2>
+        <section className="app-card space-y-4 p-6">
+          <h2 className="app-section-title">Результат pipeline</h2>
+
           <div className="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
             <p>model: {runResult.model}</p>
             <p>dataset: {runResult.dataset}</p>
@@ -295,7 +261,7 @@ export default function Lab2Page() {
           </div>
 
           {runResult.warnings.length > 0 ? (
-            <div className="warning-box px-4 py-3 text-sm">
+            <div className="rounded-lg px-3 py-2 text-sm" style={{ background: "color-mix(in srgb, var(--warning) 14%, transparent)", color: "var(--warning)" }}>
               <p className="font-medium">Предупреждения:</p>
               <ul className="list-disc pl-5">
                 {runResult.warnings.map((warning) => (
@@ -306,45 +272,40 @@ export default function Lab2Page() {
           ) : null}
 
           <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
+            <table className="app-table">
               <thead>
-                <tr className="muted-text">
-                  <th className="p-2">row_id</th>
-                  <th className="p-2">sentiment</th>
-                  <th className="p-2">issue_type</th>
-                  <th className="p-2">topic</th>
-                  <th className="p-2">urgency</th>
-                  <th className="p-2">summary</th>
-                  <th className="p-2">suggested_action</th>
+                <tr>
+                  <th>row_id</th>
+                  <th>sentiment</th>
+                  <th>issue_type</th>
+                  <th>topic</th>
+                  <th>urgency</th>
+                  <th>summary</th>
+                  <th>suggested_action</th>
                 </tr>
               </thead>
               <tbody>
                 {runResult.results.map((item) => (
-                  <tr key={item.row_id} className="soft-border border-t align-top">
-                    <td className="p-2">{item.row_id}</td>
-                    <td className="p-2">{item.sentiment}</td>
-                    <td className="p-2">{item.issue_type}</td>
-                    <td className="p-2">{item.topic}</td>
-                    <td className="p-2">{item.urgency}</td>
-                    <td className="p-2">{item.summary}</td>
-                    <td className="p-2">{item.suggested_action}</td>
+                  <tr key={item.row_id}>
+                    <td>{item.row_id}</td>
+                    <td>{item.sentiment}</td>
+                    <td>{item.issue_type}</td>
+                    <td>{item.topic}</td>
+                    <td>{item.urgency}</td>
+                    <td>{item.summary}</td>
+                    <td>{item.suggested_action}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          <details className="neu-inset p-4">
-            <summary className="cursor-pointer font-medium">Raw JSON</summary>
-            <pre className="mt-2 overflow-x-auto text-xs md:text-sm">{JSON.stringify(runResult, null, 2)}</pre>
+          <details className="app-expansion">
+            <summary>Raw JSON</summary>
+            <pre className="app-code-block m-3">{JSON.stringify(runResult, null, 2)}</pre>
           </details>
 
-          <a
-            href={`${apiBaseUrl}/lab2/download`}
-            className="inline-flex rounded-xl px-3 py-2 font-medium text-accent underline"
-            target="_blank"
-            rel="noreferrer"
-          >
+          <a href={`${apiBaseUrl}/lab2/download`} className="inline-flex text-sm font-semibold underline" style={{ color: "var(--primary)" }} target="_blank" rel="noreferrer">
             Скачать result.json
           </a>
         </section>

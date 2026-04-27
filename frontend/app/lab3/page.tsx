@@ -57,8 +57,8 @@ type AskResult = {
 };
 
 type ChatMessage =
-  | { id: string; role: "user"; content: string; createdAt: string }
-  | { id: string; role: "assistant"; content: string; createdAt: string; payload: AskResult };
+  | { id: string; role: "user"; content: string }
+  | { id: string; role: "assistant"; content: string; payload: AskResult };
 
 type UploadResponse = {
   status: string;
@@ -86,9 +86,10 @@ type RoleKey =
   | "username_column"
   | "image_column";
 
-const ROLE_ORDER_PRIMARY: RoleKey[] = ["id_column", "text_column", "rating_column", "target_column", "date_column"];
-const ROLE_ORDER_EXTRA: RoleKey[] = ["version_column", "reply_column", "reply_date_column", "username_column", "image_column"];
-const ROLE_ALL: RoleKey[] = [...ROLE_ORDER_PRIMARY, ...ROLE_ORDER_EXTRA];
+const ROLE_PRIMARY: RoleKey[] = ["id_column", "text_column", "rating_column", "target_column", "date_column"];
+const ROLE_EXTRA: RoleKey[] = ["version_column", "reply_column", "reply_date_column", "username_column", "image_column"];
+const ROLE_ALL: RoleKey[] = [...ROLE_PRIMARY, ...ROLE_EXTRA];
+const STORAGE_KEY = "lab3_session_id";
 
 const ROLE_LABELS: Record<RoleKey, string> = {
   id_column: "ID / уникальный идентификатор",
@@ -104,19 +105,16 @@ const ROLE_LABELS: Record<RoleKey, string> = {
 };
 
 const ROLE_HELP: Record<RoleKey, string> = {
-  id_column: "Колонка, которая однозначно идентифицирует строку. Обычно не используется как признак для анализа.",
-  text_column:
-    "Свободный текст: отзыв, комментарий, описание или сообщение. Нужна для анализа тем, ключевых слов и prompt injection.",
-  rating_column:
-    "Числовая оценка, рейтинг, score или количество баллов. Нужна для анализа низких/высоких оценок и распределений.",
-  target_column:
-    "Колонка, которую можно рассматривать как результат или целевой показатель: passed, final_score, churn, label, outcome и т.п.",
-  date_column: "Дата или время события. Нужна для динамики по месяцам, трендов и временного анализа.",
-  version_column: "Версия приложения, продукта или сборки. Нужна для сравнения версий.",
-  reply_column: "Ответ компании или модератора на отзыв. Нужна для анализа реакции на обращения.",
-  reply_date_column: "Дата ответа компании. Нужна для расчёта задержки ответа.",
-  username_column: "Имя пользователя. Считается чувствительным полем и обычно не передаётся в LLM.",
-  image_column: "Ссылка на изображение или аватар. Считается чувствительным/нерелевантным полем и обычно исключается.",
+  id_column: "Колонка, которая однозначно идентифицирует строку. Обычно не используется как признак.",
+  text_column: "Свободный текст: отзыв, комментарий, описание. Нужен для тем, ключевых слов и prompt injection.",
+  rating_column: "Числовая оценка/рейтинг. Нужна для анализа распределений и low/high сегментов.",
+  target_column: "Колонка результата: passed, final_score, churn, label, outcome и т.п.",
+  date_column: "Дата или время события. Нужна для динамики по времени и трендов.",
+  version_column: "Версия приложения/сборки. Нужна для сравнения версий.",
+  reply_column: "Ответ компании/модератора на отзыв. Нужен для анализа реакции.",
+  reply_date_column: "Дата ответа компании. Нужна для оценки скорости ответа.",
+  username_column: "Имя пользователя. Чувствительное поле, обычно не передаётся в LLM.",
+  image_column: "Изображение/аватар. Чувствительное или нерелевантное поле.",
 };
 
 const REASON_MAP: Record<string, string> = {
@@ -124,56 +122,55 @@ const REASON_MAP: Record<string, string> = {
   "id-like column detected": "Похоже на уникальный идентификатор",
   "column has free-text characteristics and matches text-like semantics": "Колонка похожа на свободный текст",
   "no suitable free-text column found": "Свободный текст не найден",
-  "numeric score/rating-like column detected": "Название и значения похожи на оценку/рейтинг",
-  "date-like object/string column detected": "Похоже на колонку с датой/временем",
-  "column name indicates software version": "Название похоже на версию продукта",
-  "reply-like column detected": "Похоже на колонку ответа компании",
+  "numeric score/rating-like column detected": "Название и значения похожи на рейтинг",
+  "date-like object/string column detected": "Похоже на дату/время",
+  "column name indicates software version": "Похоже на версию продукта",
+  "reply-like column detected": "Похоже на колонку с ответом компании",
   "reply-date-like column detected": "Похоже на дату ответа",
   "username-like column detected": "Похоже на имя пользователя",
-  "image-like column detected": "Похоже на колонку изображения/аватара",
+  "image-like column detected": "Похоже на изображение/аватар",
 };
 
 const BASE_SCENARIOS: Array<{ label: string; question: string }> = [
   { label: "Обзор датасета", question: "Сделай краткий обзор датасета: структура, типы колонок, пропуски и первые аналитические наблюдения." },
   { label: "Качество данных", question: "Проверь качество данных: пропуски, дубликаты, подозрительные значения и ограничения анализа." },
   { label: "Числовой анализ", question: "Проанализируй числовые колонки: распределения, средние значения, разброс и возможные выбросы." },
-  { label: "Категориальный анализ", question: "Проанализируй категориальные колонки: частые значения, дисбаланс категорий и возможные закономерности." },
-  { label: "Корреляции", question: "Найди возможные зависимости между числовыми колонками и объясни самые заметные корреляции." },
-  { label: "Аномалии", question: "Найди потенциальные аномалии и выбросы в числовых колонках, объясни почему они могут быть важны." },
-  { label: "Prompt injection", question: "Проверь текстовые поля на возможные prompt injection инструкции и объясни, как система от них защищается." },
-  { label: "Итоговый отчёт", question: "Сформируй итоговый аналитический отчёт по датасету: структура, качество данных, ключевые наблюдения, ограничения и что проверить дальше." },
+  { label: "Категориальный анализ", question: "Проанализируй категориальные колонки: частые значения, дисбаланс категорий и закономерности." },
+  { label: "Корреляции", question: "Найди зависимости между числовыми колонками и объясни заметные корреляции." },
+  { label: "Аномалии", question: "Найди потенциальные аномалии и выбросы в числовых колонках." },
+  { label: "Prompt injection", question: "Проверь текстовые поля на возможные prompt injection инструкции и объясни защиту системы." },
+  { label: "Итоговый отчёт", question: "Сформируй итоговый аналитический отчёт: структура, качество данных, наблюдения, ограничения и следующие шаги." },
 ];
 
 const FOLLOW_UP_HINTS = ["Покажи подробнее", "Какие ограничения?", "Что проверить дальше?", "Сформируй вывод для отчёта"];
-const STORAGE_KEY = "lab3_session_id";
 
-const modeLabel: Record<AskResult["analysis_mode"], string> = {
+const MODE_LABEL: Record<AskResult["analysis_mode"], string> = {
   fast: "Быстрый",
   balanced: "Сбалансированный",
   full: "Полный",
 };
 
-function shortSession(sessionId: string | null): string {
+function shortSession(sessionId: string | null) {
   if (!sessionId) return "-";
   return `${sessionId.slice(0, 8)}...`;
 }
 
-function formatReason(reason: string | undefined): string {
-  if (!reason) return "Нет объяснения от backend";
-  const normalized = reason.trim().toLowerCase();
-  for (const [source, target] of Object.entries(REASON_MAP)) {
-    if (normalized === source.toLowerCase()) return target;
+function formatReason(reason?: string) {
+  if (!reason) return "Нет пояснения";
+  const key = reason.trim().toLowerCase();
+  for (const [src, dst] of Object.entries(REASON_MAP)) {
+    if (src.toLowerCase() === key) return dst;
   }
   return reason;
 }
 
-function normalizeRoleSelection(value: string): string | null {
+function normalizeSelection(value: string) {
   return value.trim() ? value : null;
 }
 
 export default function Lab3Page() {
   const [datasets, setDatasets] = useState<DatasetItem[]>([]);
-  const [selectedDataset, setSelectedDataset] = useState<string>("");
+  const [selectedDataset, setSelectedDataset] = useState("");
   const [profile, setProfile] = useState<Lab3Profile | null>(null);
   const [tools, setTools] = useState<ToolInfo[]>([]);
   const [question, setQuestion] = useState("Сделай обзор датасета");
@@ -194,9 +191,7 @@ export default function Lab3Page() {
 
   const availableColumns = profile?.columns ?? [];
   const roleOptions = useMemo(() => ["", ...availableColumns], [availableColumns]);
-  const hasReviewRoles = Boolean(
-    (manualRoles.text_column ?? autoRoles.text_column) && (manualRoles.rating_column ?? autoRoles.rating_column),
-  );
+  const hasReviewRoles = Boolean((manualRoles.text_column ?? autoRoles.text_column) && (manualRoles.rating_column ?? autoRoles.rating_column));
 
   const scenarios = useMemo(() => {
     if (!hasReviewRoles) return BASE_SCENARIOS;
@@ -235,25 +230,31 @@ export default function Lab3Page() {
       setSessionId(saved);
       void refreshSession(saved);
     }
-
-    const bootstrap = async () => {
-      setError(null);
-      try {
-        await fetchInitialData();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Не удалось загрузить Lab 3");
-      }
-    };
-    void bootstrap();
+    void fetchInitialData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleRefreshDatasets = async () => {
+  const syncRoleStateFromProfile = (mapping: ColumnMapping) => {
+    const auto = {} as Record<RoleKey, string | null>;
+    ROLE_ALL.forEach((role) => {
+      auto[role] = mapping.roles?.[role]?.column ?? null;
+    });
+    setAutoRoles(auto);
+    setManualRoles(auto);
+  };
+
+  const handleProfile = async () => {
+    if (!selectedDataset) return;
+    setLoadingProfile(true);
     setError(null);
     try {
-      await fetchInitialData();
+      const profileResp = await api.getLab3Profile<Lab3Profile>(selectedDataset);
+      setProfile(profileResp);
+      syncRoleStateFromProfile(profileResp.column_mapping);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось обновить список датасетов");
+      setError(err instanceof Error ? err.message : "Не удалось построить профиль датасета");
+    } finally {
+      setLoadingProfile(false);
     }
   };
 
@@ -273,30 +274,6 @@ export default function Lab3Page() {
     }
   };
 
-  const applyProfileRoles = (mapping: ColumnMapping) => {
-    const auto: Record<RoleKey, string | null> = {} as Record<RoleKey, string | null>;
-    ROLE_ALL.forEach((role) => {
-      auto[role] = mapping.roles?.[role]?.column ?? null;
-    });
-    setAutoRoles(auto);
-    setManualRoles(auto);
-  };
-
-  const handleProfile = async () => {
-    if (!selectedDataset) return;
-    setLoadingProfile(true);
-    setError(null);
-    try {
-      const profileResp = await api.getLab3Profile<Lab3Profile>(selectedDataset);
-      setProfile(profileResp);
-      applyProfileRoles(profileResp.column_mapping);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось построить профиль датасета");
-    } finally {
-      setLoadingProfile(false);
-    }
-  };
-
   const handleResetRoles = () => {
     setManualRoles(autoRoles);
   };
@@ -309,10 +286,7 @@ export default function Lab3Page() {
   };
 
   const handleResetContext = async () => {
-    if (!sessionId) {
-      handleNewDialog();
-      return;
-    }
+    if (!sessionId) return handleNewDialog();
     try {
       await api.resetLab3Session<{ status: string }, { session_id: string }>({ session_id: sessionId });
       await refreshSession(sessionId);
@@ -326,20 +300,14 @@ export default function Lab3Page() {
     if (!selectedDataset || !q.trim()) return;
     setLoadingAsk(true);
     setError(null);
-    const userMessage: ChatMessage = {
-      id: `u-${Date.now()}`,
-      role: "user",
-      content: q.trim(),
-      createdAt: new Date().toISOString(),
-    };
-    setChat((prev) => [...prev, userMessage]);
+    setChat((prev) => [...prev, { id: `u-${Date.now()}`, role: "user", content: q.trim() }]);
 
     try {
-      const roleOverrides = Object.fromEntries(ROLE_ALL.map((role) => [role, normalizeRoleSelection(manualRoles[role] ?? "")]));
+      const column_overrides = Object.fromEntries(ROLE_ALL.map((role) => [role, normalizeSelection(manualRoles[role] ?? "")]));
       const body = {
         dataset_name: selectedDataset,
         question: q.trim(),
-        column_overrides: roleOverrides,
+        column_overrides,
         max_tool_calls: maxToolCalls,
         use_critic: useCritic,
         analysis_mode: analysisMode,
@@ -347,20 +315,13 @@ export default function Lab3Page() {
         include_history: true,
         reset_session: false,
       };
-
       const response = await api.askLab3Agent<AskResult, typeof body>(body);
-      const assistant: ChatMessage = {
-        id: `a-${Date.now()}`,
-        role: "assistant",
-        content: response.final_answer,
-        createdAt: new Date().toISOString(),
-        payload: response,
-      };
-      setChat((prev) => [...prev, assistant]);
-      setActiveTabs((prev) => ({ ...prev, [assistant.id]: "answer" }));
+      const assistantId = `a-${Date.now()}`;
+      setChat((prev) => [...prev, { id: assistantId, role: "assistant", content: response.final_answer, payload: response }]);
+      setActiveTabs((prev) => ({ ...prev, [assistantId]: "answer" }));
       setQuestion("");
       setSessionId(response.session_id);
-      if (typeof window !== "undefined") window.localStorage.setItem(STORAGE_KEY, response.session_id);
+      window.localStorage.setItem(STORAGE_KEY, response.session_id);
       await refreshSession(response.session_id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось получить ответ агента");
@@ -378,62 +339,49 @@ export default function Lab3Page() {
   }, [manualRoles, autoRoles]);
 
   const renderRoleControl = (role: RoleKey) => {
-    const currentValue = manualRoles[role] ?? "";
-    const autoValue = autoRoles[role] ?? null;
+    const current = manualRoles[role] ?? "";
+    const auto = autoRoles[role] ?? null;
     const roleInfo = profile?.column_mapping.roles?.[role];
-    const selectedManually = (currentValue || null) !== autoValue;
+    const manual = (current || null) !== auto;
 
     return (
-      <div key={role} className="space-y-2 rounded-xl p-3" style={{ border: "1px solid var(--border)", background: "var(--panel-strong)" }}>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-semibold app-text">{ROLE_LABELS[role]}</p>
-          <span className="text-[11px] muted-text">{role}</span>
+      <div key={role} className="app-card-compact space-y-2 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-semibold">{ROLE_LABELS[role]}</p>
+          <span className="text-[11px] app-muted">{role}</span>
         </div>
-
-        <select
-          className="neu-inset w-full px-2 py-2 text-sm"
-          value={currentValue}
-          onChange={(event) => setManualRoles((prev) => ({ ...prev, [role]: normalizeRoleSelection(event.target.value) }))}
-        >
+        <select className="app-select" value={current} onChange={(event) => setManualRoles((prev) => ({ ...prev, [role]: normalizeSelection(event.target.value) }))}>
           {roleOptions.map((option) => (
             <option key={`${role}-${option || "empty"}`} value={option}>
               {option || "(не выбрано)"}
             </option>
           ))}
         </select>
-
-        <div className="space-y-1 text-xs muted-text">
-          <p>Уверенность: {roleInfo?.confidence ?? 0}</p>
-          <p>Причина: {formatReason(roleInfo?.reason)}</p>
-          <p>{ROLE_HELP[role]}</p>
-          {!currentValue ? <p>Не выбрано — tools, которым нужна эта роль, будут пропущены.</p> : null}
-        </div>
-
-        {selectedManually ? <span className="badge-manual inline-flex px-2 py-1 text-[11px]">Выбрано вручную</span> : null}
+        <p className="text-xs app-muted">Уверенность: {roleInfo?.confidence ?? 0}</p>
+        <p className="text-xs app-muted">Причина: {formatReason(roleInfo?.reason)}</p>
+        <p className="text-xs app-muted">{ROLE_HELP[role]}</p>
+        {!current ? <p className="text-xs app-muted">Не выбрано — tools, которым нужна эта роль, будут пропущены.</p> : null}
+        {manual ? <span className="app-badge app-badge-primary">Выбрано вручную</span> : null}
       </div>
     );
   };
 
-  const renderAssistantMessage = (
-    message: Extract<ChatMessage, { role: "assistant" }>,
-    isLastAssistant: boolean,
-  ) => {
+  const renderAssistantMessage = (message: Extract<ChatMessage, { role: "assistant" }>, isLastAssistant: boolean) => {
     const payload = message.payload;
     const active = activeTabs[message.id] ?? "answer";
 
     return (
-      <div className="neu-card space-y-4 p-4" key={message.id}>
-        <div className="accent-chip inline-flex px-3 py-1 text-xs">
-          {modeLabel[payload.analysis_mode]} · {payload.elapsed_seconds} сек · {payload.llm_calls_count} LLM-вызовов · {payload.executed_tools.length} tools ·{" "}
-          {payload.dataset} · {shortSession(payload.session_id)}
+      <div key={message.id} className="app-card space-y-4 p-4">
+        <div className="app-badge app-badge-muted">
+          {MODE_LABEL[payload.analysis_mode]} · {payload.elapsed_seconds} сек · {payload.llm_calls_count} LLM · {payload.executed_tools.length} tools · {payload.dataset}
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="app-tabs">
           {(["answer", "plan", "tools", "columns", "files", "raw"] as ResultTab[]).map((tab) => (
             <button
               key={tab}
-              className="neu-btn px-3 py-1 text-xs"
-              style={active === tab ? { borderColor: "var(--accent)" } : undefined}
+              type="button"
+              className={`app-tab ${active === tab ? "app-tab-active" : ""}`}
               onClick={() => setActiveTabs((prev) => ({ ...prev, [message.id]: tab }))}
             >
               {tab === "answer" ? "Ответ" : tab === "plan" ? "План" : tab === "tools" ? "Tools" : tab === "columns" ? "Колонки" : tab === "files" ? "Файлы" : "Raw"}
@@ -442,92 +390,83 @@ export default function Lab3Page() {
         </div>
 
         {active === "answer" ? (
-          <div className="neu-inset p-4">
+          <div className="space-y-3">
             <MarkdownMessage content={payload.final_answer} />
             {payload.warnings.length > 0 ? (
-              <div className="warning-box mt-3 px-3 py-2 text-xs">
+              <div className="rounded-lg px-3 py-2 text-xs" style={{ background: "color-mix(in srgb, var(--warning) 14%, transparent)", color: "var(--warning)" }}>
                 {payload.warnings.map((warning) => (
                   <p key={warning}>{warning}</p>
                 ))}
               </div>
             ) : null}
             {payload.critic_review ? (
-              <details className="mt-3">
-                <summary className="cursor-pointer text-sm font-medium app-text">Critic review</summary>
-                <pre className="json-block mt-2 overflow-x-auto p-3 text-xs">{JSON.stringify(payload.critic_review, null, 2)}</pre>
+              <details className="app-expansion">
+                <summary>Critic review</summary>
+                <pre className="app-code-block m-3">{JSON.stringify(payload.critic_review, null, 2)}</pre>
               </details>
             ) : null}
           </div>
         ) : null}
 
-        {active === "plan" ? <pre className="json-block overflow-x-auto p-3 text-xs">{JSON.stringify(payload.planner_output, null, 2)}</pre> : null}
-
+        {active === "plan" ? <pre className="app-code-block">{JSON.stringify(payload.planner_output, null, 2)}</pre> : null}
         {active === "tools" ? (
           <div className="space-y-2">
             {payload.executed_tools.map((tool, idx) => (
-              <details key={`${message.id}-tool-${idx}`} className="neu-inset p-3">
-                <summary className="cursor-pointer text-sm font-medium app-text">
+              <details key={`${message.id}-tool-${idx}`} className="app-expansion">
+                <summary>
                   {String(tool.tool ?? "tool")} · {String(tool.status ?? "status")}
                 </summary>
-                <pre className="json-block mt-2 overflow-x-auto p-3 text-xs">{JSON.stringify(tool, null, 2)}</pre>
+                <pre className="app-code-block m-3">{JSON.stringify(tool, null, 2)}</pre>
               </details>
             ))}
           </div>
         ) : null}
-
         {active === "columns" ? (
           <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-xs">
+            <table className="app-table text-xs">
               <thead>
-                <tr className="muted-text">
-                  <th className="soft-border border-b p-2">Роль</th>
-                  <th className="soft-border border-b p-2">Колонка</th>
-                  <th className="soft-border border-b p-2">Уверенность</th>
-                  <th className="soft-border border-b p-2">Причина</th>
+                <tr>
+                  <th>Роль</th>
+                  <th>Колонка</th>
+                  <th>Уверенность</th>
+                  <th>Причина</th>
                 </tr>
               </thead>
               <tbody>
                 {Object.entries(payload.column_mapping.roles).map(([role, info]) => (
-                  <tr key={`${message.id}-${role}`} className="soft-border border-b">
-                    <td className="p-2">{ROLE_LABELS[role as RoleKey] ?? role}</td>
-                    <td className="p-2">{info.column ?? "-"}</td>
-                    <td className="p-2">{info.confidence}</td>
-                    <td className="p-2">{formatReason(info.reason)}</td>
+                  <tr key={`${message.id}-${role}`}>
+                    <td>{ROLE_LABELS[role as RoleKey] ?? role}</td>
+                    <td>{info.column ?? "-"}</td>
+                    <td>{info.confidence}</td>
+                    <td>{formatReason(info.reason)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         ) : null}
-
         {active === "files" ? (
           <div className="space-y-2 text-sm">
             {payload.output_files ? (
               Object.entries(payload.output_files).map(([key, value]) => (
                 <p key={`${message.id}-${key}`}>
-                  <span className="font-semibold">{key}</span>: {value}
+                  <strong>{key}</strong>: {value}
                 </p>
               ))
             ) : (
               <p>Файлы не сгенерированы.</p>
             )}
-            <a href={`${apiBaseUrl}/lab3/download-report`} target="_blank" rel="noreferrer" className="font-medium underline" style={{ color: "var(--accent)" }}>
+            <a href={`${apiBaseUrl}/lab3/download-report`} target="_blank" rel="noreferrer" className="font-semibold underline" style={{ color: "var(--primary)" }}>
               Скачать отчёт markdown
             </a>
           </div>
         ) : null}
-
-        {active === "raw" ? (
-          <details className="neu-inset p-3">
-            <summary className="cursor-pointer text-sm font-medium app-text">Raw JSON ответа</summary>
-            <pre className="json-block mt-2 max-h-96 overflow-auto p-3 text-xs">{JSON.stringify(payload, null, 2)}</pre>
-          </details>
-        ) : null}
+        {active === "raw" ? <pre className="app-code-block">{JSON.stringify(payload, null, 2)}</pre> : null}
 
         {isLastAssistant ? (
           <div className="flex flex-wrap gap-2">
             {FOLLOW_UP_HINTS.map((hint) => (
-              <button key={`${message.id}-${hint}`} className="neu-btn px-3 py-1 text-xs" onClick={() => setQuestion(hint)}>
+              <button key={`${message.id}-${hint}`} className="app-button app-button-secondary" onClick={() => setQuestion(hint)}>
                 {hint}
               </button>
             ))}
@@ -538,26 +477,26 @@ export default function Lab3Page() {
   };
 
   return (
-    <div className="space-y-5">
-      <section className="neu-card space-y-3 p-5">
-        <h1 className="text-2xl font-bold app-text">Лаба 3 — LLM Analytics Agent</h1>
-        <p className="text-sm muted-text">
-          Универсальный workspace для анализа CSV/XLSX: определение ролей колонок, безопасные tools и диалог с контекстом.
+    <div className="space-y-6">
+      <section className="app-card space-y-3 p-6">
+        <h1 className="text-2xl font-bold">Лаба 3 — LLM Analytics Agent</h1>
+        <p className="text-sm app-muted">
+          Универсальный агент анализирует выбранный CSV/XLSX-датасет, определяет роли колонок, вызывает безопасные tools и формирует аналитический ответ.
         </p>
-        <div className="flex flex-wrap gap-2 text-xs">
+        <div className="flex flex-wrap gap-2">
           {["Universal CSV/XLSX", "Safe tools", "Local Ollama", "Fast mode"].map((badge) => (
-            <span key={badge} className="accent-chip px-3 py-1">
+            <span key={badge} className="app-badge app-badge-muted">
               {badge}
             </span>
           ))}
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[400px_minmax(0,1fr)]">
-        <aside className="space-y-4 lg:sticky lg:top-4 lg:self-start">
-          <section className="neu-card space-y-3 p-4">
-            <h2 className="text-base font-semibold app-text">Выбор датасета</h2>
-            <select className="neu-inset w-full px-3 py-2 text-sm" value={selectedDataset} onChange={(event) => setSelectedDataset(event.target.value)}>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
+        <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
+          <section className="app-card space-y-3 p-4">
+            <h2 className="app-section-title text-base">Выбор датасета</h2>
+            <select className="app-select" value={selectedDataset} onChange={(event) => setSelectedDataset(event.target.value)}>
               {datasets.map((dataset) => (
                 <option key={dataset.name} value={dataset.name}>
                   {dataset.name} ({dataset.type})
@@ -565,102 +504,87 @@ export default function Lab3Page() {
               ))}
             </select>
             <div className="flex gap-2">
-              <input
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                className="neu-inset w-full px-2 py-1 text-xs"
-                onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
-              />
-              <button className="neu-btn px-3 py-1 text-xs" onClick={handleUpload} disabled={uploading || !uploadFile}>
+              <input type="file" accept=".csv,.xlsx,.xls" className="app-input" onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)} />
+              <button className="app-button app-button-secondary" onClick={handleUpload} disabled={uploading || !uploadFile}>
                 {uploading ? "..." : "Загрузить"}
               </button>
             </div>
-            <button className="neu-btn w-full text-sm" onClick={handleRefreshDatasets}>
+            <button className="app-button app-button-secondary" onClick={fetchInitialData}>
               Обновить список
             </button>
           </section>
 
-          <section className="neu-card space-y-3 p-4">
-            <h2 className="text-base font-semibold app-text">Профиль датасета</h2>
-            <button className="neu-btn w-full text-sm" onClick={handleProfile} disabled={loadingProfile || !selectedDataset}>
+          <section className="app-card space-y-3 p-4">
+            <h2 className="app-section-title text-base">Профиль</h2>
+            <button className="app-button app-button-primary" onClick={handleProfile} disabled={loadingProfile || !selectedDataset}>
               {loadingProfile ? "Анализ..." : "Проанализировать структуру"}
             </button>
             <div className="grid grid-cols-3 gap-2 text-xs">
-              <div className="neu-inset p-2 text-center">
-                <p className="font-semibold app-text">{profile?.total_rows ?? "-"}</p>
-                <p className="muted-text">rows</p>
+              <div className="app-card-compact p-2 text-center">
+                <p className="font-semibold">{profile?.total_rows ?? "-"}</p>
+                <p className="app-muted">rows</p>
               </div>
-              <div className="neu-inset p-2 text-center">
-                <p className="font-semibold app-text">{profile?.total_columns ?? "-"}</p>
-                <p className="muted-text">columns</p>
+              <div className="app-card-compact p-2 text-center">
+                <p className="font-semibold">{profile?.total_columns ?? "-"}</p>
+                <p className="app-muted">columns</p>
               </div>
-              <div className="neu-inset p-2 text-center">
-                <p className="font-semibold app-text">{shortSession(sessionId)}</p>
-                <p className="muted-text">session</p>
+              <div className="app-card-compact p-2 text-center">
+                <p className="font-semibold">{shortSession(sessionId)}</p>
+                <p className="app-muted">session</p>
               </div>
             </div>
           </section>
 
-          <section className="neu-card p-4">
-            <details open>
-              <summary className="cursor-pointer text-base font-semibold app-text">Роли колонок</summary>
-              <p className="mt-2 text-xs muted-text">{roleSummary}</p>
+          <section className="app-card p-4">
+            <details className="app-expansion" open>
+              <summary>Роли колонок</summary>
+              <div className="space-y-3 p-3">
+                <p className="text-xs app-muted">{roleSummary}</p>
+                <details className="app-expansion">
+                  <summary>Зачем нужны роли колонок?</summary>
+                  <p className="p-3 text-xs app-muted">
+                    Агент не привязан к названиям колонок. Он определяет роли (текст, рейтинг, дата, целевая переменная), чтобы применять один набор tools к разным датасетам.
+                    Если автоопределение ошиблось, роль можно исправить вручную.
+                  </p>
+                </details>
 
-              <details className="mt-3">
-                <summary className="cursor-pointer text-xs font-medium app-text">Зачем нужны роли колонок?</summary>
-                <p className="mt-2 text-xs muted-text">
-                  Агент не привязан к конкретным названиям колонок. Сначала он пытается понять, какая колонка является текстом, рейтингом, датой или целевой переменной. Это
-                  позволяет использовать один и тот же набор tools для разных CSV/XLSX. Если автоопределение ошиблось, роль можно исправить вручную.
-                </p>
-              </details>
+                <h3 className="text-sm font-semibold">Основные</h3>
+                {ROLE_PRIMARY.map((role) => renderRoleControl(role))}
+                <h3 className="text-sm font-semibold">Дополнительные</h3>
+                {ROLE_EXTRA.map((role) => renderRoleControl(role))}
 
-              <div className="mt-3 space-y-3">
-                <h3 className="text-sm font-semibold app-text">Основные</h3>
-                {ROLE_ORDER_PRIMARY.map((role) => renderRoleControl(role))}
-
-                <h3 className="pt-2 text-sm font-semibold app-text">Дополнительные</h3>
-                {ROLE_ORDER_EXTRA.map((role) => renderRoleControl(role))}
+                <button className="app-button app-button-secondary w-full" onClick={handleResetRoles}>
+                  Сбросить ручной выбор
+                </button>
               </div>
-
-              <button className="neu-btn mt-3 w-full px-3 py-2 text-sm" onClick={handleResetRoles}>
-                Сбросить ручной выбор
-              </button>
             </details>
           </section>
 
-          <section className="neu-card space-y-3 p-4">
-            <h2 className="text-base font-semibold app-text">Настройки</h2>
-            <label className="space-y-1 text-xs">
-              <span className="muted-text">Режим анализа</span>
-              <select className="neu-inset w-full px-2 py-1" value={analysisMode} onChange={(event) => setAnalysisMode(event.target.value as AskResult["analysis_mode"])}>
+          <section className="app-card space-y-3 p-4">
+            <h2 className="app-section-title text-base">Настройки</h2>
+            <label className="space-y-1">
+              <span className="text-xs app-muted">Режим анализа</span>
+              <select className="app-select" value={analysisMode} onChange={(event) => setAnalysisMode(event.target.value as AskResult["analysis_mode"])}>
                 <option value="fast">Быстрый</option>
                 <option value="balanced">Сбалансированный</option>
                 <option value="full">Полный</option>
               </select>
             </label>
-            <label className="space-y-1 text-xs">
-              <span className="muted-text">max_tool_calls</span>
-              <input
-                type="number"
-                min={1}
-                max={20}
-                className="neu-inset w-full px-2 py-1"
-                value={maxToolCalls}
-                onChange={(event) => setMaxToolCalls(Number(event.target.value) || 6)}
-              />
+            <label className="space-y-1">
+              <span className="text-xs app-muted">max_tool_calls</span>
+              <input type="number" min={1} max={20} className="app-input" value={maxToolCalls} onChange={(event) => setMaxToolCalls(Number(event.target.value) || 6)} />
             </label>
-            <label className="flex items-center gap-2 text-xs app-text">
+            <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={useCritic} onChange={(event) => setUseCritic(event.target.checked)} />
               use_critic
             </label>
-            <p className="text-[11px] muted-text">Быстрый режим использует эвристики и один LLM-вызов для финального ответа.</p>
           </section>
 
-          <section className="neu-card space-y-3 p-4">
-            <h2 className="text-base font-semibold app-text">Быстрые сценарии</h2>
+          <section className="app-card space-y-3 p-4">
+            <h2 className="app-section-title text-base">Сценарии</h2>
             <div className="flex flex-wrap gap-2">
               {scenarios.map((scenario) => (
-                <button key={scenario.label} className="neu-btn px-2 py-1 text-xs" onClick={() => setQuestion(scenario.question)}>
+                <button key={scenario.label} className="app-button app-button-secondary" onClick={() => setQuestion(scenario.question)}>
                   {scenario.label}
                 </button>
               ))}
@@ -669,14 +593,14 @@ export default function Lab3Page() {
         </aside>
 
         <section className="space-y-4">
-          <section className="neu-card flex min-h-[620px] flex-col p-4">
+          <section className="app-card flex min-h-[640px] flex-col p-4">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-lg font-semibold app-text">Аналитический чат</h2>
+              <h2 className="app-section-title">Аналитический чат</h2>
               <div className="flex gap-2">
-                <button className="neu-btn px-3 py-1 text-xs" onClick={handleNewDialog}>
+                <button className="app-button app-button-ghost" onClick={handleNewDialog}>
                   Новый диалог
                 </button>
-                <button className="neu-btn px-3 py-1 text-xs" onClick={handleResetContext}>
+                <button className="app-button app-button-ghost" onClick={handleResetContext}>
                   Очистить контекст
                 </button>
               </div>
@@ -684,10 +608,9 @@ export default function Lab3Page() {
 
             <div className="flex-1 space-y-3 overflow-y-auto pr-1">
               {chat.length === 0 ? (
-                <div className="neu-inset space-y-2 p-4 text-sm">
-                  <p className="font-semibold app-text">Выберите сценарий или задайте вопрос</p>
-                  <p className="muted-text">Примеры:</p>
-                  <ul className="list-disc space-y-1 pl-5 muted-text">
+                <div className="app-card-compact space-y-2 p-4">
+                  <p className="font-semibold">Выберите сценарий или задайте вопрос</p>
+                  <ul className="list-disc space-y-1 pl-5 text-sm app-muted">
                     <li>Сделай обзор датасета</li>
                     <li>Найди пропуски и ограничения</li>
                     <li>Какие числовые колонки выглядят важными?</li>
@@ -695,59 +618,60 @@ export default function Lab3Page() {
                 </div>
               ) : null}
 
-              {chat.map((message, index) => {
+              {chat.map((message, idx) => {
                 if (message.role === "user") {
                   return (
                     <div key={message.id} className="flex justify-end">
-                      <div className="rounded-2xl px-4 py-2 text-sm app-text" style={{ maxWidth: "85%", background: "var(--panel-strong)", border: "1px solid var(--border)" }}>
+                      <div className="max-w-[85%] rounded-xl px-4 py-2 text-sm" style={{ background: "var(--primary-soft)", border: "1px solid color-mix(in srgb, var(--primary) 30%, var(--border))" }}>
                         {message.content}
                       </div>
                     </div>
                   );
                 }
-                const isLastAssistant = !chat.slice(index + 1).some((item) => item.role === "assistant");
+                const isLastAssistant = !chat.slice(idx + 1).some((item) => item.role === "assistant");
                 return renderAssistantMessage(message, isLastAssistant);
               })}
             </div>
 
-            <div className="mt-4 space-y-3 border-t soft-border pt-3">
-              <textarea
-                className="neu-inset min-h-24 w-full px-3 py-2 text-sm"
-                placeholder="Задайте вопрос агенту"
-                value={question}
-                onChange={(event) => setQuestion(event.target.value)}
-              />
+            <div className="mt-4 space-y-3 border-t pt-3" style={{ borderColor: "var(--border)" }}>
+              <textarea className="app-textarea min-h-24" placeholder="Задайте вопрос агенту" value={question} onChange={(event) => setQuestion(event.target.value)} />
               <div className="flex flex-wrap items-center gap-2">
-                <button className="neu-btn px-4 py-2" onClick={() => void submitQuestion(question)} disabled={loadingAsk || !selectedDataset}>
+                <button className="app-button app-button-primary" onClick={() => void submitQuestion(question)} disabled={loadingAsk || !selectedDataset}>
                   {loadingAsk ? "Отправка..." : "Отправить агенту"}
                 </button>
-                <span className="accent-chip px-3 py-1 text-xs">Session: {shortSession(sessionId)} · history: {sessionState?.history_length ?? 0}</span>
+                <span className="app-badge app-badge-muted">Session: {shortSession(sessionId)} · history: {sessionState?.history_length ?? 0}</span>
               </div>
-              {error ? <p className="error-box px-3 py-2 text-sm">{error}</p> : null}
+              {error ? (
+                <p className="rounded-lg px-3 py-2 text-sm" style={{ background: "color-mix(in srgb, var(--danger) 14%, transparent)", color: "var(--danger)" }}>
+                  {error}
+                </p>
+              ) : null}
             </div>
           </section>
 
-          <details className="neu-card p-4">
-            <summary className="cursor-pointer text-base font-semibold app-text">Advanced: доступные tools</summary>
-            <div className="mt-3 overflow-x-auto">
-              <table className="min-w-full text-left text-xs">
-                <thead>
-                  <tr className="muted-text">
-                    <th className="soft-border border-b p-2">tool</th>
-                    <th className="soft-border border-b p-2">description</th>
-                    <th className="soft-border border-b p-2">required roles</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tools.map((tool) => (
-                    <tr key={tool.tool} className="soft-border border-b">
-                      <td className="p-2">{tool.tool}</td>
-                      <td className="p-2">{tool.description}</td>
-                      <td className="p-2">{tool.required_roles.join(", ") || "-"}</td>
+          <details className="app-expansion">
+            <summary>Advanced: доступные tools</summary>
+            <div className="p-3">
+              <div className="overflow-x-auto">
+                <table className="app-table text-xs">
+                  <thead>
+                    <tr>
+                      <th>tool</th>
+                      <th>description</th>
+                      <th>required roles</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {tools.map((tool) => (
+                      <tr key={tool.tool}>
+                        <td>{tool.tool}</td>
+                        <td>{tool.description}</td>
+                        <td>{tool.required_roles.join(", ") || "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </details>
         </section>

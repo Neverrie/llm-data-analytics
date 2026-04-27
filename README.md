@@ -7,7 +7,7 @@
 - Frontend: Next.js + TypeScript + Tailwind CSS
 - Backend: FastAPI + Python
 - LLM provider: Ollama (локально на хост-машине)
-- UI: нейроморфизм + переключаемые светлая/тёмная темы
+- UI: чистый Material Design-like dashboard + переключаемые светлая/тёмная темы
 
 ## Быстрый запуск (основной сценарий)
 

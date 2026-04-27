@@ -28,8 +28,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
-      <body className="page-bg">
-        <main className="mx-auto min-h-screen max-w-6xl px-4 py-6 md:px-6">
+      <body className="app-shell">
+        <main className="mx-auto min-h-screen max-w-[1400px] px-4 py-6 md:px-6">
           <Header />
           {children}
         </main>

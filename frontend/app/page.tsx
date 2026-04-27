@@ -4,25 +4,23 @@ import { SectionCard } from "../components/SectionCard";
 export default function HomePage() {
   return (
     <div className="space-y-6">
-      <section className="neu-card p-7">
-        <h1 className="text-3xl font-bold tracking-tight app-text">LLM Data Analyst Lab</h1>
-        <p className="mt-3 max-w-3xl text-sm muted-text md:text-base">
-          Учебный проект по дисциплине «LLM как инструмент аналитика данных». Интерфейс содержит каркас для трёх лабораторных работ и backend API для дальнейшего развития.
+      <section className="app-card p-6">
+        <h1 className="mb-2 text-3xl font-bold tracking-tight">LLM Data Analyst Lab</h1>
+        <p className="max-w-4xl text-sm app-muted md:text-base">
+          Учебный проект по дисциплине «LLM как инструмент аналитика данных». Интерфейс содержит каркас для трёх лабораторных работ и backend API-заглушки для развития проекта.
         </p>
       </section>
 
       <SectionCard title="Статус проекта">
-        <p>
-          Репозиторий и базовая архитектура готовы. Реальная аналитика, работа с CSV и интеграция с локальной LLM через Ollama будут добавлены на следующих этапах.
-        </p>
+        <p>Базовая архитектура готова. В следующих этапах будет добавляться реальная аналитика, работа с CSV и расширение LLM-логики.</p>
       </SectionCard>
 
-      <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+      <section className="app-grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
         <LabCard
           href="/lab1"
           number="Lab 1"
           title="Prompt Engineering EDA"
-          goal="Проработать EDA через серию промптов, ответы LLM и комментарии аналитика."
+          goal="EDA через серию промптов, ответы LLM и комментарии аналитика."
           maxScore={35}
           status="Каркас готов"
         />
@@ -30,7 +28,7 @@ export default function HomePage() {
           href="/lab2"
           number="Lab 2"
           title="API Pipeline"
-          goal="Собрать конвейер CSV → prompt → LLM → JSON и сохранить структуру результата."
+          goal="Конвейер CSV → prompt → LLM → JSON и сохранение результата."
           maxScore={30}
           status="В разработке"
         />
@@ -38,7 +36,7 @@ export default function HomePage() {
           href="/lab3"
           number="Lab 3"
           title="LLM Analytics Agent"
-          goal="Подготовить мини-продукт с агентом, tools и защитами для аналитических запросов."
+          goal="Мини-продукт с агентом, tools и безопасной аналитикой."
           maxScore={35}
           status="В разработке"
         />
