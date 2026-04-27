@@ -5,17 +5,15 @@ export default function HomePage() {
   return (
     <div className="space-y-6">
       <section className="neu-card p-7">
-        <h1 className="text-3xl font-bold tracking-tight">LLM Data Analyst Lab</h1>
-        <p className="mt-3 max-w-3xl text-sm text-slate-700 md:text-base">
-          Учебный проект по дисциплине «LLM как инструмент аналитика данных». Этот интерфейс содержит каркас для
-          трёх лабораторных работ и backend API-заглушки для дальнейшего развития.
+        <h1 className="text-3xl font-bold tracking-tight app-text">LLM Data Analyst Lab</h1>
+        <p className="mt-3 max-w-3xl text-sm muted-text md:text-base">
+          Учебный проект по дисциплине «LLM как инструмент аналитика данных». Интерфейс содержит каркас для трёх лабораторных работ и backend API для дальнейшего развития.
         </p>
       </section>
 
       <SectionCard title="Статус проекта">
         <p>
-          Репозиторий и базовая архитектура готовы. Реальная аналитика, работа с CSV и интеграция с локальной LLM
-          через Ollama будут добавлены на следующих этапах.
+          Репозиторий и базовая архитектура готовы. Реальная аналитика, работа с CSV и интеграция с локальной LLM через Ollama будут добавлены на следующих этапах.
         </p>
       </SectionCard>
 
@@ -32,7 +30,7 @@ export default function HomePage() {
           href="/lab2"
           number="Lab 2"
           title="API Pipeline"
-          goal="Собрать конвейер CSV -> prompt -> LLM -> JSON и сохранить структуру результата."
+          goal="Собрать конвейер CSV → prompt → LLM → JSON и сохранить структуру результата."
           maxScore={30}
           status="В разработке"
         />
@@ -48,4 +46,3 @@ export default function HomePage() {
     </div>
   );
 }
-

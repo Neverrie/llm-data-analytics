@@ -42,16 +42,13 @@ export default function Lab1Page() {
       </SectionCard>
 
       <section className="neu-card p-6">
-        <button className="neu-btn" onClick={handleCheck} disabled={loading}>
+        <button className="neu-btn px-4 py-2" onClick={handleCheck} disabled={loading}>
           {loading ? "Проверка..." : "Проверить API лабы 1"}
         </button>
 
-        {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
-        {result ? (
-          <pre className="neu-inset mt-4 overflow-x-auto p-4 text-xs md:text-sm">{JSON.stringify(result, null, 2)}</pre>
-        ) : null}
+        {error ? <p className="error-box mt-4 px-3 py-2 text-sm">{error}</p> : null}
+        {result ? <pre className="neu-inset mt-4 overflow-x-auto p-4 text-xs md:text-sm">{JSON.stringify(result, null, 2)}</pre> : null}
       </section>
     </div>
   );
 }
-

@@ -3,29 +3,159 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
+  --bg: #eef3f8;
+  --panel: #eef3f8;
+  --panel-strong: #e8edf4;
+  --text: #1f2d3d;
+  --muted: #5f6f82;
+  --accent: #4b89dc;
+  --success: #6abf9b;
+  --danger-bg: #fee2e2;
+  --danger-text: #b91c1c;
+  --warning-bg: #fef3c7;
+  --warning-text: #92400e;
+  --code-bg: #0f172a;
+  --code-text: #e2e8f0;
+  --border: rgba(31, 45, 61, 0.18);
+  --shadow-raised: 10px 10px 22px #d1d8df, -10px -10px 22px #ffffff;
+  --shadow-inset: inset 6px 6px 14px #d7dee6, inset -6px -6px 14px #ffffff;
+}
+
+html[data-theme="dark"] {
+  --bg: #0f172a;
+  --panel: #172033;
+  --panel-strong: #1f2937;
+  --text: #e5e7eb;
+  --muted: #94a3b8;
+  --accent: #60a5fa;
+  --success: #34d399;
+  --danger-bg: #3f1e24;
+  --danger-text: #fecaca;
+  --warning-bg: #3a2f15;
+  --warning-text: #fde68a;
+  --code-bg: #0b1220;
+  --code-text: #dbeafe;
+  --border: rgba(203, 213, 225, 0.2);
+  --shadow-raised: 10px 10px 24px #0a1020, -10px -10px 24px #22314a;
+  --shadow-inset: inset 5px 5px 12px #0b1222, inset -5px -5px 12px #25344d;
+}
+
+html,
+body {
+  min-height: 100%;
 }
 
 body {
-  @apply bg-shell text-ink;
+  background: var(--bg);
+  color: var(--text);
   font-family: "Segoe UI", "Inter", sans-serif;
 }
 
+select,
+input,
+textarea {
+  color: var(--text);
+}
+
+option {
+  background-color: var(--panel-strong);
+  color: var(--text);
+}
+
 @layer components {
+  .page-bg {
+    background: var(--bg);
+    color: var(--text);
+  }
+
+  .app-text {
+    color: var(--text);
+  }
+
+  .muted-text {
+    color: var(--muted);
+  }
+
+  .soft-border {
+    border-color: var(--border);
+  }
+
   .neu-card {
-    @apply rounded-neu-lg bg-shell shadow-neu;
+    border-radius: 2rem;
+    background: var(--panel);
+    box-shadow: var(--shadow-raised);
+    color: var(--text);
   }
 
   .neu-panel {
-    @apply rounded-neu bg-shell shadow-neu;
+    border-radius: 1.5rem;
+    background: var(--panel);
+    box-shadow: var(--shadow-raised);
+    color: var(--text);
   }
 
   .neu-inset {
-    @apply rounded-neu bg-shell shadow-neu-inset;
+    border-radius: 1.5rem;
+    background: var(--panel);
+    box-shadow: var(--shadow-inset);
+    color: var(--text);
   }
 
   .neu-btn {
-    @apply rounded-xl bg-shell px-4 py-2 font-medium text-ink shadow-neu transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[12px_12px_20px_#d2d7dd,-12px_-12px_20px_#ffffff] active:translate-y-0 active:shadow-neu-inset;
+    border-radius: 0.9rem;
+    border: 1px solid transparent;
+    background: var(--panel);
+    box-shadow: var(--shadow-raised);
+    color: var(--text);
+    font-weight: 600;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+
+  .neu-btn:hover {
+    transform: translateY(-1px);
+    border-color: var(--border);
+  }
+
+  .neu-btn:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-inset);
+  }
+
+  .neu-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .accent-chip {
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--panel-strong);
+    color: var(--muted);
+  }
+
+  .badge-manual {
+    border: 1px solid color-mix(in oklab, var(--accent) 45%, #ffffff 55%);
+    border-radius: 999px;
+    background: color-mix(in oklab, var(--accent) 20%, transparent 80%);
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .json-block {
+    border-radius: 1rem;
+    background: var(--code-bg);
+    color: var(--code-text);
+  }
+
+  .warning-box {
+    border-radius: 1rem;
+    background: var(--warning-bg);
+    color: var(--warning-text);
+  }
+
+  .error-box {
+    border-radius: 1rem;
+    background: var(--danger-bg);
+    color: var(--danger-text);
   }
 }
-

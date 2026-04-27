@@ -155,7 +155,7 @@ export default function Lab2Page() {
       <section className="neu-card space-y-4 p-6">
         <h2 className="text-xl font-semibold">Датасет</h2>
         <p>Uber Customer Reviews Dataset (2024)</p>
-        <p className="text-sm text-slate-600">
+        <p className="text-sm muted-text">
           Текстовая колонка: <code>content</code>. Дополнительные поля: <code>score</code>, <code>thumbsUpCount</code>,
           <code> reviewCreatedVersion</code>, <code>at</code>, <code>appVersion</code>.
         </p>
@@ -163,7 +163,7 @@ export default function Lab2Page() {
 
       <section className="neu-card space-y-4 p-6">
         <h2 className="text-xl font-semibold">Pipeline</h2>
-        <ol className="list-decimal space-y-1 pl-6 text-sm text-slate-700">
+        <ol className="list-decimal space-y-1 pl-6 text-sm muted-text">
           <li>read dataset</li>
           <li>filter reviews</li>
           <li>build prompt</li>
@@ -176,7 +176,7 @@ export default function Lab2Page() {
 
       <section className="neu-card space-y-4 p-6">
         <h2 className="text-xl font-semibold">Настройки запуска</h2>
-        <p className="text-sm text-slate-600">
+        <p className="text-sm muted-text">
           `limit` — сколько отзывов обработать. `batch_size` — сколько отзывов отправлять в модель за один запрос.
           Backend ограничивает максимум по limit автоматически.
         </p>
@@ -241,23 +241,23 @@ export default function Lab2Page() {
 
         {loadingStatus ? <p className="text-sm">Загрузка статуса Lab 2...</p> : null}
         {status ? (
-          <p className="text-sm text-slate-700">
+          <p className="text-sm muted-text">
             Модель: <span className="font-medium">{status.model}</span> | Датасет: <span className="font-medium">{status.dataset}</span>
           </p>
         ) : null}
-        {error ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
+        {error ? <p className="error-box px-3 py-2 text-sm">{error}</p> : null}
       </section>
 
       {sampleData ? (
         <section className="neu-card space-y-4 p-6">
           <h2 className="text-xl font-semibold">Sample data</h2>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm muted-text">
             Dataset: {sampleData.dataset} | Rows after filtering: {sampleData.total_rows}
           </p>
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead>
-                <tr className="text-slate-600">
+                <tr className="muted-text">
                   <th className="p-2">row_id</th>
                   <th className="p-2">score</th>
                   <th className="p-2">thumbs_up_count</th>
@@ -267,7 +267,7 @@ export default function Lab2Page() {
               </thead>
               <tbody>
                 {sampleData.sample.map((row) => (
-                  <tr key={row.row_id} className="border-t border-slate-200/70">
+                  <tr key={row.row_id} className="soft-border border-t">
                     <td className="p-2">{row.row_id}</td>
                     <td className="p-2">{row.score ?? "-"}</td>
                     <td className="p-2">{row.thumbs_up_count ?? "-"}</td>
@@ -295,7 +295,7 @@ export default function Lab2Page() {
           </div>
 
           {runResult.warnings.length > 0 ? (
-            <div className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <div className="warning-box px-4 py-3 text-sm">
               <p className="font-medium">Предупреждения:</p>
               <ul className="list-disc pl-5">
                 {runResult.warnings.map((warning) => (
@@ -308,7 +308,7 @@ export default function Lab2Page() {
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead>
-                <tr className="text-slate-600">
+                <tr className="muted-text">
                   <th className="p-2">row_id</th>
                   <th className="p-2">sentiment</th>
                   <th className="p-2">issue_type</th>
@@ -320,7 +320,7 @@ export default function Lab2Page() {
               </thead>
               <tbody>
                 {runResult.results.map((item) => (
-                  <tr key={item.row_id} className="border-t border-slate-200/70 align-top">
+                  <tr key={item.row_id} className="soft-border border-t align-top">
                     <td className="p-2">{item.row_id}</td>
                     <td className="p-2">{item.sentiment}</td>
                     <td className="p-2">{item.issue_type}</td>
