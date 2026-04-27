@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Any
 
@@ -10,29 +11,6 @@ from app.services.lab2_service import Lab2PipelineError
 from app.services.lab3_column_mapper import get_effective_column_mapping
 from app.services.lab3_security import ALLOWED_TOOLS, validate_tool_call
 from app.services.lab3_tools import TOOL_METADATA, execute_tool
-
-
-def _fallback_plan(question: str, max_tool_calls: int) -> dict[str, Any]:
-    question_low = question.lower()
-    tool_calls: list[dict[str, Any]] = [{"tool": "get_dataset_schema", "arguments": {}}]
-
-    if any(token in question_low for token in ["низк", "negative", "проблем"]):
-        tool_calls.append({"tool": "get_low_rating_rows", "arguments": {"threshold": 2, "limit": 20}})
-        tool_calls.append({"tool": "extract_top_keywords", "arguments": {"rating_max": 2, "top_n": 20}})
-    elif any(token in question_low for token in ["времен", "time", "месяц"]):
-        tool_calls.append({"tool": "get_rows_by_month", "arguments": {}})
-        tool_calls.append({"tool": "get_average_rating_by_month", "arguments": {}})
-    elif any(token in question_low for token in ["верс", "version"]):
-        tool_calls.append({"tool": "get_rows_by_version", "arguments": {}})
-        tool_calls.append({"tool": "find_problematic_versions", "arguments": {}})
-    elif any(token in question_low for token in ["prompt injection", "инъекц", "промпт"]):
-        tool_calls.append({"tool": "detect_text_prompt_injection_patterns", "arguments": {}})
-        tool_calls.append({"tool": "explain_prompt_injection_protection", "arguments": {}})
-    else:
-        tool_calls.append({"tool": "describe_rating", "arguments": {}})
-        tool_calls.append({"tool": "extract_top_keywords", "arguments": {"top_n": 20}})
-
-    return {"plan": "Heuristic planner fallback.", "tool_calls": tool_calls[:max_tool_calls]}
 
 
 def _parse_json_or_raise(raw_text: str, error_prefix: str) -> dict[str, Any]:
@@ -46,7 +24,108 @@ def _parse_json_or_raise(raw_text: str, error_prefix: str) -> dict[str, Any]:
     return data
 
 
-async def _planner_output(
+def _add_tool_if_valid(
+    tools: list[str],
+    warnings: list[str],
+    tool_name: str,
+    mapping: dict[str, Any],
+    available_tools: set[str],
+) -> None:
+    if tool_name not in available_tools:
+        return
+    required_roles = TOOL_METADATA.get(tool_name, {}).get("required_roles", [])
+    for role in required_roles:
+        col = mapping.get("roles", {}).get(role, {}).get("column")
+        if not col:
+            warnings.append(f"Tool '{tool_name}' skipped: required role '{role}' is not detected.")
+            return
+    tools.append(tool_name)
+
+
+def build_rule_based_plan(
+    question: str,
+    profile: dict[str, Any],
+    column_mapping: dict[str, Any],
+    available_tools: list[str],
+    max_tool_calls: int,
+) -> tuple[dict[str, Any], list[str]]:
+    _ = profile
+    question_low = question.lower()
+    warnings: list[str] = []
+    candidates: list[str] = []
+    available = set(available_tools)
+
+    # Always useful.
+    _add_tool_if_valid(candidates, warnings, "get_dataset_schema", column_mapping, available)
+    _add_tool_if_valid(candidates, warnings, "get_missing_values_report", column_mapping, available)
+
+    if any(token in question_low for token in ["обзор", "структур", "dataset", "датасет", "данные"]):
+        _add_tool_if_valid(candidates, warnings, "describe_numeric_columns", column_mapping, available)
+
+    if any(token in question_low for token in ["качество", "пропуск", "missing", "дубликат"]):
+        _add_tool_if_valid(candidates, warnings, "get_duplicate_text_report", column_mapping, available)
+
+    if any(token in question_low for token in ["числ", "numeric", "статист", "средн", "median"]):
+        _add_tool_if_valid(candidates, warnings, "describe_numeric_columns", column_mapping, available)
+        _add_tool_if_valid(candidates, warnings, "get_correlation_matrix", column_mapping, available)
+
+    if any(token in question_low for token in ["оцен", "рейтинг", "score", "балл"]):
+        _add_tool_if_valid(candidates, warnings, "describe_rating", column_mapping, available)
+        _add_tool_if_valid(candidates, warnings, "get_rating_distribution", column_mapping, available)
+
+    if any(token in question_low for token in ["низк", "плох", "negative", "негатив"]):
+        _add_tool_if_valid(candidates, warnings, "get_low_rating_rows", column_mapping, available)
+        _add_tool_if_valid(candidates, warnings, "extract_top_keywords", column_mapping, available)
+
+    if any(token in question_low for token in ["высок", "хорош", "positive", "позитив"]):
+        _add_tool_if_valid(candidates, warnings, "get_high_rating_rows", column_mapping, available)
+
+    if any(token in question_low for token in ["текст", "отзыв", "comments", "keywords", "слова", "темы"]):
+        _add_tool_if_valid(candidates, warnings, "get_text_length_stats", column_mapping, available)
+        _add_tool_if_valid(candidates, warnings, "extract_top_keywords", column_mapping, available)
+        _add_tool_if_valid(candidates, warnings, "cluster_texts_by_topic_simple", column_mapping, available)
+
+    if any(token in question_low for token in ["дата", "время", "динам", "месяц", "trend", "тренд"]):
+        _add_tool_if_valid(candidates, warnings, "get_rows_by_month", column_mapping, available)
+        _add_tool_if_valid(candidates, warnings, "get_average_rating_by_month", column_mapping, available)
+
+    if any(token in question_low for token in ["верс", "app", "version"]):
+        _add_tool_if_valid(candidates, warnings, "get_rows_by_version", column_mapping, available)
+        _add_tool_if_valid(candidates, warnings, "get_average_rating_by_version", column_mapping, available)
+        _add_tool_if_valid(candidates, warnings, "find_problematic_versions", column_mapping, available)
+
+    if any(token in question_low for token in ["корреля", "correlation", "зависим", "влияет"]):
+        _add_tool_if_valid(candidates, warnings, "get_correlation_matrix", column_mapping, available)
+
+    if any(token in question_low for token in ["аномал", "выброс", "anomaly", "outlier"]):
+        _add_tool_if_valid(candidates, warnings, "detect_numeric_outliers", column_mapping, available)
+
+    if any(token in question_low for token in ["категори", "categorical"]):
+        _add_tool_if_valid(candidates, warnings, "describe_categorical_columns", column_mapping, available)
+
+    if any(token in question_low for token in ["target", "label", "целев", "результат"]):
+        _add_tool_if_valid(candidates, warnings, "infer_potential_target_columns", column_mapping, available)
+
+    if any(token in question_low for token in ["prompt injection", "injection", "jailbreak", "промпт"]):
+        _add_tool_if_valid(candidates, warnings, "detect_text_prompt_injection_patterns", column_mapping, available)
+        _add_tool_if_valid(candidates, warnings, "explain_prompt_injection_protection", column_mapping, available)
+
+    if any(token in question_low for token in ["отчет", "отчёт", "report", "полный"]):
+        _add_tool_if_valid(candidates, warnings, "describe_numeric_columns", column_mapping, available)
+        _add_tool_if_valid(candidates, warnings, "describe_categorical_columns", column_mapping, available)
+        _add_tool_if_valid(candidates, warnings, "infer_potential_target_columns", column_mapping, available)
+
+    unique_calls: list[str] = []
+    for tool in candidates:
+        if tool not in unique_calls:
+            unique_calls.append(tool)
+
+    unique_calls = unique_calls[:max_tool_calls]
+    tool_calls = [{"tool": tool, "arguments": {}} for tool in unique_calls]
+    return {"plan": "Rule-based plan for fast mode.", "tool_calls": tool_calls}, warnings
+
+
+async def _planner_output_llm(
     question: str,
     profile: dict[str, Any],
     mapping: dict[str, Any],
@@ -55,6 +134,7 @@ async def _planner_output(
     warnings: list[str] = []
     client = OllamaClient(settings.ollama_base_url)
     available_tools = [{"tool": key, **value} for key, value in TOOL_METADATA.items()]
+
     prompt = (
         "You are a planner for a safe data analytics agent. Return JSON only.\n"
         "Select tool calls only from allowlist and do not exceed max_tool_calls.\n"
@@ -71,25 +151,25 @@ async def _planner_output(
         planner_data = _parse_json_or_raise(planner_response.response, "Planner response parse failed")
     except (OllamaClientError, Lab2PipelineError) as exc:
         warnings.append(f"Planner fallback activated: {exc}")
-        return _fallback_plan(question, max_tool_calls), warnings
+        fallback, fallback_warnings = build_rule_based_plan(
+            question=question,
+            profile=profile,
+            column_mapping=mapping,
+            available_tools=list(TOOL_METADATA.keys()),
+            max_tool_calls=max_tool_calls,
+        )
+        return fallback, warnings + fallback_warnings
 
     if not isinstance(planner_data.get("tool_calls"), list):
-        warnings.append("Planner output missing tool_calls. Fallback to heuristic plan.")
-        return _fallback_plan(question, max_tool_calls), warnings
-
-    repair_prompt = (
-        "You are a tool-caller validator. Return JSON only.\n"
-        f"Input planner output: {json.dumps(planner_data, ensure_ascii=False)}\n"
-        f"Allowed tools: {json.dumps(sorted(ALLOWED_TOOLS), ensure_ascii=False)}\n"
-        'Output format: {"plan":"...","tool_calls":[{"tool":"...","arguments":{}}]}'
-    )
-    try:
-        tool_response = await client.generate_json(settings.lab3_tool_caller_model, repair_prompt)
-        repaired = _parse_json_or_raise(tool_response.response, "Tool caller parse failed")
-        if isinstance(repaired.get("tool_calls"), list):
-            planner_data = repaired
-    except (OllamaClientError, Lab2PipelineError):
-        warnings.append("Tool-caller refinement skipped.")
+        warnings.append("Planner output missing tool_calls. Fallback to rule-based plan.")
+        fallback, fallback_warnings = build_rule_based_plan(
+            question=question,
+            profile=profile,
+            column_mapping=mapping,
+            available_tools=list(TOOL_METADATA.keys()),
+            max_tool_calls=max_tool_calls,
+        )
+        return fallback, warnings + fallback_warnings
 
     valid_calls: list[dict[str, Any]] = []
     for call in planner_data.get("tool_calls", []):
@@ -102,8 +182,15 @@ async def _planner_output(
             warnings.append(str(exc))
 
     if not valid_calls:
-        warnings.append("Planner produced no valid tool calls. Fallback to heuristic plan.")
-        return _fallback_plan(question, max_tool_calls), warnings
+        warnings.append("Planner produced no valid tool calls. Fallback to rule-based plan.")
+        fallback, fallback_warnings = build_rule_based_plan(
+            question=question,
+            profile=profile,
+            column_mapping=mapping,
+            available_tools=list(TOOL_METADATA.keys()),
+            max_tool_calls=max_tool_calls,
+        )
+        return fallback, warnings + fallback_warnings
 
     if len(valid_calls) > max_tool_calls:
         valid_calls = valid_calls[:max_tool_calls]
@@ -124,14 +211,8 @@ async def _final_answer(question: str, mapping: dict[str, Any], executed_tools: 
         f"Column mapping: {json.dumps(mapping, ensure_ascii=False)}\n"
         f"Tool outputs: {json.dumps(executed_tools, ensure_ascii=False)}"
     )
-    try:
-        response = await client.generate_text(settings.lab3_planner_model, prompt)
-        return response.response.strip()
-    except OllamaClientError as exc:
-        return (
-            "Не удалось получить финальный ответ от модели. Ниже доступны результаты tools, "
-            f"на основе которых можно сделать вывод. Причина: {exc}"
-        )
+    response = await client.generate_text(settings.lab3_planner_model, prompt)
+    return response.response.strip()
 
 
 async def _critic_review(
@@ -139,11 +220,7 @@ async def _critic_review(
     mapping: dict[str, Any],
     executed_tools: list[dict[str, Any]],
     final_answer: str,
-    use_critic: bool,
 ) -> dict[str, Any]:
-    if not use_critic:
-        return {"passed": True, "issues": [], "recommendations": ["Critic disabled by request."]}
-
     client = OllamaClient(settings.ollama_base_url)
     prompt = (
         "You are a critic. Return JSON only.\n"
@@ -155,16 +232,13 @@ async def _critic_review(
         f"Tools: {json.dumps(executed_tools, ensure_ascii=False)}\n"
         f"Final answer: {final_answer}"
     )
-    try:
-        response = await client.generate_json(settings.lab3_critic_model, prompt)
-        parsed = _parse_json_or_raise(response.response, "Critic response parse failed")
-        return {
-            "passed": bool(parsed.get("passed", False)),
-            "issues": list(parsed.get("issues", [])),
-            "recommendations": list(parsed.get("recommendations", [])),
-        }
-    except (OllamaClientError, Lab2PipelineError) as exc:
-        return {"passed": False, "issues": [str(exc)], "recommendations": ["Проверьте critic model вручную."]}
+    response = await client.generate_json(settings.lab3_critic_model, prompt)
+    parsed = _parse_json_or_raise(response.response, "Critic response parse failed")
+    return {
+        "passed": bool(parsed.get("passed", False)),
+        "issues": list(parsed.get("issues", [])),
+        "recommendations": list(parsed.get("recommendations", [])),
+    }
 
 
 def _ensure_lab3_output_dir() -> Path:
@@ -186,27 +260,79 @@ async def run_agent(
     column_overrides: dict[str, str | None],
     max_tool_calls: int,
     use_critic: bool,
+    analysis_mode: str,
 ) -> dict[str, Any]:
-    profile, mapping_model = await get_effective_column_mapping(dataset_name, column_overrides)
-    mapping = mapping_model.model_dump()
+    started_at = time.perf_counter()
+    warnings: list[str] = []
+    llm_calls_count = 0
 
-    planner_output, planner_warnings = await _planner_output(question, profile, mapping, max_tool_calls=max_tool_calls)
+    use_llm_mapping = analysis_mode == "full"
+    profile, mapping_model, mapping_llm_used = await get_effective_column_mapping(
+        dataset_name,
+        column_overrides,
+        use_llm_assist=use_llm_mapping,
+    )
+    mapping = mapping_model.model_dump()
+    if mapping_llm_used:
+        llm_calls_count += 1
+
+    if analysis_mode == "fast":
+        planner_output, planner_warnings = build_rule_based_plan(
+            question=question,
+            profile=profile,
+            column_mapping=mapping,
+            available_tools=list(TOOL_METADATA.keys()),
+            max_tool_calls=max_tool_calls,
+        )
+        if use_critic:
+            warnings.append("Critic skipped in fast mode.")
+        use_critic_effective = False
+    else:
+        planner_output, planner_warnings = await _planner_output_llm(
+            question=question,
+            profile=profile,
+            mapping=mapping,
+            max_tool_calls=max_tool_calls,
+        )
+        llm_calls_count += 1
+        use_critic_effective = use_critic
+
+    warnings.extend(planner_warnings)
 
     executed_tools: list[dict[str, Any]] = []
     for tool_call in planner_output["tool_calls"]:
         result = execute_tool(dataset_name, tool_call["tool"], mapping, tool_call.get("arguments", {}))
         executed_tools.append(result)
 
-    final_answer = await _final_answer(question, mapping, executed_tools)
-    critic_review = await _critic_review(question, mapping, executed_tools, final_answer, use_critic=use_critic)
+    final_answer = ""
+    try:
+        final_answer = await _final_answer(question, mapping, executed_tools)
+        llm_calls_count += 1
+    except OllamaClientError as exc:
+        final_answer = f"Не удалось получить финальный ответ от модели: {exc}"
+        warnings.append("Final answer model failed.")
+
+    critic_review: dict[str, Any] | None = None
+    if use_critic_effective:
+        try:
+            critic_review = await _critic_review(question, mapping, executed_tools, final_answer)
+            llm_calls_count += 1
+        except (OllamaClientError, Lab2PipelineError) as exc:
+            warnings.append(f"Critic skipped due to error: {exc}")
+            critic_review = {"passed": False, "issues": [str(exc)], "recommendations": []}
 
     report_tool = execute_tool(dataset_name, "generate_markdown_report", mapping, {"tool_outputs": executed_tools})
 
-    result_payload = {
+    elapsed_seconds = round(time.perf_counter() - started_at, 3)
+    result_payload: dict[str, Any] = {
         "lab": 3,
         "status": "success",
         "dataset": dataset_name,
         "question": question,
+        "analysis_mode": analysis_mode,
+        "llm_calls_count": llm_calls_count,
+        "elapsed_seconds": elapsed_seconds,
+        "warnings": warnings,
         "column_mapping": mapping,
         "planner_output": planner_output,
         "planner_warnings": planner_warnings,
@@ -214,11 +340,15 @@ async def run_agent(
         "final_answer": final_answer,
         "critic_review": critic_review,
     }
+
     export_tool = execute_tool(dataset_name, "export_lab3_result_json", mapping, {"result_payload": result_payload})
 
     trace = {
         "question": question,
         "dataset": dataset_name,
+        "analysis_mode": analysis_mode,
+        "elapsed_seconds": elapsed_seconds,
+        "llm_calls_count": llm_calls_count,
         "profile_summary": {
             "total_rows": profile["total_rows"],
             "total_columns": profile["total_columns"],
@@ -230,6 +360,7 @@ async def run_agent(
         "executed_tools": executed_tools,
         "final_answer": final_answer,
         "critic_review": critic_review,
+        "warnings": warnings,
     }
     trace_path = _save_trace(trace)
 

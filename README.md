@@ -24,7 +24,7 @@ docker compose up --build
 
 Lab 2 использует **Uber Customer Reviews Dataset (2024)**.
 
-Как работает pipeline:
+Pipeline:
 
 1. Backend читает датасет из `datasets`.
 2. Использует `content` как текст отзыва.
@@ -34,62 +34,47 @@ Lab 2 использует **Uber Customer Reviews Dataset (2024)**.
 6. Парсит и валидирует JSON через Pydantic.
 7. Сохраняет результат в `outputs/lab2_result.json`.
 
-Параметры запуска Lab 2:
-
-- `limit`: сколько отзывов обработать
-- `batch_size`: сколько отзывов отправлять в одном запросе к модели
-- `min_score` / `max_score`: фильтр по оценке
-
-Пример результата JSON (фрагмент):
-
-```json
-{
-  "lab": 2,
-  "status": "success",
-  "rows_processed": 10,
-  "results": [
-    {
-      "row_id": 1,
-      "sentiment": "negative",
-      "issue_type": "payment_issue",
-      "topic": "billing",
-      "urgency": "high",
-      "summary": "Пользователь жалуется на проблему с оплатой.",
-      "suggested_action": "Проверить сценарии оплаты и возврата средств."
-    }
-  ]
-}
-```
-
 ## Задание 3 — Мини-продукт с LLM-аналитикой
 
 Lab 3 — универсальный аналитический агент для CSV/XLSX-датасетов.
 
-Ключевые возможности:
+Что добавлено:
 
-- semantic column mapping (автоопределение ролей колонок)
-- user overrides для ручной корректировки ролей
-- allowlisted tools (без произвольного кода)
-- planner → tool-caller → critic pipeline
-- экспорт отчётов в `outputs/lab3`
-- agent trace в `outputs/lab3/agent_trace.json`
+- upload датасетов через UI (`/api/lab3/upload-dataset`), сохранение в `datasets/uploads`
+- универсальный semantic column mapping (включая `target_column`)
+- user overrides для ролей колонок
+- режимы анализа:
+  - `fast` (рекомендуется для демонстрации)
+  - `balanced`
+  - `full`
+- универсальные quick scenarios для разных типов датасетов
+- tools вынесены в Advanced-блок в UI
+- allowlisted tools + защита от prompt injection
 
-Роли колонок (пример):
+### Режимы анализа
 
-- `text_column`
-- `rating_column`
-- `date_column`
-- `version_column`
-- `reply_column`
-- `reply_date_column`
+- `fast`: heuristic mapping + rule-based planner + один LLM-вызов для финального ответа.
+- `balanced`: heuristic mapping + LLM planner + финальный ответ (+ critic опционально).
+- `full`: heuristic + LLM-assisted mapping + LLM planner + финальный ответ (+ critic опционально).
 
-Модели Ollama:
+В ответе агента возвращаются:
 
-- `qwen3:8b` (planner/final answer)
-- `qwen2.5-coder:7b` (tool-caller)
-- `deepseek-r1:8b` (critic)
+- `analysis_mode`
+- `llm_calls_count`
+- `elapsed_seconds`
+- `warnings`
 
-Установить модели:
+### Как продемонстрировать Lab 3
+
+1. Откройте `http://localhost:3003/lab3`.
+2. Выберите датасет или загрузите свой CSV/XLSX.
+3. Нажмите «Проанализировать структуру».
+4. Проверьте и при необходимости исправьте роли колонок.
+5. Выберите режим `Быстрый`.
+6. Задайте вопрос и запустите агента.
+7. Посмотрите финальный ответ и отчёт.
+
+### Модели Ollama
 
 ```bash
 ollama pull qwen3:8b
@@ -97,58 +82,37 @@ ollama pull qwen2.5-coder:7b
 ollama pull deepseek-r1:8b
 ```
 
-Важно: при запуске backend в Docker обращается к Ollama на хосте через:
+Если backend работает в Docker, доступ к Ollama на хосте:
 
 - `http://host.docker.internal:11434`
-
-Примеры вопросов для Lab 3:
-
-- Какие основные проблемы пользователи отмечают в низкооценённых отзывах?
-- Есть ли ухудшение оценок со временем?
-- Какие версии приложения выглядят проблемными?
-- Есть ли отзывы, похожие на prompt injection?
-- Какие темы чаще всего встречаются в негативных отзывах?
-
-## Проверка Ollama
-
-```bash
-ollama list
-```
 
 ## Полезные URL
 
 - Lab 2: http://localhost:3003/lab2
 - Lab 3: http://localhost:3003/lab3
-- Lab 2 status: http://localhost:8003/api/lab2/status
 - Lab 3 status: http://localhost:8003/api/lab3/status
 - Lab 3 datasets: http://localhost:8003/api/lab3/datasets
 
 ## Примеры curl
 
-Lab 2:
-
-```bash
-curl -X POST "http://localhost:8003/api/lab2/run" \
-  -H "Content-Type: application/json" \
-  -d '{"limit":5,"batch_size":5,"min_score":null,"max_score":null}'
-```
-
-```bash
-curl -X POST "http://localhost:8003/api/lab2/run" \
-  -H "Content-Type: application/json" \
-  -d '{"limit":12,"batch_size":5,"min_score":null,"max_score":null}'
-```
-
-Lab 3:
+Lab 3 ask:
 
 ```bash
 curl -X POST "http://localhost:8003/api/lab3/ask" \
   -H "Content-Type: application/json" \
   -d '{
     "dataset_name":"customers_reviews.csv",
-    "question":"Какие основные проблемы пользователи отмечают в низкооценённых отзывах?",
+    "question":"Сделай краткий обзор датасета",
     "column_overrides":{},
-    "max_tool_calls":8,
-    "use_critic":true
+    "max_tool_calls":6,
+    "use_critic":false,
+    "analysis_mode":"fast"
   }'
+```
+
+Lab 3 upload:
+
+```bash
+curl -X POST "http://localhost:8003/api/lab3/upload-dataset" \
+  -F "file=@./my_dataset.csv"
 ```

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 
@@ -15,7 +15,6 @@ def mapper_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     datasets_dir = tmp_path / "datasets"
     datasets_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(settings, "datasets_dir", str(datasets_dir))
-    monkeypatch.setattr(settings, "lab2_dataset_filename", "customer_reviews")
     return datasets_dir
 
 
@@ -51,6 +50,38 @@ def _write_uber_dataset(path: Path) -> None:
     frame.to_csv(path, index=False)
 
 
+def _write_student_dataset(path: Path) -> None:
+    frame = pd.DataFrame(
+        [
+            {
+                "student_id": "ST_001",
+                "attendance_rate": 0.92,
+                "previous_score": 78,
+                "final_score": 85,
+                "passed": "yes",
+                "class_group": "A",
+            },
+            {
+                "student_id": "ST_002",
+                "attendance_rate": 0.73,
+                "previous_score": 62,
+                "final_score": 68,
+                "passed": "yes",
+                "class_group": "B",
+            },
+            {
+                "student_id": "ST_003",
+                "attendance_rate": 0.41,
+                "previous_score": 40,
+                "final_score": 45,
+                "passed": "no",
+                "class_group": "B",
+            },
+        ]
+    )
+    frame.to_csv(path, index=False)
+
+
 def test_profile_dataset(mapper_paths: Path) -> None:
     _write_uber_dataset(mapper_paths / "customers_reviews.csv")
     profile = lab3_column_mapper.profile_dataset("customers_reviews.csv")
@@ -67,36 +98,37 @@ def test_infer_uber_column_roles(mapper_paths: Path) -> None:
     assert mapping.roles["rating_column"].column == "score"
     assert mapping.roles["date_column"].column == "at"
     assert mapping.roles["version_column"].column == "appVersion"
-    assert mapping.roles["reply_column"].column == "replyContent"
-    assert mapping.roles["reply_date_column"].column == "repliedAt"
+
+
+def test_student_id_not_text_and_attendance_not_date(mapper_paths: Path) -> None:
+    _write_student_dataset(mapper_paths / "student_performance.csv")
+    profile = lab3_column_mapper.profile_dataset("student_performance.csv")
+    mapping = lab3_column_mapper.infer_column_roles_heuristic(profile)
+    assert mapping.roles["id_column"].column == "student_id"
+    assert mapping.roles["text_column"].column is None
+    assert mapping.roles["date_column"].column is None
+    assert mapping.roles["rating_column"].column == "final_score"
+    assert mapping.roles["target_column"].column in {"final_score", "passed"}
 
 
 @pytest.mark.asyncio
-async def test_user_overrides(mapper_paths: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_user_overrides(mapper_paths: Path) -> None:
     _write_uber_dataset(mapper_paths / "customers_reviews.csv")
-
-    async def fake_llm(profile, heuristic):  # noqa: ANN001
-        return heuristic
-
-    monkeypatch.setattr(lab3_column_mapper, "infer_column_roles_llm", fake_llm)
-    _, mapping = await lab3_column_mapper.get_effective_column_mapping(
+    _, mapping, _ = await lab3_column_mapper.get_effective_column_mapping(
         "customers_reviews.csv",
         user_overrides={"text_column": "content", "rating_column": "score"},
+        use_llm_assist=False,
     )
     assert mapping.roles["text_column"].column == "content"
     assert mapping.roles["rating_column"].column == "score"
 
 
 @pytest.mark.asyncio
-async def test_invalid_user_override(mapper_paths: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_invalid_user_override(mapper_paths: Path) -> None:
     _write_uber_dataset(mapper_paths / "customers_reviews.csv")
-
-    async def fake_llm(profile, heuristic):  # noqa: ANN001
-        return heuristic
-
-    monkeypatch.setattr(lab3_column_mapper, "infer_column_roles_llm", fake_llm)
     with pytest.raises(Lab2PipelineError):
         await lab3_column_mapper.get_effective_column_mapping(
             "customers_reviews.csv",
             user_overrides={"text_column": "missing_column"},
+            use_llm_assist=False,
         )

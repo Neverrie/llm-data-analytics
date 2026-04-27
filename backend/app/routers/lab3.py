@@ -1,6 +1,6 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 
 from app.schemas import Lab3AskRequest, Lab3MapColumnsRequest, Lab3RunToolRequest
@@ -15,6 +15,7 @@ from app.services.lab3_service import (
     get_tools,
     map_columns,
     run_tool,
+    upload_dataset,
 )
 
 router = APIRouter(prefix="/lab3", tags=["lab3"])
@@ -28,6 +29,14 @@ def lab3_status() -> dict:
 @router.get("/datasets")
 def lab3_datasets() -> dict:
     return get_datasets()
+
+
+@router.post("/upload-dataset")
+async def lab3_upload_dataset(file: UploadFile = File(...)) -> dict:
+    try:
+        return await upload_dataset(file)
+    except Lab2PipelineError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
 
 @router.get("/profile")
@@ -73,6 +82,7 @@ async def lab3_ask(request: Lab3AskRequest) -> dict:
             column_overrides=request.column_overrides,
             max_tool_calls=request.max_tool_calls,
             use_critic=request.use_critic,
+            analysis_mode=request.analysis_mode,
         )
     except Lab2PipelineError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc

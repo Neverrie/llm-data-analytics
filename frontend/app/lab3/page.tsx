@@ -42,72 +42,116 @@ type AskResult = {
   status: string;
   dataset: string;
   question: string;
+  analysis_mode: "fast" | "balanced" | "full";
+  llm_calls_count: number;
+  elapsed_seconds: number;
+  warnings: string[];
   column_mapping: {
     roles: Record<string, RoleMatch>;
     numeric_columns: string[];
     categorical_columns: string[];
   };
   planner_output: { plan: string; tool_calls: Array<{ tool: string; arguments: Record<string, unknown> }> };
-  planner_warnings?: string[];
   executed_tools: Array<Record<string, unknown>>;
   final_answer: string;
-  critic_review: { passed: boolean; issues: string[]; recommendations: string[] };
+  critic_review?: { passed: boolean; issues: string[]; recommendations: string[] } | null;
   output_files?: Record<string, string>;
 };
 
+type UploadResponse = {
+  status: string;
+  dataset: { name: string; type: string; rows: number; columns: number };
+};
+
+const BASE_SCENARIOS: Array<{ label: string; question: string }> = [
+  {
+    label: "Обзор датасета",
+    question: "Сделай краткий обзор датасета: структура, типы колонок, пропуски и первые аналитические наблюдения."
+  },
+  {
+    label: "Качество данных",
+    question: "Проверь качество данных: пропуски, дубликаты, подозрительные значения и ограничения анализа."
+  },
+  {
+    label: "Числовой анализ",
+    question: "Проанализируй числовые колонки: распределения, средние значения, разброс и возможные выбросы."
+  },
+  {
+    label: "Категориальный анализ",
+    question: "Проанализируй категориальные колонки: частые значения, дисбаланс категорий и возможные закономерности."
+  },
+  {
+    label: "Корреляции и зависимости",
+    question: "Найди возможные зависимости между числовыми колонками и объясни самые заметные корреляции."
+  },
+  {
+    label: "Аномалии",
+    question: "Найди потенциальные аномалии и выбросы в числовых колонках, объясни почему они могут быть важны."
+  },
+  {
+    label: "Prompt injection check",
+    question: "Проверь текстовые поля на возможные prompt injection инструкции и объясни, как система от них защищается."
+  },
+  {
+    label: "Итоговый отчёт",
+    question:
+      "Сформируй итоговый аналитический отчёт по датасету: структура, качество данных, ключевые наблюдения, ограничения и что проверить дальше."
+  }
+];
+
+const REVIEW_SCENARIOS: Array<{ label: string; question: string }> = [
+  { label: "Проблемы пользователей", question: "Какие основные проблемы пользователи отмечают в низкооценённых отзывах?" },
+  { label: "Негативные отзывы", question: "Какие темы чаще всего встречаются в негативных отзывах?" },
+  { label: "Анализ отзывов по времени", question: "Есть ли ухудшение оценок со временем и в какие периоды?" }
+];
+
 const ROLE_KEYS = [
+  "id_column",
   "text_column",
   "rating_column",
+  "target_column",
   "date_column",
   "version_column",
   "reply_column",
   "reply_date_column"
 ] as const;
 
-const QUICK_SCENARIOS: Array<{ label: string; question: string }> = [
-  { label: "Обзор датасета", question: "Сделай общий обзор датасета и ключевые метрики качества данных." },
-  {
-    label: "Проблемы пользователей",
-    question: "Какие основные проблемы пользователи отмечают в низкооценённых отзывах?"
-  },
-  { label: "Динамика по времени", question: "Есть ли ухудшение оценок со временем и в какие месяцы?" },
-  { label: "Анализ версий", question: "Какие версии приложения выглядят проблемными и почему?" },
-  { label: "Негативные отзывы", question: "Какие темы чаще всего встречаются в негативных отзывах?" },
-  { label: "Prompt injection check", question: "Есть ли отзывы, похожие на prompt injection?" },
-  {
-    label: "Полный отчёт",
-    question: "Собери полный аналитический отчёт с основными наблюдениями, ограничениями и следующими шагами."
-  }
-];
-
 export default function Lab3Page() {
   const [datasets, setDatasets] = useState<DatasetItem[]>([]);
   const [selectedDataset, setSelectedDataset] = useState<string>("");
   const [profile, setProfile] = useState<Lab3Profile | null>(null);
   const [tools, setTools] = useState<ToolInfo[]>([]);
-  const [question, setQuestion] = useState("Какие основные проблемы пользователи отмечают в низкооценённых отзывах?");
-  const [maxToolCalls, setMaxToolCalls] = useState(8);
-  const [useCritic, setUseCritic] = useState(true);
+  const [question, setQuestion] = useState(BASE_SCENARIOS[0].question);
+  const [analysisMode, setAnalysisMode] = useState<"fast" | "balanced" | "full">("fast");
+  const [maxToolCalls, setMaxToolCalls] = useState(6);
+  const [useCritic, setUseCritic] = useState(false);
   const [result, setResult] = useState<AskResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadInfo, setUploadInfo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [overrides, setOverrides] = useState<Record<string, string | null>>({});
+
+  const loadDatasetsAndTools = async () => {
+    const [datasetsResp, toolsResp] = await Promise.all([
+      api.getLab3Datasets<{ datasets: DatasetItem[] }>(),
+      api.getLab3Tools<{ tools: ToolInfo[] }>()
+    ]);
+    setDatasets(datasetsResp.datasets);
+    setTools(toolsResp.tools);
+    if (!selectedDataset && datasetsResp.datasets.length > 0) {
+      setSelectedDataset(datasetsResp.datasets[0].name);
+    }
+  };
 
   useEffect(() => {
     const bootstrap = async () => {
       setError(null);
       try {
-        const [datasetsResp, toolsResp] = await Promise.all([
-          api.getLab3Datasets<{ datasets: DatasetItem[] }>(),
-          api.getLab3Tools<{ tools: ToolInfo[] }>()
-        ]);
-        setDatasets(datasetsResp.datasets);
-        setTools(toolsResp.tools);
-        if (datasetsResp.datasets.length > 0) {
-          setSelectedDataset(datasetsResp.datasets[0].name);
-        }
+        await loadDatasetsAndTools();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Не удалось загрузить данные Lab 3");
       }
@@ -116,6 +160,29 @@ export default function Lab3Page() {
   }, []);
 
   const availableColumns = useMemo(() => profile?.columns ?? [], [profile]);
+
+  const hasReviewContext = useMemo(() => {
+    const roles = profile?.column_mapping?.roles;
+    return Boolean(roles?.text_column?.column && roles?.rating_column?.column);
+  }, [profile]);
+
+  const handleUpload = async () => {
+    if (!uploadFile) return;
+    setUploading(true);
+    setUploadInfo(null);
+    setError(null);
+    try {
+      const response = await api.uploadLab3Dataset<UploadResponse>(uploadFile);
+      await loadDatasetsAndTools();
+      setSelectedDataset(response.dataset.name);
+      setUploadInfo(`Загружен файл ${response.dataset.name} (${response.dataset.rows} строк, ${response.dataset.columns} колонок)`);
+      setUploadFile(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось загрузить файл");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleProfile = async () => {
     if (!selectedDataset) return;
@@ -152,13 +219,15 @@ export default function Lab3Page() {
           column_overrides: Record<string, string | null>;
           max_tool_calls: number;
           use_critic: boolean;
+          analysis_mode: "fast" | "balanced" | "full";
         }
       >({
         dataset_name: selectedDataset,
         question,
         column_overrides: cleanedOverrides,
         max_tool_calls: maxToolCalls,
-        use_critic: useCritic
+        use_critic: useCritic,
+        analysis_mode: analysisMode
       });
       setResult(data);
     } catch (err) {
@@ -168,17 +237,19 @@ export default function Lab3Page() {
     }
   };
 
+  const scenarioButtons = [...BASE_SCENARIOS, ...(hasReviewContext ? REVIEW_SCENARIOS : [])];
+
   return (
     <div className="space-y-6">
       <SectionCard title="Лаба 3 — LLM Analytics Agent">
         <p>
-          Универсальный агент анализирует выбранный CSV-датасет, автоматически определяет роли колонок, вызывает
-          безопасные Python tools и формирует аналитический отчёт.
+          Универсальный агент анализирует выбранный CSV/XLSX-датасет, автоматически определяет роли колонок,
+          вызывает безопасные инструменты и формирует аналитический отчёт.
         </p>
       </SectionCard>
 
       <section className="neu-card space-y-4 p-6">
-        <h2 className="text-xl font-semibold">Выбор датасета</h2>
+        <h2 className="text-xl font-semibold">1. Выбор датасета</h2>
         <select
           value={selectedDataset}
           onChange={(event) => setSelectedDataset(event.target.value)}
@@ -193,8 +264,22 @@ export default function Lab3Page() {
       </section>
 
       <section className="neu-card space-y-4 p-6">
-        <h2 className="text-xl font-semibold">Профиль датасета</h2>
-        <button className="neu-btn" onClick={handleProfile} disabled={loadingProfile}>
+        <h2 className="text-xl font-semibold">2. Загрузить свой датасет</h2>
+        <input
+          type="file"
+          accept=".csv,.xlsx,.xls"
+          onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
+          className="neu-inset w-full px-3 py-2 text-sm"
+        />
+        <button className="neu-btn" onClick={handleUpload} disabled={uploading || !uploadFile}>
+          {uploading ? "Загрузка..." : "Загрузить"}
+        </button>
+        {uploadInfo ? <p className="text-sm text-emerald-700">{uploadInfo}</p> : null}
+      </section>
+
+      <section className="neu-card space-y-4 p-6">
+        <h2 className="text-xl font-semibold">3. Профиль датасета</h2>
+        <button className="neu-btn" onClick={handleProfile} disabled={loadingProfile || !selectedDataset}>
           {loadingProfile ? "Анализ..." : "Проанализировать структуру"}
         </button>
         {profile ? (
@@ -214,7 +299,7 @@ export default function Lab3Page() {
 
       {profile ? (
         <section className="neu-card space-y-4 p-6">
-          <h2 className="text-xl font-semibold">Роли колонок</h2>
+          <h2 className="text-xl font-semibold">4. Роли колонок</h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {ROLE_KEYS.map((role) => (
               <div key={role} className="space-y-2">
@@ -242,9 +327,9 @@ export default function Lab3Page() {
       ) : null}
 
       <section className="neu-card space-y-4 p-6">
-        <h2 className="text-xl font-semibold">Быстрые сценарии</h2>
+        <h2 className="text-xl font-semibold">5. Быстрые универсальные сценарии</h2>
         <div className="flex flex-wrap gap-2">
-          {QUICK_SCENARIOS.map((scenario) => (
+          {scenarioButtons.map((scenario) => (
             <button key={scenario.label} className="neu-btn text-sm" onClick={() => setQuestion(scenario.question)}>
               {scenario.label}
             </button>
@@ -253,14 +338,26 @@ export default function Lab3Page() {
       </section>
 
       <section className="neu-card space-y-4 p-6">
-        <h2 className="text-xl font-semibold">Запрос к агенту</h2>
-        <label className="text-sm font-medium">Задайте вопрос агенту</label>
+        <h2 className="text-xl font-semibold">6. Вопрос к агенту</h2>
+        <label className="text-sm font-medium">Задайте вопрос</label>
         <textarea
           className="neu-inset min-h-28 w-full px-3 py-2 text-sm"
           value={question}
           onChange={(event) => setQuestion(event.target.value)}
         />
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <label className="space-y-2">
+            <span className="text-sm font-medium">analysis_mode</span>
+            <select
+              className="neu-inset w-full px-3 py-2 text-sm"
+              value={analysisMode}
+              onChange={(event) => setAnalysisMode(event.target.value as "fast" | "balanced" | "full")}
+            >
+              <option value="fast">Быстрый</option>
+              <option value="balanced">Сбалансированный</option>
+              <option value="full">Полный</option>
+            </select>
+          </label>
           <label className="space-y-2">
             <span className="text-sm font-medium">max_tool_calls</span>
             <input
@@ -268,7 +365,7 @@ export default function Lab3Page() {
               min={1}
               max={20}
               value={maxToolCalls}
-              onChange={(event) => setMaxToolCalls(Number(event.target.value) || 8)}
+              onChange={(event) => setMaxToolCalls(Number(event.target.value) || 6)}
               className="neu-inset w-full px-3 py-2 text-sm"
             />
           </label>
@@ -277,15 +374,89 @@ export default function Lab3Page() {
             use_critic
           </label>
         </div>
+        <p className="text-sm text-slate-600">
+          Быстрый режим использует эвристики и один LLM-вызов для финального ответа. Полный режим дополнительно
+          включает LLM-планировщик и critic, поэтому работает дольше.
+        </p>
         <button className="neu-btn" onClick={handleAsk} disabled={loading || !selectedDataset}>
           {loading ? "Запуск агента..." : "Запустить агента"}
         </button>
         {error ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
       </section>
 
-      <section className="neu-card space-y-4 p-6">
-        <h2 className="text-xl font-semibold">Доступные tools</h2>
-        <div className="overflow-x-auto">
+      {result ? (
+        <section className="neu-card space-y-4 p-6">
+          <h2 className="text-xl font-semibold">7. Результат</h2>
+
+          <div className="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
+            <p>analysis_mode: {result.analysis_mode}</p>
+            <p>elapsed_seconds: {result.elapsed_seconds}</p>
+            <p>llm_calls_count: {result.llm_calls_count}</p>
+            <p>dataset: {result.dataset}</p>
+          </div>
+
+          {result.warnings?.length ? (
+            <div className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <p className="font-medium">warnings:</p>
+              <ul className="list-disc pl-5">
+                {result.warnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          <section className="rounded-xl bg-slate-50 px-4 py-3">
+            <h3 className="mb-2 font-semibold">Финальный ответ</h3>
+            <p className="whitespace-pre-wrap text-sm">{result.final_answer}</p>
+          </section>
+
+          <details className="neu-inset p-4">
+            <summary className="cursor-pointer font-medium">План и tool calls</summary>
+            <pre className="mt-2 overflow-x-auto text-xs md:text-sm">{JSON.stringify(result.planner_output, null, 2)}</pre>
+          </details>
+
+          <details className="neu-inset p-4">
+            <summary className="cursor-pointer font-medium">Column mapping</summary>
+            <pre className="mt-2 overflow-x-auto text-xs md:text-sm">{JSON.stringify(result.column_mapping, null, 2)}</pre>
+          </details>
+
+          <details className="neu-inset p-4">
+            <summary className="cursor-pointer font-medium">Подробные результаты tools</summary>
+            <pre className="mt-2 overflow-x-auto text-xs md:text-sm">{JSON.stringify(result.executed_tools, null, 2)}</pre>
+          </details>
+
+          {result.critic_review ? (
+            <details className="neu-inset p-4">
+              <summary className="cursor-pointer font-medium">Critic review</summary>
+              <pre className="mt-2 overflow-x-auto text-xs md:text-sm">{JSON.stringify(result.critic_review, null, 2)}</pre>
+            </details>
+          ) : null}
+
+          {result.output_files ? (
+            <div className="space-y-1 text-sm">
+              <p className="font-medium">Файлы:</p>
+              {Object.entries(result.output_files).map(([key, value]) => (
+                <p key={key}>
+                  {key}: {value}
+                </p>
+              ))}
+              <a
+                href={`${apiBaseUrl}/lab3/download-report`}
+                className="inline-flex rounded-xl px-2 py-1 font-medium text-accent underline"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Скачать lab3_report.md
+              </a>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      <details className="neu-card p-6">
+        <summary className="cursor-pointer text-xl font-semibold">Advanced: доступные tools</summary>
+        <div className="mt-4 overflow-x-auto">
           <table className="min-w-full text-left text-sm">
             <thead>
               <tr className="text-slate-600">
@@ -305,56 +476,7 @@ export default function Lab3Page() {
             </tbody>
           </table>
         </div>
-      </section>
-
-      {result ? (
-        <section className="neu-card space-y-4 p-6">
-          <h2 className="text-xl font-semibold">Результат агента</h2>
-          <p className="text-sm">
-            <span className="font-medium">plan:</span> {result.planner_output?.plan ?? "-"}
-          </p>
-          <details className="neu-inset p-4">
-            <summary className="cursor-pointer font-medium">Tool calls</summary>
-            <pre className="mt-2 overflow-x-auto text-xs md:text-sm">
-              {JSON.stringify(result.planner_output?.tool_calls ?? [], null, 2)}
-            </pre>
-          </details>
-          <details className="neu-inset p-4">
-            <summary className="cursor-pointer font-medium">Tool results</summary>
-            <pre className="mt-2 overflow-x-auto text-xs md:text-sm">{JSON.stringify(result.executed_tools, null, 2)}</pre>
-          </details>
-          <section className="rounded-xl bg-slate-50 px-4 py-3">
-            <h3 className="mb-2 font-semibold">Финальный ответ</h3>
-            <p className="whitespace-pre-wrap text-sm">{result.final_answer}</p>
-          </section>
-          <details className="neu-inset p-4">
-            <summary className="cursor-pointer font-medium">Critic review</summary>
-            <pre className="mt-2 overflow-x-auto text-xs md:text-sm">{JSON.stringify(result.critic_review, null, 2)}</pre>
-          </details>
-          {result.output_files ? (
-            <div className="space-y-1 text-sm">
-              <p className="font-medium">Файлы:</p>
-              {Object.entries(result.output_files).map(([key, value]) => (
-                <p key={key}>
-                  {key}: {value}
-                </p>
-              ))}
-              <a
-                href={`${apiBaseUrl}/lab3/download-report`}
-                className="inline-flex rounded-xl px-2 py-1 font-medium text-accent underline"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Скачать lab3_report.md
-              </a>
-            </div>
-          ) : null}
-          <details className="neu-inset p-4">
-            <summary className="cursor-pointer font-medium">Raw JSON</summary>
-            <pre className="mt-2 overflow-x-auto text-xs md:text-sm">{JSON.stringify(result, null, 2)}</pre>
-          </details>
-        </section>
-      ) : null}
+      </details>
     </div>
   );
 }

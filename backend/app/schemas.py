@@ -1,4 +1,4 @@
-from typing import Any, Literal
+﻿from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -146,8 +146,9 @@ class Lab3AskRequest(BaseModel):
     dataset_name: str
     question: str
     column_overrides: dict[str, str | None] = Field(default_factory=dict)
-    max_tool_calls: int = Field(default=8, ge=1, le=20)
-    use_critic: bool = True
+    max_tool_calls: int = Field(default=6, ge=1, le=20)
+    use_critic: bool = False
+    analysis_mode: Literal["fast", "balanced", "full"] = "fast"
 
 
 class OllamaGenerateResponse(BaseModel):

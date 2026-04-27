@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any
 
@@ -31,6 +31,10 @@ ALLOWED_TOOLS = {
     "explain_prompt_injection_protection",
     "create_rating_distribution_chart",
     "create_rows_by_month_chart",
+    "get_correlation_matrix",
+    "detect_numeric_outliers",
+    "describe_categorical_columns",
+    "infer_potential_target_columns",
     "generate_markdown_report",
     "export_lab3_result_json",
     "get_available_tools",

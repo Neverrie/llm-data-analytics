@@ -1,19 +1,23 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
+import re
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+import pandas as pd
+from fastapi import UploadFile
 
 from app.config import settings
 from app.services.lab2_service import Lab2PipelineError
 from app.services.lab3_agent import run_agent
-from app.services.lab3_column_mapper import (
-    get_effective_column_mapping,
-    list_datasets,
-    load_dataset,
-    profile_dataset,
-)
+from app.services.lab3_column_mapper import get_effective_column_mapping, list_datasets, load_dataset, profile_dataset
 from app.services.lab3_tools import TOOL_METADATA, execute_tool
+
+MAX_UPLOAD_SIZE_BYTES = 20 * 1024 * 1024
+_ALLOWED_UPLOAD_SUFFIXES = {".csv": "csv", ".xlsx": "xlsx", ".xls": "xls"}
+_SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9_.-]+")
 
 
 def get_lab3_status() -> dict[str, Any]:
@@ -28,7 +32,8 @@ def get_lab3_status() -> dict[str, Any]:
         "features": [
             "semantic column mapping",
             "allowlisted analytical tools",
-            "planner/tool-caller/critic chain",
+            "analysis modes: fast/balanced/full",
+            "dataset upload (csv/xlsx)",
             "markdown and json report export",
             "agent trace logging",
         ],
@@ -48,14 +53,18 @@ def get_datasets() -> dict[str, Any]:
 
 async def get_profile(dataset_name: str) -> dict[str, Any]:
     profile = profile_dataset(dataset_name)
-    _, mapping = await get_effective_column_mapping(dataset_name, user_overrides={})
+    _, mapping, _ = await get_effective_column_mapping(dataset_name, user_overrides={}, use_llm_assist=False)
     profile["column_mapping"] = mapping.model_dump()
     return profile
 
 
 async def map_columns(dataset_name: str, user_overrides: dict[str, str | None]) -> dict[str, Any]:
-    profile, mapping = await get_effective_column_mapping(dataset_name, user_overrides=user_overrides)
-    return {"dataset_name": dataset_name, "profile_summary": {"rows": profile["total_rows"], "columns": profile["columns"]}, "column_mapping": mapping.model_dump()}
+    profile, mapping, _ = await get_effective_column_mapping(dataset_name, user_overrides=user_overrides, use_llm_assist=False)
+    return {
+        "dataset_name": dataset_name,
+        "profile_summary": {"rows": profile["total_rows"], "columns": profile["columns"]},
+        "column_mapping": mapping.model_dump(),
+    }
 
 
 def get_tools() -> dict[str, Any]:
@@ -64,7 +73,7 @@ def get_tools() -> dict[str, Any]:
 
 
 async def run_tool(dataset_name: str, tool: str, arguments: dict[str, Any], column_overrides: dict[str, str | None]) -> dict[str, Any]:
-    _, mapping = await get_effective_column_mapping(dataset_name, user_overrides=column_overrides)
+    _, mapping, _ = await get_effective_column_mapping(dataset_name, user_overrides=column_overrides, use_llm_assist=False)
     return execute_tool(dataset_name, tool, mapping.model_dump(), arguments)
 
 
@@ -74,6 +83,7 @@ async def ask_agent(
     column_overrides: dict[str, str | None],
     max_tool_calls: int,
     use_critic: bool,
+    analysis_mode: str,
 ) -> dict[str, Any]:
     return await run_agent(
         dataset_name=dataset_name,
@@ -81,6 +91,7 @@ async def ask_agent(
         column_overrides=column_overrides,
         max_tool_calls=max_tool_calls,
         use_critic=use_critic,
+        analysis_mode=analysis_mode,
     )
 
 
@@ -99,3 +110,53 @@ def get_report_path() -> Path:
     if not report_path.exists():
         raise Lab2PipelineError("Lab 3 report does not exist yet. Run /api/lab3/ask first.", status_code=404)
     return report_path
+
+
+def _safe_filename(name: str) -> str:
+    base = Path(name).name.replace(" ", "_")
+    safe = _SAFE_FILENAME_RE.sub("_", base)
+    safe = safe.strip("._") or "dataset"
+    return safe
+
+
+async def upload_dataset(file: UploadFile) -> dict[str, Any]:
+    original_name = file.filename or "dataset.csv"
+    safe_name = _safe_filename(original_name)
+    suffix = Path(safe_name).suffix.lower()
+    if suffix not in _ALLOWED_UPLOAD_SUFFIXES:
+        raise Lab2PipelineError("Unsupported file extension. Allowed: .csv, .xlsx, .xls", status_code=400)
+
+    content = await file.read()
+    if len(content) > MAX_UPLOAD_SIZE_BYTES:
+        raise Lab2PipelineError("File is too large. Max size is 20 MB.", status_code=400)
+
+    uploads_dir = Path(settings.datasets_dir) / "uploads"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+
+    output_name = safe_name
+    output_path = uploads_dir / output_name
+    if output_path.exists():
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        output_name = f"{Path(safe_name).stem}_{timestamp}{suffix}"
+        output_path = uploads_dir / output_name
+
+    output_path.write_bytes(content)
+
+    try:
+        if suffix == ".csv":
+            frame = pd.read_csv(output_path)
+        else:
+            frame = pd.read_excel(output_path)
+    except Exception as exc:  # pragma: no cover
+        output_path.unlink(missing_ok=True)
+        raise Lab2PipelineError(f"Uploaded file cannot be parsed: {exc}", status_code=400) from exc
+
+    return {
+        "status": "success",
+        "dataset": {
+            "name": f"uploads/{output_name}",
+            "type": _ALLOWED_UPLOAD_SUFFIXES[suffix],
+            "rows": int(len(frame)),
+            "columns": int(len(frame.columns)),
+        },
+    }

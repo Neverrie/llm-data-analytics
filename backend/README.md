@@ -26,27 +26,53 @@ Pipeline:
 6. Валидирует результат через Pydantic
 7. Сохраняет общий результат в `outputs/lab2_result.json`
 
-Endpoints Lab 2:
-
-- `GET /api/lab2/status`
-- `GET /api/lab2/sample-data?limit=5`
-- `POST /api/lab2/run`
-- `GET /api/lab2/result`
-- `GET /api/lab2/download`
-
 ## Lab 3: Universal Analytics Agent
 
-Lab 3 реализует универсального LLM-агента для анализа датасетов.
+Lab 3 поддерживает универсальный анализ CSV/XLSX и upload датасетов.
 
-Основные блоки:
+Ключевые возможности:
 
-- semantic column mapping (эвристика + опционально LLM)
+- semantic column mapping (включая `target_column`)
 - user overrides для ролей колонок
-- allowlisted инструменты анализа
-- planner/tool-caller/final/critic pipeline
+- allowlisted tools
+- режимы `fast` / `balanced` / `full`
 - trace и отчёты в `outputs/lab3`
 
-Модели:
+Режимы:
+
+- `fast`: только heuristics + rule-based planner + один LLM-вызов для финального ответа
+- `balanced`: LLM planner + финальный ответ (+ critic опционально)
+- `full`: LLM-assisted mapping + LLM planner + финальный ответ (+ critic опционально)
+
+В ответе `/api/lab3/ask`:
+
+- `analysis_mode`
+- `llm_calls_count`
+- `elapsed_seconds`
+- `warnings`
+
+### Upload endpoint
+
+- `POST /api/lab3/upload-dataset`
+- Форматы: `.csv`, `.xlsx`, `.xls`
+- Ограничение: 20 MB
+- Сохранение: `datasets/uploads`
+- Безопасная обработка имени файла (без path traversal)
+
+### Основные endpoints Lab 3
+
+- `GET /api/lab3/status`
+- `GET /api/lab3/datasets`
+- `POST /api/lab3/upload-dataset`
+- `GET /api/lab3/profile?dataset_name=...`
+- `POST /api/lab3/map-columns`
+- `GET /api/lab3/tools`
+- `POST /api/lab3/run-tool`
+- `POST /api/lab3/ask`
+- `GET /api/lab3/result`
+- `GET /api/lab3/download-report`
+
+### Модели
 
 - `LAB3_PLANNER_MODEL=qwen3:8b`
 - `LAB3_TOOL_CALLER_MODEL=qwen2.5-coder:7b`
@@ -60,31 +86,13 @@ ollama pull qwen2.5-coder:7b
 ollama pull deepseek-r1:8b
 ```
 
-Ключевые endpoints Lab 3:
-
-- `GET /api/lab3/status`
-- `GET /api/lab3/datasets`
-- `GET /api/lab3/profile?dataset_name=...`
-- `POST /api/lab3/map-columns`
-- `GET /api/lab3/tools`
-- `POST /api/lab3/run-tool`
-- `POST /api/lab3/ask`
-- `GET /api/lab3/result`
-- `GET /api/lab3/download-report`
-
-Результаты сохраняются в:
-
-- `outputs/lab3/agent_trace.json`
-- `outputs/lab3/lab3_result.json`
-- `outputs/lab3/lab3_report.md`
-
-## Безопасность
+### Безопасность
 
 - CSV-строки считаются только данными, а не инструкциями
 - Выполняются только tools из allowlist
 - Нет произвольного выполнения Python-кода из ответа LLM
 - Аргументы tools валидируются
-- Чувствительные колонки (`username`, `image`) исключаются из контекста для LLM
+- Чувствительные колонки (`username`, `image`) исключаются из контекста LLM
 
 ## Переменные окружения
 
