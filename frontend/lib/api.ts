@@ -102,6 +102,18 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return (await response.json()) as T;
 }
 
+async function requestRaw(path: string, init: RequestInit = {}): Promise<Response> {
+  const token = getAuthToken();
+  const headers = new Headers(init.headers || {});
+  headers.set("Accept", "*/*");
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  return fetch(`${getApiBaseUrl()}${path}`, {
+    ...init,
+    headers,
+    cache: "no-store"
+  });
+}
+
 export const api = {
   getHealth: <T = { status: string; service: string }>() => request<T>("/health"),
 
@@ -155,6 +167,8 @@ export const api = {
   getArtifact: (id: string) => request<ArtifactItem>(`/artifacts/${id}`),
   artifactPreviewUrl: (id: string) => `${getApiBaseUrl()}/artifacts/${id}/preview`,
   artifactDownloadUrl: (id: string) => `${getApiBaseUrl()}/artifacts/${id}/download`,
+  fetchArtifactPreview: (id: string) => requestRaw(`/artifacts/${id}/preview`),
+  fetchArtifactDownload: (id: string) => requestRaw(`/artifacts/${id}/download`),
 
   runLab2Pipeline: (body: { limit: number; min_score?: number | null; max_score?: number | null; process_all?: boolean; batch_size?: number }) =>
     request<any>("/lab2/run", { method: "POST", body: JSON.stringify(body) }),

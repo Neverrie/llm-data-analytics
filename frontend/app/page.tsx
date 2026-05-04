@@ -11,8 +11,8 @@ import { ErrorBanner } from "@/components/workspace/ErrorBanner";
 import { IconRail } from "@/components/workspace/IconRail";
 import { PipelinePanel } from "@/components/workspace/PipelinePanel";
 import { TopBar } from "@/components/workspace/TopBar";
-import { WorkspaceSidebar } from "@/components/workspace/WorkspaceSidebar";
 import { ActiveSection } from "@/components/workspace/types";
+import { WorkspaceSidebar } from "@/components/workspace/WorkspaceSidebar";
 
 export default function HomePage() {
   const [user, setUser] = useState<User | null>(null);
@@ -22,39 +22,39 @@ export default function HomePage() {
   const [error, setError] = useState<string>("");
 
   const [section, setSection] = useState<ActiveSection>("agent");
+  const [search, setSearch] = useState("");
   const [datasets, setDatasets] = useState<DatasetItem[]>([]);
   const [artifacts, setArtifacts] = useState<ArtifactItem[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
   const [selectedChatId, setSelectedChatId] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [selectedDatasetName, setSelectedDatasetName] = useState<string>("");
+  const [selectedDatasetId, setSelectedDatasetId] = useState<string>("");
+  const [selectedArtifact, setSelectedArtifact] = useState<ArtifactItem | undefined>(undefined);
+
   const [lab3Response, setLab3Response] = useState<any>(null);
   const [pipelineSample, setPipelineSample] = useState<any>(null);
   const [pipelineResult, setPipelineResult] = useState<any>(null);
   const [pipelineForm, setPipelineForm] = useState({ limit: 20, min_score: "", max_score: "" });
-  const [datasetId, setDatasetId] = useState<string>("");
   const [datasetPreview, setDatasetPreview] = useState<any>(null);
   const [datasetProfile, setDatasetProfile] = useState<any>(null);
-  const [selectedArtifact, setSelectedArtifact] = useState<ArtifactItem | undefined>(undefined);
 
   const chatKind = section === "pipeline" ? "lab2_pipeline" : "lab3_chat";
 
-  async function bootstrapWorkspace(currentUser: User) {
-    const [ds, arts, listedChats] = await Promise.all([
-      api.listDatasets(),
-      api.listArtifacts(),
-      api.listChats({ kind: chatKind })
-    ]);
+  async function refreshSharedData() {
+    const [ds, arts] = await Promise.all([api.listDatasets(), api.listArtifacts()]);
     setDatasets(ds.items || []);
     setArtifacts(arts.items || []);
-    setChats(listedChats.items || []);
-
-    const defaultDataset = ds.items?.[0]?.name || "";
-    setSelectedDatasetName(defaultDataset);
-    if (ds.items?.[0]?.id) setDatasetId(ds.items[0].id);
-    if (listedChats.items?.[0]?.id) {
-      await selectChat(listedChats.items[0].id);
+    if (!selectedDatasetId && ds.items?.[0]?.id) {
+      setSelectedDatasetId(ds.items[0].id);
+      setSelectedDatasetName(ds.items[0].name);
     }
+  }
+
+  async function refreshChats(kind = chatKind) {
+    const listedChats = await api.listChats({ kind });
+    setChats(listedChats.items || []);
+    return listedChats.items || [];
   }
 
   useEffect(() => {
@@ -63,7 +63,11 @@ export default function HomePage() {
         setLoading(true);
         const me = await api.me();
         setUser(me);
-        await bootstrapWorkspace(me);
+        await refreshSharedData();
+        const loadedChats = await refreshChats();
+        if (loadedChats[0]?.id) {
+          await selectChat(loadedChats[0].id);
+        }
       } catch {
         setAuthToken(null);
         setUser(null);
@@ -75,14 +79,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!user) return;
-    (async () => {
-      try {
-        const listedChats = await api.listChats({ kind: chatKind });
-        setChats(listedChats.items || []);
-      } catch (e) {
-        setError((e as Error).message);
-      }
-    })();
+    refreshChats().catch((e) => setError((e as Error).message));
   }, [section, user]);
 
   async function selectChat(chatId: string) {
@@ -103,7 +100,9 @@ export default function HomePage() {
 
       setAuthToken(response.access_token);
       setUser(response.user);
-      await bootstrapWorkspace(response.user);
+      await refreshSharedData();
+      const loadedChats = await refreshChats();
+      if (loadedChats[0]?.id) await selectChat(loadedChats[0].id);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -114,12 +113,11 @@ export default function HomePage() {
   async function createChat(kind: "lab3_chat" | "lab2_pipeline") {
     try {
       const newChat = await api.createChat({
-        title: kind === "lab3_chat" ? "New analysis" : "New pipeline run",
+        title: kind === "lab3_chat" ? "Новый анализ" : "Новый pipeline run",
         kind,
         dataset_name: selectedDatasetName || null
       });
-      const listedChats = await api.listChats({ kind });
-      setChats(listedChats.items || []);
+      await refreshChats(kind);
       await selectChat(newChat.id);
     } catch (e) {
       setError((e as Error).message);
@@ -131,8 +129,7 @@ export default function HomePage() {
     try {
       setLoading(true);
       await api.addMessage(selectedChatId, { role: "user", content: text, blocks: [], metadata: {} });
-      const current = await api.getChat(selectedChatId);
-      setMessages(current.messages || []);
+      setMessages((prev) => [...prev, { id: `tmp-${Date.now()}`, chat_id: selectedChatId, role: "user", content: text, blocks: [], metadata: {}, created_at: new Date().toISOString() }]);
 
       const answer = await api.askLab3Agent({
         dataset_name: selectedDatasetName,
@@ -152,6 +149,7 @@ export default function HomePage() {
       });
       const refreshed = await api.getChat(selectedChatId);
       setMessages(refreshed.messages || []);
+      await refreshSharedData();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -182,7 +180,7 @@ export default function HomePage() {
         min_score: pipelineForm.min_score ? Number(pipelineForm.min_score) : null,
         max_score: pipelineForm.max_score ? Number(pipelineForm.max_score) : null
       }));
-      setArtifacts((await api.listArtifacts()).items || []);
+      await refreshSharedData();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -192,7 +190,9 @@ export default function HomePage() {
 
   async function reloadDatasetView(id: string) {
     try {
-      setDatasetId(id);
+      setSelectedDatasetId(id);
+      const selected = datasets.find((d) => d.id === id);
+      if (selected) setSelectedDatasetName(selected.name);
       const [preview, profile] = await Promise.all([api.previewDataset(id), api.profileDataset(id)]);
       setDatasetPreview(preview);
       setDatasetProfile(profile);
@@ -205,9 +205,7 @@ export default function HomePage() {
     try {
       setLoading(true);
       await api.uploadDataset(file);
-      const ds = await api.listDatasets();
-      setDatasets(ds.items || []);
-      if (ds.items?.[0]?.id) await reloadDatasetView(ds.items[0].id);
+      await refreshSharedData();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -215,23 +213,32 @@ export default function HomePage() {
     }
   }
 
-  const sidebarTitle = section === "agent" ? "Lab 3 chats" : section === "pipeline" ? "Lab 2 runs" : section;
-
   const mainContent = useMemo(() => {
     if (section === "agent") {
-      return <ChatPanel messages={messages} selectedDataset={selectedDatasetName} datasets={datasets} onDataset={setSelectedDatasetName} onSend={sendAgentMessage} loading={loading} lab3Response={lab3Response} />;
+      return (
+        <>
+          <div className="context-strip">
+            <span>Dataset:</span>
+            <select value={selectedDatasetId} onChange={(e) => reloadDatasetView(e.target.value)}>
+              {datasets.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+            <span className="muted">Mode: Lab 3 Code Interpreter</span>
+          </div>
+          <ChatPanel messages={messages} onSend={sendAgentMessage} loading={loading} lab3Response={lab3Response} />
+        </>
+      );
     }
     if (section === "pipeline") {
       return <PipelinePanel sample={pipelineSample} result={pipelineResult} onSample={runPipelineSample} onRun={runPipeline} loading={loading} form={pipelineForm} onForm={(k, v) => setPipelineForm((prev) => ({ ...prev, [k]: k === "limit" ? Number(v || 1) : v }))} />;
     }
     if (section === "datasets") {
-      return <DatasetExplorer datasets={datasets} selected={datasetId} preview={datasetPreview} profile={datasetProfile} onSelect={reloadDatasetView} onUpload={uploadDataset} />;
+      return <DatasetExplorer datasets={datasets} selected={selectedDatasetId} preview={datasetPreview} profile={datasetProfile} onSelect={reloadDatasetView} onUpload={uploadDataset} />;
     }
     if (section === "artifacts") {
-      return <ArtifactExplorer items={artifacts} previewUrl={api.artifactPreviewUrl} downloadUrl={api.artifactDownloadUrl} onSelect={(id) => setSelectedArtifact(artifacts.find((a) => a.id === id))} selected={selectedArtifact} />;
+      return <ArtifactExplorer items={artifacts} onSelect={(id) => { setSelectedArtifact(artifacts.find((a) => a.id === id)); setSection("artifacts"); }} selected={selectedArtifact} />;
     }
     return <EmptyState title="Settings" description={user ? `${user.display_name} (${user.email})` : "No user"} />;
-  }, [section, messages, selectedDatasetName, datasets, loading, lab3Response, pipelineSample, pipelineResult, pipelineForm, datasetId, datasetPreview, datasetProfile, artifacts, selectedArtifact, user]);
+  }, [section, selectedDatasetId, datasets, messages, loading, lab3Response, pipelineSample, pipelineResult, pipelineForm, datasetPreview, datasetProfile, artifacts, selectedArtifact, user]);
 
   if (!user) {
     return (
@@ -261,10 +268,27 @@ export default function HomePage() {
       <AppShell
         section={section}
         rail={<IconRail active={section} onChange={setSection} onLogout={() => { setAuthToken(null); setUser(null); }} />}
-        sidebar={<WorkspaceSidebar user={user} chats={chats} title={sidebarTitle} onCreate={() => createChat(chatKind)} onSelect={(id) => selectChat(id)} selectedId={selectedChatId} />}
-        main={<div className="main-wrap"><TopBar title="Workspace" subtitle="AI analytics dashboard" />{mainContent}</div>}
+        sidebar={
+          <WorkspaceSidebar
+            user={user}
+            section={section}
+            search={search}
+            onSearch={setSearch}
+            chats={chats}
+            selectedChatId={selectedChatId}
+            onSelectChat={selectChat}
+            onCreateChat={() => createChat(chatKind)}
+            onOpenPipeline={() => setSection("pipeline")}
+            datasets={datasets}
+            selectedDatasetId={selectedDatasetId}
+            onSelectDataset={(id) => { setSection("datasets"); reloadDatasetView(id); }}
+            onUploadDataset={uploadDataset}
+            artifacts={artifacts}
+            onSelectArtifact={(id) => { setSelectedArtifact(artifacts.find((a) => a.id === id)); setSection("artifacts"); }}
+          />
+        }
+        main={<div className="main-wrap"><TopBar title={section === "agent" ? "Agent Workspace" : section === "pipeline" ? "Lab 2 Pipeline" : section === "datasets" ? "Datasets" : section === "artifacts" ? "Artifacts" : "Settings"} subtitle="LLM Data Analyst Workspace" />{mainContent}</div>}
       />
     </div>
   );
 }
-
