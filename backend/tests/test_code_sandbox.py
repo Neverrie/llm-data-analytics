@@ -57,3 +57,12 @@ def test_sandbox_allows_df_shape(sandbox_paths: Path) -> None:
     result = execute_python_code("print(df.shape)", "demo.csv", "run6")
     assert result["status"] == "success"
     assert "(3, 2)" in result["stdout"]
+
+
+def test_sandbox_still_blocks_os_read_csv_open(sandbox_paths: Path) -> None:
+    blocked_os = execute_python_code("import os\nprint('x')", "demo.csv", "run7")
+    blocked_csv = execute_python_code("pd.read_csv('x.csv')", "demo.csv", "run8")
+    blocked_open = execute_python_code("open('x.txt','w')", "demo.csv", "run9")
+    assert blocked_os["status"] == "blocked"
+    assert blocked_csv["status"] == "blocked"
+    assert blocked_open["status"] == "blocked"

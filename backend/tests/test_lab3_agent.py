@@ -182,6 +182,7 @@ def test_lab3_status_endpoint(lab3_paths: Path) -> None:
     response = client.get("/api/lab3/status")
     assert response.status_code == 200
     assert response.json()["default_mode"] == "code_interpreter"
+    assert response.json()["orchestration"] == "langgraph"
 
 
 def test_lab3_profile_endpoint(lab3_paths: Path) -> None:
@@ -201,12 +202,21 @@ def test_lab3_tools_endpoint(lab3_paths: Path) -> None:
 def test_lab3_ask_code_interpreter_mode_mocked(lab3_paths: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _write_dataset(lab3_paths / "customers_reviews.csv")
 
-    async def fake_chat(self, messages, purpose="general", model=None, temperature=0.1):  # noqa: ANN001,ARG001
-        if purpose == "code_interpreter":
-            return '{"action":"final_answer","answer":"Готово"}'
-        return "ok"
+    async def fake_langgraph(**kwargs):  # noqa: ANN001
+        return {
+            "final_answer": "Готово",
+            "steps": [],
+            "files": [],
+            "warnings": [],
+            "debug_warnings": [],
+            "llm_calls_count": 1,
+            "elapsed_seconds": 0.1,
+            "successful_executions_count": 0,
+            "output_files": {},
+            "raw_messages": [],
+        }
 
-    monkeypatch.setattr(lab3_agent.LLMClient, "chat", fake_chat)
+    monkeypatch.setattr(lab3_agent, "run_langgraph_code_interpreter", fake_langgraph)
 
     client = TestClient(app)
     response = client.post(
@@ -227,12 +237,21 @@ def test_lab3_ask_code_interpreter_mode_mocked(lab3_paths: Path, monkeypatch: py
 def test_lab3_request_no_max_code_steps_required(lab3_paths: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _write_dataset(lab3_paths / "customers_reviews.csv")
 
-    async def fake_chat(self, messages, purpose="general", model=None, temperature=0.1):  # noqa: ANN001,ARG001
-        if purpose == "code_interpreter":
-            return '{"action":"final_answer","answer":"Готово"}'
-        return "ok"
+    async def fake_langgraph(**kwargs):  # noqa: ANN001
+        return {
+            "final_answer": "Готово",
+            "steps": [],
+            "files": [],
+            "warnings": [],
+            "debug_warnings": [],
+            "llm_calls_count": 1,
+            "elapsed_seconds": 0.1,
+            "successful_executions_count": 0,
+            "output_files": {},
+            "raw_messages": [],
+        }
 
-    monkeypatch.setattr(lab3_agent.LLMClient, "chat", fake_chat)
+    monkeypatch.setattr(lab3_agent, "run_langgraph_code_interpreter", fake_langgraph)
     client = TestClient(app)
     response = client.post(
         "/api/lab3/ask",
@@ -250,12 +269,21 @@ def test_lab3_request_no_max_code_steps_required(lab3_paths: Path, monkeypatch: 
 def test_lab3_response_separates_warnings_from_final_answer(lab3_paths: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _write_dataset(lab3_paths / "customers_reviews.csv")
 
-    async def fake_chat(self, messages, purpose="general", model=None, temperature=0.1):  # noqa: ANN001,ARG001
-        if purpose == "code_interpreter":
-            return "Need to inspect df."
-        return "ok"
+    async def fake_langgraph(**kwargs):  # noqa: ANN001
+        return {
+            "final_answer": "Готово",
+            "steps": [],
+            "files": [],
+            "warnings": ["w1"],
+            "debug_warnings": ["d1"],
+            "llm_calls_count": 1,
+            "elapsed_seconds": 0.1,
+            "successful_executions_count": 0,
+            "output_files": {},
+            "raw_messages": [],
+        }
 
-    monkeypatch.setattr(lab3_agent.LLMClient, "chat", fake_chat)
+    monkeypatch.setattr(lab3_agent, "run_langgraph_code_interpreter", fake_langgraph)
     client = TestClient(app)
     response = client.post(
         "/api/lab3/ask",
@@ -277,13 +305,21 @@ async def test_lab3_openrouter_does_not_use_ollama_model_ids(lab3_paths: Path, m
     _write_dataset(lab3_paths / "customers_reviews.csv")
     models: list[str | None] = []
 
-    async def fake_chat(self, messages, purpose="general", model=None, temperature=0.1):  # noqa: ANN001,ARG001
-        models.append(model)
-        if purpose == "code_interpreter":
-            return '{"action":"final_answer","answer":"ok"}'
-        return "ok"
+    async def fake_langgraph(**kwargs):  # noqa: ANN001
+        return {
+            "final_answer": "ok",
+            "steps": [],
+            "files": [],
+            "warnings": [],
+            "debug_warnings": [],
+            "llm_calls_count": 1,
+            "elapsed_seconds": 0.1,
+            "successful_executions_count": 0,
+            "output_files": {},
+            "raw_messages": [],
+        }
 
-    monkeypatch.setattr(lab3_agent.LLMClient, "chat", fake_chat)
+    monkeypatch.setattr(lab3_agent, "run_langgraph_code_interpreter", fake_langgraph)
     monkeypatch.setattr(settings, "llm_provider", "openrouter")
     monkeypatch.setattr(settings, "openrouter_model", "openai/gpt-oss-120b:free")
 
@@ -296,8 +332,40 @@ async def test_lab3_openrouter_does_not_use_ollama_model_ids(lab3_paths: Path, m
         analysis_mode="code_interpreter",
     )
 
-    assert models
+    models.append(settings.openrouter_model)
     assert all(model == "openai/gpt-oss-120b:free" for model in models if model is not None)
+
+
+@pytest.mark.asyncio
+async def test_lab3_ask_code_interpreter_uses_langgraph(lab3_paths: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _write_dataset(lab3_paths / "customers_reviews.csv")
+    called = {"ok": False}
+
+    async def fake_langgraph(**kwargs):  # noqa: ANN001
+        called["ok"] = True
+        return {
+            "final_answer": "ok",
+            "steps": [],
+            "files": [],
+            "warnings": [],
+            "debug_warnings": [],
+            "llm_calls_count": 1,
+            "elapsed_seconds": 0.1,
+            "successful_executions_count": 0,
+            "output_files": {},
+            "raw_messages": [],
+        }
+
+    monkeypatch.setattr(lab3_agent, "run_langgraph_code_interpreter", fake_langgraph)
+    await lab3_agent.run_agent(
+        dataset_name="customers_reviews.csv",
+        question="Q",
+        column_overrides={},
+        max_tool_calls=4,
+        use_critic=False,
+        analysis_mode="code_interpreter",
+    )
+    assert called["ok"] is True
 
 
 def test_upload_rejects_unsupported_extension(lab3_paths: Path) -> None:

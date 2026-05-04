@@ -9,6 +9,7 @@ from app.config import settings
 from app.services.lab2_service import Lab2PipelineError
 from app.services.lab3_column_mapper import get_effective_column_mapping
 from app.services.lab3_code_interpreter import run_code_interpreter_agent
+from app.services.lab3_langgraph_interpreter import run_langgraph_code_interpreter
 from app.services.llm_client import LLMClient, LLMClientError
 from app.services.lab3_security import validate_tool_call
 from app.services.lab3_session import (
@@ -489,14 +490,12 @@ async def run_agent(
 
     planner_raw_output: str | None = None
     if analysis_mode == "code_interpreter":
-        session_context_text = history_context.get("conversation_summary", "") if include_history else ""
-        ci_result = await run_code_interpreter_agent(
+        _ = history_context, include_history, max_code_steps
+        ci_result = await run_langgraph_code_interpreter(
             dataset_name=dataset_name,
             question=question,
             column_mapping=mapping,
             profile=profile,
-            session_context=session_context_text,
-            max_steps=max_code_steps or 3,
         )
         session_state = append_turn(
             session_id=session_id_value,

@@ -32,11 +32,13 @@ def get_lab3_status() -> dict[str, Any]:
         "lab": 3,
         "status": "ready",
         "provider": llm.provider_name(),
+        "model": settings.openrouter_model,
         "openrouter_configured": bool((settings.openrouter_api_key or "").strip()),
         "default_mode": "code_interpreter",
+        "orchestration": "langgraph",
         "available_modes": ["fast", "balanced", "full", "code_interpreter"],
         "models": {
-            "default_model": llm.resolve_model(),
+            "default_model": settings.openrouter_model,
         },
         "features": [
             "semantic column mapping",

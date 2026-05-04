@@ -197,11 +197,10 @@ curl -X POST "http://localhost:8003/api/lab3/upload-dataset" \
 
 ## Lab 3 Code Interpreter Loop (Updated)
 
-- Mode is JSON action loop only: `run_code` or `final_answer`.
-- Backend can run step `0` auto inspection (`shape`, `columns`, `dtypes`, `missing`, `sample`) before first LLM call.
-- LLM must use preloaded `df` and must not read files directly.
-- Backend executes generated Python in sandbox and returns `stdout/stderr/files` back to LLM for next step.
-- If LLM returns plain text instead of JSON, backend runs repair attempts and only then optional fallback with warning.
+- Mode is LangGraph Code Interpreter with OpenRouter.
+- LLM returns either `<PYTHON>...</PYTHON>` or `<FINAL>...</FINAL>`.
+- Backend executes generated Python only in our own sandbox and returns `stdout/stderr/files` back to LLM for next step.
+- Sandbox blocks file/system/network operations and manual CSV loading; dataframe is preloaded as `df`.
 - UI separates:
   - Final markdown answer
   - System warnings

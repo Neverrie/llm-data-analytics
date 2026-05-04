@@ -124,8 +124,8 @@ export default function Lab3Page() {
   return (
     <div className="space-y-6">
       <section className="app-card space-y-3 p-6">
-        <h1 className="text-2xl font-bold">Лаба 3 — OpenRouter Code Interpreter Agent</h1>
-        <p className="text-sm app-muted">Модель отвечает блоками {`<PYTHON>`} и {`<FINAL>`}. Backend выполняет Python-блоки в sandbox и возвращает результат модели.</p>
+        <h1 className="text-2xl font-bold">Лаба 3 — LangGraph Code Interpreter</h1>
+        <p className="text-sm app-muted">Модель пишет блоки {`<PYTHON>`}, backend выполняет их в sandbox и возвращает результаты обратно в LangGraph-цикл до {`<FINAL>`}.</p>
         <div className="flex flex-wrap gap-2 text-xs">
           <span className="app-badge app-badge-primary">OpenRouter</span>
           <span className="app-badge app-badge-muted">Code Interpreter</span>
@@ -168,7 +168,7 @@ export default function Lab3Page() {
               <div className="text-xs app-muted md:col-span-2 space-y-1">
                 <p>Provider: <span className="font-semibold">OpenRouter</span> · Model: <span className="font-semibold">из backend status/run</span></p>
                 <p>Sandbox timeout: <span className="font-semibold">15 сек на шаг</span></p>
-                <p>Датасет уже загружен в переменную <code>df</code>. Модель должна вернуть либо <code>{`<PYTHON>`}</code>, либо <code>{`<FINAL>`}</code>.</p>
+                <p>Датасет уже загружен в <code>df</code>. Модель пишет Python-блоки <code>{`<PYTHON>`}</code>, backend исполняет их в sandbox и возвращает наблюдения модели.</p>
               </div>
             </>
           ) : (

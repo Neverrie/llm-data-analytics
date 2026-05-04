@@ -138,3 +138,10 @@ ollama pull deepseek-r1:8b
 - Модель не должна читать CSV/XLSX вручную и не должна работать с файловой системой напрямую.
 - Запрещены опасные импорты и операции (`os`, `subprocess`, `open`, `eval`, `exec`, `pd.read_csv`, `pd.read_excel`).
 - Ошибки/блокировки возвращаются модели как observation, чтобы она переписала код и продолжила анализ безопасно.
+
+## Lab 3 orchestration
+
+- Orchestration для `analysis_mode=code_interpreter` реализован через LangGraph.
+- Модель OpenRouter пишет блоки `<PYTHON>` и `<FINAL>`.
+- Backend исполняет код только через собственный sandbox (`code_sandbox.py`) и возвращает результаты в graph loop.
+- LangChain/LangGraph не предоставляют sandbox сами по себе; безопасность обеспечивается нашим sandbox-слоем.
