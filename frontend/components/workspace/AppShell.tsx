@@ -15,9 +15,9 @@ export function AppShell({
 }) {
   return (
     <div className="workspace-shell" data-section={section}>
-      {rail}
-      {sidebar}
-      {main}
+      <div className="workspace-rail-slot">{rail}</div>
+      <div className="workspace-sidebar-slot">{sidebar}</div>
+      <main className="workspace-main">{main}</main>
     </div>
   );
 }

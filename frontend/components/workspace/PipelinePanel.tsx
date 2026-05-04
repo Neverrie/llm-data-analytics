@@ -62,7 +62,15 @@ export function PipelinePanel({
   useEffect(() => {
     if (hasResult) {
       setSampleOpen(false);
-      resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      const node = resultRef.current;
+      if (!node) return;
+      const canvas = node.closest(".workspace-scroll-canvas") as HTMLElement | null;
+      if (!canvas) {
+        node.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+      const delta = node.getBoundingClientRect().top - canvas.getBoundingClientRect().top;
+      canvas.scrollTo({ top: canvas.scrollTop + delta - 8, behavior: "smooth" });
     }
   }, [hasResult]);
 

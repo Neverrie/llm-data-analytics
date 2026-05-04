@@ -31,6 +31,18 @@ body {
 
 .workspace-root { height: 100vh; min-height: 0; padding: 16px; overflow: hidden; }
 .workspace-shell { height: 100%; min-height: 0; display: grid; grid-template-columns: 78px 360px minmax(0, 1fr); gap: 12px; overflow: hidden; }
+.workspace-rail-slot,
+.workspace-sidebar-slot,
+.workspace-main {
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+.workspace-main {
+  display: flex;
+  flex-direction: column;
+}
 
 .rail {
   border-radius: 32px;
@@ -53,6 +65,11 @@ body {
 }
 .rail-btn:hover { background: rgba(255,255,255,0.16); }
 .rail-btn.active { background: rgba(255,255,255,0.22); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.18); }
+.workspace-rail-slot .rail,
+.workspace-sidebar-slot .sidebar-panel {
+  height: 100%;
+  min-height: 0;
+}
 
 .sidebar-panel {
   border-radius: 30px;
@@ -415,10 +432,11 @@ body {
 .workspace-scroll-canvas {
   flex: 1 1 auto;
   min-height: 0;
+  min-width: 0;
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
-  padding: 2px 2px 4px;
+  padding: 2px 2px 14px;
   display: flex;
   flex-direction: column;
   gap: 12px;
