@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from langchain_openai import ChatOpenAI
 
-from app.config import settings
+from app.config import get_lab3_model, settings
 from app.services.lab2_service import Lab2PipelineError
 
 
@@ -11,7 +11,7 @@ def get_langchain_chat_model(model: str | None = None, temperature: float = 0) -
     if not api_key:
         raise Lab2PipelineError("OPENROUTER_API_KEY is not configured. Create .env from .env.example.", status_code=500)
 
-    chosen_model = (model or settings.openrouter_model).strip()
+    chosen_model = (model or get_lab3_model()).strip()
     if chosen_model == "qwen3:8b":
         raise Lab2PipelineError("Invalid OpenRouter model slug: qwen3:8b. Use OpenRouter model slugs only.", status_code=400)
 

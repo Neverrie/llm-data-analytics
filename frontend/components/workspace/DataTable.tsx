@@ -28,7 +28,7 @@ export const DataTable = memo(function DataTable({
           </thead>
           <tbody>
             {rows.map((row, index) => (
-              <tr key={index}>{columns.map((col) => <td key={`${index}-${col}`}>{String(row[col] ?? "")}</td>)}</tr>
+            <tr key={index}>{columns.map((col) => <td key={`${index}-${col}`} data-col={col}>{String(row[col] ?? "")}</td>)}</tr>
             ))}
           </tbody>
         </table>

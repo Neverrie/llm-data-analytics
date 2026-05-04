@@ -11,7 +11,7 @@ from typing import Any
 import pandas as pd
 from fastapi import UploadFile
 
-from app.config import settings
+from app.config import get_lab3_model, settings
 from app.services.lab2_service import Lab2PipelineError
 from app.services.dataset_registry import datasets_for_lab3
 from app.services.lab3_agent import run_agent
@@ -33,13 +33,13 @@ def get_lab3_status() -> dict[str, Any]:
         "lab": 3,
         "status": "ready",
         "provider": llm.provider_name(),
-        "model": settings.openrouter_model,
+        "model": get_lab3_model(),
         "openrouter_configured": bool((settings.openrouter_api_key or "").strip()),
         "default_mode": "code_interpreter",
         "orchestration": "langgraph",
         "available_modes": ["fast", "balanced", "full", "code_interpreter"],
         "models": {
-            "default_model": settings.openrouter_model,
+            "default_model": get_lab3_model(),
         },
         "features": [
             "semantic column mapping",
@@ -202,6 +202,18 @@ def get_report_path() -> Path:
     if not report_path.exists():
         raise Lab2PipelineError("Lab 3 report does not exist yet. Run /api/lab3/ask first.", status_code=404)
     return report_path
+
+
+def get_generated_file_path(path: str) -> Path:
+    requested = Path(path).resolve()
+    allowed_roots = [
+        (Path(settings.outputs_dir) / "lab3").resolve(),
+    ]
+    if not any(root == requested or root in requested.parents for root in allowed_roots):
+        raise Lab2PipelineError("Invalid generated file path.", status_code=400)
+    if not requested.exists() or not requested.is_file():
+        raise Lab2PipelineError("Generated file not found.", status_code=404)
+    return requested
 
 
 def _safe_filename(name: str) -> str:

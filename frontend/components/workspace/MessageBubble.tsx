@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { MessageBlock } from "@/lib/messageBlocks";
 import { CodeBlockCard } from "./CodeBlockCard";
@@ -25,7 +25,7 @@ export function MessageBubble({
           {renderBlocks.map((block, i) => {
             if (block.type === "markdown") return <MarkdownBlock key={i} content={block.content} />;
             if (block.type === "code") return <CodeBlockCard key={i} title={`Шаг ${block.step || i + 1}`} meta={block.status} code={block.code} />;
-            if (block.type === "execution") return <ExecutionBlock key={i} stdout={block.stdout} stderr={block.stderr} />;
+            if (block.type === "execution") return <ExecutionBlock key={i} stdout={block.stdout} stderr={block.stderr} status={block.status} />;
             if (block.type === "table") return <DataTable key={i} columns={block.columns || []} rows={block.rows || []} />;
             if (block.type === "chart") return <img key={i} className="message-chart" src={block.url} alt={block.title || "chart"} />;
             if (block.type === "file") {

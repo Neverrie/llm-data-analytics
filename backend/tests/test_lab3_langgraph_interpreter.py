@@ -51,6 +51,18 @@ def test_langgraph_parse_python_codeblock() -> None:
     assert parsed["parse_mode"] == "python_codeblock"
 
 
+def test_langgraph_parse_json_run_code() -> None:
+    parsed = lg.parse_langgraph_response('{"action":"run_code","code":"print(df.shape)"}')
+    assert parsed["action"] == "run_code"
+    assert parsed["parse_mode"] == "json_action"
+
+
+def test_langgraph_parse_json_final_answer() -> None:
+    parsed = lg.parse_langgraph_response('{"action":"final_answer","content":"Готово"}')
+    assert parsed["action"] == "final_answer"
+    assert parsed["answer"] == "Готово"
+
+
 @pytest.mark.asyncio
 async def test_langgraph_need_inspect_fallback(lg_paths: None, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(lg, "get_langchain_chat_model", lambda **kwargs: _FakeModel(["Need to inspect df.", "<FINAL>\nok\n</FINAL>"]))

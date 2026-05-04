@@ -13,6 +13,7 @@ from app.services.lab3_service import (
     debug_openrouter_ping,
     get_current_status,
     get_datasets,
+    get_generated_file_path,
     get_lab3_status,
     get_last_result,
     get_profile,
@@ -137,6 +138,15 @@ def lab3_download_report() -> FileResponse:
     except Lab2PipelineError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
     return FileResponse(report_path, media_type="text/markdown", filename="lab3_report.md")
+
+
+@router.get("/generated-file")
+def lab3_generated_file(path: str = Query(...)) -> FileResponse:
+    try:
+        file_path = get_generated_file_path(path)
+    except Lab2PipelineError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return FileResponse(file_path)
 
 
 @router.get("/debug/openrouter-ping")

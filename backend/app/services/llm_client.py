@@ -4,7 +4,7 @@ import json
 import re
 from typing import Any
 
-from app.config import get_default_model_for_provider, settings
+from app.config import get_default_model_for_provider, get_lab3_model, settings
 from app.ollama_client import OllamaClient, OllamaClientError
 from app.services.openrouter_client import OpenRouterClient, OpenRouterClientError
 
@@ -17,9 +17,11 @@ class LLMClient:
     def __init__(self) -> None:
         self.provider = settings.llm_provider.lower().strip()
 
-    def resolve_model(self, model: str | None = None) -> str:
+    def resolve_model(self, model: str | None = None, purpose: str | None = None) -> str:
         if model:
             return model
+        if (purpose or "").strip().lower() in {"code_interpreter", "lab3", "planner", "final_answer", "critic"}:
+            return get_lab3_model()
         return get_default_model_for_provider(self.provider)
 
     def provider_name(self) -> str:
@@ -73,7 +75,19 @@ class LLMClient:
                     temperature=temperature,
                     timeout=settings.openrouter_timeout_seconds,
                 )
-                return str(payload.get("content", "")).strip()
+                content = str(payload.get("content", "")).strip()
+                if not content:
+                    retry_messages = [*messages, {"role": "user", "content": "Return a concise non-empty answer."}]
+                    retry_payload = await client.chat(
+                        messages=retry_messages,
+                        model=current_model,
+                        temperature=temperature,
+                        timeout=settings.openrouter_timeout_seconds,
+                    )
+                    content = str(retry_payload.get("content", "")).strip()
+                if not content:
+                    raise LLMClientError("Model returned empty content twice.")
+                return content
             except OpenRouterClientError as exc:
                 last_error = exc
                 if "authentication failed" in str(exc).lower():
@@ -91,7 +105,7 @@ class LLMClient:
         model: str | None = None,
         temperature: float = 0.1,
     ) -> str:
-        resolved_model = self.resolve_model(model)
+        resolved_model = self.resolve_model(model, purpose)
         try:
             if self.provider == "openrouter":
                 return await self._openrouter_chat_with_fallback(
@@ -114,7 +128,7 @@ class LLMClient:
         model: str | None = None,
         temperature: float = 0.1,
     ) -> dict[str, Any]:
-        resolved_model = self.resolve_model(model)
+        resolved_model = self.resolve_model(model, purpose)
         try:
             if self.provider == "openrouter":
                 result = await self._openrouter_chat_with_fallback(

@@ -1,9 +1,21 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 
-export function ChatComposer({ onSend, loading }: { onSend: (text: string) => void; loading: boolean }) {
-  const [value, setValue] = useState("");
+export function ChatComposer({
+  onSend,
+  loading,
+  draft,
+  onDraftChange
+}: {
+  onSend: (text: string) => void;
+  loading: boolean;
+  draft?: string;
+  onDraftChange?: (text: string) => void;
+}) {
+  const [localValue, setLocalValue] = useState("");
+  const value = typeof draft === "string" ? draft : localValue;
+  const setValue = onDraftChange ?? setLocalValue;
 
   function submit() {
     if (loading || !value.trim()) return;

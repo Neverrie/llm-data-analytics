@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     openrouter_api_key: str | None = None
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_model: str = "openai/gpt-oss-120b:free"
+    lab3_model: str | None = None
     openrouter_fallback_models: str = "openai/gpt-oss-20b:free"
     openrouter_timeout_seconds: int = 60
     ollama_base_url: str = "http://host.docker.internal:11434"
@@ -49,5 +50,7 @@ def get_lab2_model() -> str:
 
 
 def get_lab3_model() -> str:
+    if settings.llm_provider.strip().lower() == "openrouter" and (settings.lab3_model or "").strip():
+        return str(settings.lab3_model).strip()
     return get_default_model_for_provider()
 

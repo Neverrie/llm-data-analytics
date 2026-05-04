@@ -394,3 +394,12 @@ def test_lab3_debug_openrouter_ping_mocked(lab3_paths: Path, monkeypatch: pytest
     response = client.get("/api/lab3/debug/openrouter-ping")
     assert response.status_code == 200
     assert response.json()["status"] == "success"
+
+
+def test_lab3_generated_file_endpoint_serves_output(lab3_paths: Path) -> None:
+    output_file = Path(settings.outputs_dir) / "lab3" / "code_runs" / "run1" / "plot.png"
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    output_file.write_bytes(b"fake")
+    client = TestClient(app)
+    response = client.get(f"/api/lab3/generated-file?path={output_file}")
+    assert response.status_code == 200

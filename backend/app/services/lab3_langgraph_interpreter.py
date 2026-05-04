@@ -11,7 +11,7 @@ from typing import Any, Literal, TypedDict
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 
-from app.config import settings
+from app.config import get_lab3_model, settings
 from app.services.code_sandbox import execute_python_code
 from app.services.lab2_service import Lab2PipelineError
 from app.services.langchain_llm import get_langchain_chat_model
@@ -86,6 +86,19 @@ def parse_langgraph_response(text: str) -> dict[str, Any]:
     block = re.search(r"```(?:python|py)\s*(.*?)\s*```", source, flags=re.IGNORECASE | re.DOTALL)
     if block and block.group(1).strip():
         return {"action": "run_code", "code": block.group(1).strip(), "parse_mode": "python_codeblock"}
+
+    try:
+        parsed = json.loads(source)
+        if isinstance(parsed, dict):
+            action = str(parsed.get("action", "")).strip()
+            if action == "run_code" and isinstance(parsed.get("code"), str):
+                return {"action": "run_code", "code": parsed.get("code", "").strip(), "parse_mode": "json_action"}
+            if action == "final_answer":
+                content = parsed.get("content") if isinstance(parsed.get("content"), str) else parsed.get("answer")
+                if isinstance(content, str) and content.strip():
+                    return {"action": "final_answer", "answer": content.strip(), "parse_mode": "json_action"}
+    except Exception:
+        pass
 
     return {"action": "parse_failed", "parse_mode": "none"}
 
@@ -162,13 +175,20 @@ def _build_graph():
                 msg_objs.append(SystemMessage(content=m["content"]))
             else:
                 msg_objs.append(HumanMessage(content=m["content"]))
+        llm_calls_inc = 1
         response = await model.ainvoke(msg_objs)
         text = str(getattr(response, "content", "") or "").strip()
+        if not text:
+            retry_msgs = list(msg_objs)
+            retry_msgs.append(HumanMessage(content="Return one block only: <PYTHON>...</PYTHON> or <FINAL>...</FINAL>."))
+            retry_resp = await model.ainvoke(retry_msgs)
+            text = str(getattr(retry_resp, "content", "") or "").strip()
+            llm_calls_inc += 1
         raws = list(state["llm_raw_outputs"])
         raws.append({"iteration": state["iteration"] + 1, "raw": text})
         return {
             **state,
-            "llm_calls_count": state["llm_calls_count"] + 1,
+            "llm_calls_count": state["llm_calls_count"] + llm_calls_inc,
             "llm_raw_outputs": raws,
             "iteration": state["iteration"] + 1,
         }
@@ -341,7 +361,7 @@ async def run_langgraph_code_interpreter(
         "status": "success",
         "mode": "code_interpreter",
         "provider": "openrouter",
-        "model": settings.openrouter_model,
+        "model": get_lab3_model(),
         "run_id": final_state.get("run_id"),
         "steps": final_state.get("code_steps", []),
         "final_answer": final_answer,
