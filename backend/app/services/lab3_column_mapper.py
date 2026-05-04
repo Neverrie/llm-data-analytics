@@ -436,6 +436,7 @@ def _validate_llm_roles(raw: dict[str, Any], columns: list[str], fallback: Lab3C
 
 async def infer_column_roles_llm(profile: dict[str, Any], heuristic_mapping: Lab3ColumnMapping) -> Lab3ColumnMapping:
     client = LLMClient()
+    model_name = client.resolve_model()
     prompt = (
         "You are a data schema mapper. Return strict JSON only.\n"
         "Map semantic roles to existing columns.\n"
@@ -449,7 +450,7 @@ async def infer_column_roles_llm(profile: dict[str, Any], heuristic_mapping: Lab
         parsed = await client.chat_json(
             messages=[{"role": "system", "content": "Schema mapper mode"}, {"role": "user", "content": prompt}],
             purpose="mapping",
-            model=settings.lab3_planner_model,
+            model=model_name,
             temperature=0.0,
         )
     except (LLMClientError, json.JSONDecodeError):

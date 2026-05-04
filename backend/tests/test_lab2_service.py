@@ -24,7 +24,7 @@ def temp_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Pat
     monkeypatch.setattr(settings, "outputs_dir", str(outputs_dir))
     monkeypatch.setattr(settings, "lab2_dataset_filename", "customer_reviews")
     monkeypatch.setattr(settings, "llm_provider", "openrouter")
-    monkeypatch.setattr(settings, "openrouter_model", "qwen/qwen3-next-80b-a3b-instruct:free")
+    monkeypatch.setattr(settings, "openrouter_model", "openai/gpt-oss-120b:free")
     return {"datasets_dir": datasets_dir, "outputs_dir": outputs_dir}
 
 
@@ -148,6 +148,42 @@ async def test_lab2_uses_unified_llm_client_mocked(temp_paths: dict[str, Path], 
     response = await lab2_service.run_pipeline(lab2_service.Lab2RunRequest(limit=5, batch_size=2, min_score=None, max_score=None))
     assert called["value"] is True
     assert response.rows_processed > 0
+
+
+@pytest.mark.asyncio
+async def test_lab2_batch_size_optional(temp_paths: dict[str, Path], monkeypatch: pytest.MonkeyPatch) -> None:
+    _write_dataset(temp_paths["datasets_dir"] / "customer_reviews.csv")
+
+    async def fake_chat_json(self, messages, purpose="json", model=None, temperature=0.1):  # noqa: ANN001,ARG001
+        prompt = messages[-1]["content"]
+        marker = "Данные:\n"
+        start = prompt.index(marker) + len(marker)
+        reviews = json.loads(prompt[start:])
+        return _valid_results([item["row_id"] for item in reviews])
+
+    monkeypatch.setattr(lab2_service.LLMClient, "chat_json", fake_chat_json)
+    response = await lab2_service.run_pipeline(lab2_service.Lab2RunRequest(limit=3, batch_size=None))
+    assert response.batch_size == 3
+
+
+@pytest.mark.asyncio
+async def test_lab2_process_all_limited(temp_paths: dict[str, Path], monkeypatch: pytest.MonkeyPatch) -> None:
+    frame = pd.DataFrame(
+        [{"content": f"review {idx}", "score": 5, "thumbsUpCount": 0, "reviewCreatedVersion": "1.0", "at": "2024-01-01", "appVersion": "1.0"} for idx in range(1500)]
+    )
+    frame.to_csv(temp_paths["datasets_dir"] / "customer_reviews.csv", index=False)
+
+    async def fake_chat_json(self, messages, purpose="json", model=None, temperature=0.1):  # noqa: ANN001,ARG001
+        prompt = messages[-1]["content"]
+        marker = "Данные:\n"
+        start = prompt.index(marker) + len(marker)
+        reviews = json.loads(prompt[start:])
+        return _valid_results([item["row_id"] for item in reviews])
+
+    monkeypatch.setattr(lab2_service.LLMClient, "chat_json", fake_chat_json)
+    response = await lab2_service.run_pipeline(lab2_service.Lab2RunRequest(process_all=True))
+    assert response.rows_processed == lab2_service.MAX_PROCESS_ALL_ROWS
+    assert any("первые" in warning.lower() for warning in response.warnings)
 
 
 def test_validate_result_error_object() -> None:

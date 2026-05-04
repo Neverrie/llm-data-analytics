@@ -11,7 +11,8 @@ class Settings(BaseSettings):
     llm_provider: str = "openrouter"
     openrouter_api_key: str | None = None
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    openrouter_model: str = "qwen/qwen3-next-80b-a3b-instruct:free"
+    openrouter_model: str = "openai/gpt-oss-120b:free"
+    openrouter_fallback_models: str = "openai/gpt-oss-20b:free"
     ollama_base_url: str = "http://host.docker.internal:11434"
     ollama_model: str = "qwen3:8b"
     datasets_dir: str = str(BASE_DIR / "datasets")
@@ -25,4 +26,19 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def get_default_model_for_provider(provider: str | None = None) -> str:
+    resolved_provider = (provider or settings.llm_provider or "").strip().lower()
+    if resolved_provider == "openrouter":
+        return settings.openrouter_model
+    return settings.ollama_model
+
+
+def get_lab2_model() -> str:
+    return get_default_model_for_provider()
+
+
+def get_lab3_model() -> str:
+    return get_default_model_for_provider()
 

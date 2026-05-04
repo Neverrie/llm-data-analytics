@@ -19,7 +19,8 @@ from app.schemas import (
     UberReviewInput,
 )
 
-MAX_LIMIT = 100
+MAX_LIMIT = 200
+MAX_PROCESS_ALL_ROWS = 1000
 
 
 class Lab2PipelineError(RuntimeError):
@@ -330,7 +331,9 @@ async def run_pipeline(request: Lab2RunRequest) -> Lab2RunResponse:
 
     warnings: list[str] = []
     effective_limit = request.limit
-    if request.limit > MAX_LIMIT:
+    if request.process_all:
+        effective_limit = MAX_PROCESS_ALL_ROWS
+    elif request.limit > MAX_LIMIT:
         effective_limit = MAX_LIMIT
         warnings.append(f"limit was capped to MAX_LIMIT={MAX_LIMIT}. Requested: {request.limit}.")
 
@@ -339,10 +342,18 @@ async def run_pipeline(request: Lab2RunRequest) -> Lab2RunResponse:
         min_score=request.min_score,
         max_score=request.max_score,
     )
+    if request.process_all and len(reviews) >= MAX_PROCESS_ALL_ROWS:
+        warnings.append(
+            f"Датасет может быть больше {MAX_PROCESS_ALL_ROWS} строк. Для демонстрации обработаны первые {MAX_PROCESS_ALL_ROWS}."
+        )
+
     if not reviews:
         raise Lab2PipelineError("No reviews found after filtering.")
 
-    batches = _chunk_reviews(reviews, request.batch_size)
+    effective_batch_size = request.batch_size if request.batch_size is not None else min(effective_limit, 50)
+    if effective_batch_size <= 0:
+        effective_batch_size = 1
+    batches = _chunk_reviews(reviews, effective_batch_size)
     client = LLMClient()
     model_name = client.resolve_model()
     provider_name = client.provider_name()
@@ -384,7 +395,7 @@ async def run_pipeline(request: Lab2RunRequest) -> Lab2RunResponse:
         dataset=dataset_name,
         rows_requested=request.limit,
         rows_processed=len(combined_results),
-        batch_size=request.batch_size,
+        batch_size=effective_batch_size,
         batches_processed=len(batches),
         output_file=str((Path(settings.outputs_dir) / "lab2_result.json")),
         warnings=warnings,

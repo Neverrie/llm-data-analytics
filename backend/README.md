@@ -1,10 +1,10 @@
-# Backend (FastAPI)
+﻿# Backend (FastAPI)
 
-Backend-часть проекта LLM Data Analyst Lab.
+Backend-С‡Р°СЃС‚СЊ РїСЂРѕРµРєС‚Р° LLM Data Analyst Lab.
 
-## Запуск через Docker Compose
+## Р—Р°РїСѓСЃРє С‡РµСЂРµР· Docker Compose
 
-Из корня репозитория:
+РР· РєРѕСЂРЅСЏ СЂРµРїРѕР·РёС‚РѕСЂРёСЏ:
 
 ```bash
 docker compose up --build
@@ -16,74 +16,74 @@ Swagger:
 
 ## OpenRouter setup
 
-1. Создайте `.env` из `.env.example`
-2. Заполните:
+1. РЎРѕР·РґР°Р№С‚Рµ `.env` РёР· `.env.example`
+2. Р—Р°РїРѕР»РЅРёС‚Рµ:
 - `OPENROUTER_API_KEY=your_key`
 - `LLM_PROVIDER=openrouter`
-- `OPENROUTER_MODEL=qwen/qwen3-next-80b-a3b-instruct:free`
-3. Запустите:
+- `OPENROUTER_MODEL=openai/gpt-oss-120b:free`
+3. Р—Р°РїСѓСЃС‚РёС‚Рµ:
 `docker compose up --build`
 
-Не коммитьте `.env`.
+РќРµ РєРѕРјРјРёС‚СЊС‚Рµ `.env`.
 
 ## Lab 2: API Pipeline
 
 Pipeline:
 
-1. Читает Uber Customer Reviews Dataset (2024)
-2. Нормализует входные поля (включая `score`)
-3. Фильтрует данные по `min_score`/`max_score`
-4. Разбивает на batch-ы (`batch_size`)
-5. Отправляет batch в Ollama (`/api/generate`, `stream=false`, `format=json`)
-6. Валидирует результат через Pydantic
-7. Сохраняет общий результат в `outputs/lab2_result.json`
+1. Р§РёС‚Р°РµС‚ Uber Customer Reviews Dataset (2024)
+2. РќРѕСЂРјР°Р»РёР·СѓРµС‚ РІС…РѕРґРЅС‹Рµ РїРѕР»СЏ (РІРєР»СЋС‡Р°СЏ `score`)
+3. Р¤РёР»СЊС‚СЂСѓРµС‚ РґР°РЅРЅС‹Рµ РїРѕ `min_score`/`max_score`
+4. Р Р°Р·Р±РёРІР°РµС‚ РЅР° batch-С‹ (`batch_size`)
+5. РћС‚РїСЂР°РІР»СЏРµС‚ batch РІ Ollama (`/api/generate`, `stream=false`, `format=json`)
+6. Р’Р°Р»РёРґРёСЂСѓРµС‚ СЂРµР·СѓР»СЊС‚Р°С‚ С‡РµСЂРµР· Pydantic
+7. РЎРѕС…СЂР°РЅСЏРµС‚ РѕР±С‰РёР№ СЂРµР·СѓР»СЊС‚Р°С‚ РІ `outputs/lab2_result.json`
 
 ## Lab 3: Universal Analytics Agent
 
-Lab 3 поддерживает универсальный анализ CSV/XLSX и upload датасетов.
+Lab 3 РїРѕРґРґРµСЂР¶РёРІР°РµС‚ СѓРЅРёРІРµСЂСЃР°Р»СЊРЅС‹Р№ Р°РЅР°Р»РёР· CSV/XLSX Рё upload РґР°С‚Р°СЃРµС‚РѕРІ.
 
-Ключевые возможности:
+РљР»СЋС‡РµРІС‹Рµ РІРѕР·РјРѕР¶РЅРѕСЃС‚Рё:
 
-- semantic column mapping (включая `target_column`)
-- user overrides для ролей колонок
+- semantic column mapping (РІРєР»СЋС‡Р°СЏ `target_column`)
+- user overrides РґР»СЏ СЂРѕР»РµР№ РєРѕР»РѕРЅРѕРє
 - allowlisted tools
-- режимы `fast` / `balanced` / `full`
-- trace и отчёты в `outputs/lab3`
-- session context для follow-up вопросов (`outputs/lab3/sessions`)
-- markdown-ответы в workspace UI
-- исправлен warning pandas date parsing в column mapper
-- добавлен режим `code_interpreter`
+- СЂРµР¶РёРјС‹ `fast` / `balanced` / `full`
+- trace Рё РѕС‚С‡С‘С‚С‹ РІ `outputs/lab3`
+- session context РґР»СЏ follow-up РІРѕРїСЂРѕСЃРѕРІ (`outputs/lab3/sessions`)
+- markdown-РѕС‚РІРµС‚С‹ РІ workspace UI
+- РёСЃРїСЂР°РІР»РµРЅ warning pandas date parsing РІ column mapper
+- РґРѕР±Р°РІР»РµРЅ СЂРµР¶РёРј `code_interpreter`
 
-Режимы:
+Р РµР¶РёРјС‹:
 
-- `fast`: только heuristics + rule-based planner + один LLM-вызов для финального ответа
-- `balanced`: LLM planner + финальный ответ (+ critic опционально)
-- `full`: LLM-assisted mapping + LLM planner + финальный ответ (+ critic опционально)
-- `code_interpreter`: LLM генерирует Python-код, backend выполняет его в sandbox loop, модель продолжает анализ по результатам выполнения
+- `fast`: С‚РѕР»СЊРєРѕ heuristics + rule-based planner + РѕРґРёРЅ LLM-РІС‹Р·РѕРІ РґР»СЏ С„РёРЅР°Р»СЊРЅРѕРіРѕ РѕС‚РІРµС‚Р°
+- `balanced`: LLM planner + С„РёРЅР°Р»СЊРЅС‹Р№ РѕС‚РІРµС‚ (+ critic РѕРїС†РёРѕРЅР°Р»СЊРЅРѕ)
+- `full`: LLM-assisted mapping + LLM planner + С„РёРЅР°Р»СЊРЅС‹Р№ РѕС‚РІРµС‚ (+ critic РѕРїС†РёРѕРЅР°Р»СЊРЅРѕ)
+- `code_interpreter`: LLM РіРµРЅРµСЂРёСЂСѓРµС‚ Python-РєРѕРґ, backend РІС‹РїРѕР»РЅСЏРµС‚ РµРіРѕ РІ sandbox loop, РјРѕРґРµР»СЊ РїСЂРѕРґРѕР»Р¶Р°РµС‚ Р°РЅР°Р»РёР· РїРѕ СЂРµР·СѓР»СЊС‚Р°С‚Р°Рј РІС‹РїРѕР»РЅРµРЅРёСЏ
 
-В ответе `/api/lab3/ask`:
+Р’ РѕС‚РІРµС‚Рµ `/api/lab3/ask`:
 
 - `analysis_mode`
 - `llm_calls_count`
 - `elapsed_seconds`
 - `warnings`
 
-Дополнительно:
+Р”РѕРїРѕР»РЅРёС‚РµР»СЊРЅРѕ:
 
-- critic формирует JSON-отзыв на русском языке;
-- финальный ответ агента может быть Markdown (critic не требует JSON от final answer);
-- если planner вернул невалидный JSON, backend использует rule-based fallback с коротким warning;
-- tool `describe_categorical_columns` разделяет признаки на `categorical`, `ordinal_or_low_cardinality_numeric` и `numeric_count_like_columns`.
+- critic С„РѕСЂРјРёСЂСѓРµС‚ JSON-РѕС‚Р·С‹РІ РЅР° СЂСѓСЃСЃРєРѕРј СЏР·С‹РєРµ;
+- С„РёРЅР°Р»СЊРЅС‹Р№ РѕС‚РІРµС‚ Р°РіРµРЅС‚Р° РјРѕР¶РµС‚ Р±С‹С‚СЊ Markdown (critic РЅРµ С‚СЂРµР±СѓРµС‚ JSON РѕС‚ final answer);
+- РµСЃР»Рё planner РІРµСЂРЅСѓР» РЅРµРІР°Р»РёРґРЅС‹Р№ JSON, backend РёСЃРїРѕР»СЊР·СѓРµС‚ rule-based fallback СЃ РєРѕСЂРѕС‚РєРёРј warning;
+- tool `describe_categorical_columns` СЂР°Р·РґРµР»СЏРµС‚ РїСЂРёР·РЅР°РєРё РЅР° `categorical`, `ordinal_or_low_cardinality_numeric` Рё `numeric_count_like_columns`.
 
 ### Upload endpoint
 
 - `POST /api/lab3/upload-dataset`
-- Форматы: `.csv`, `.xlsx`, `.xls`
-- Ограничение: 20 MB
-- Сохранение: `datasets/uploads`
-- Безопасная обработка имени файла (без path traversal)
+- Р¤РѕСЂРјР°С‚С‹: `.csv`, `.xlsx`, `.xls`
+- РћРіСЂР°РЅРёС‡РµРЅРёРµ: 20 MB
+- РЎРѕС…СЂР°РЅРµРЅРёРµ: `datasets/uploads`
+- Р‘РµР·РѕРїР°СЃРЅР°СЏ РѕР±СЂР°Р±РѕС‚РєР° РёРјРµРЅРё С„Р°Р№Р»Р° (Р±РµР· path traversal)
 
-### Основные endpoints Lab 3
+### РћСЃРЅРѕРІРЅС‹Рµ endpoints Lab 3
 
 - `GET /api/lab3/status`
 - `GET /api/lab3/datasets`
@@ -98,13 +98,13 @@ Lab 3 поддерживает универсальный анализ CSV/XLSX 
 - `GET /api/lab3/result`
 - `GET /api/lab3/download-report`
 
-### Модели
+### РњРѕРґРµР»Рё
 
 - `LAB3_PLANNER_MODEL=qwen3:8b`
 - `LAB3_TOOL_CALLER_MODEL=qwen2.5-coder:7b`
 - `LAB3_CRITIC_MODEL=deepseek-r1:8b`
 
-Установка моделей:
+РЈСЃС‚Р°РЅРѕРІРєР° РјРѕРґРµР»РµР№:
 
 ```bash
 ollama pull qwen3:8b
@@ -112,22 +112,23 @@ ollama pull qwen2.5-coder:7b
 ollama pull deepseek-r1:8b
 ```
 
-### Безопасность
+### Р‘РµР·РѕРїР°СЃРЅРѕСЃС‚СЊ
 
-- CSV-строки считаются только данными, а не инструкциями
-- Выполняются только tools из allowlist
-- Нет произвольного выполнения Python-кода из ответа LLM
-- Аргументы tools валидируются
-- Чувствительные колонки (`username`, `image`) исключаются из контекста LLM
-- Code sandbox блокирует опасные импорты и токены, ограничивает timeout и артефакты выполнения
+- CSV-СЃС‚СЂРѕРєРё СЃС‡РёС‚Р°СЋС‚СЃСЏ С‚РѕР»СЊРєРѕ РґР°РЅРЅС‹РјРё, Р° РЅРµ РёРЅСЃС‚СЂСѓРєС†РёСЏРјРё
+- Р’С‹РїРѕР»РЅСЏСЋС‚СЃСЏ С‚РѕР»СЊРєРѕ tools РёР· allowlist
+- РќРµС‚ РїСЂРѕРёР·РІРѕР»СЊРЅРѕРіРѕ РІС‹РїРѕР»РЅРµРЅРёСЏ Python-РєРѕРґР° РёР· РѕС‚РІРµС‚Р° LLM
+- РђСЂРіСѓРјРµРЅС‚С‹ tools РІР°Р»РёРґРёСЂСѓСЋС‚СЃСЏ
+- Р§СѓРІСЃС‚РІРёС‚РµР»СЊРЅС‹Рµ РєРѕР»РѕРЅРєРё (`username`, `image`) РёСЃРєР»СЋС‡Р°СЋС‚СЃСЏ РёР· РєРѕРЅС‚РµРєСЃС‚Р° LLM
+- Code sandbox Р±Р»РѕРєРёСЂСѓРµС‚ РѕРїР°СЃРЅС‹Рµ РёРјРїРѕСЂС‚С‹ Рё С‚РѕРєРµРЅС‹, РѕРіСЂР°РЅРёС‡РёРІР°РµС‚ timeout Рё Р°СЂС‚РµС„Р°РєС‚С‹ РІС‹РїРѕР»РЅРµРЅРёСЏ
 
-## Переменные окружения
+## РџРµСЂРµРјРµРЅРЅС‹Рµ РѕРєСЂСѓР¶РµРЅРёСЏ
 
-- `OLLAMA_BASE_URL` (по умолчанию `http://host.docker.internal:11434`)
-- `OLLAMA_MODEL` (по умолчанию `qwen3:8b`)
-- `LAB2_DATASET_FILENAME` (по умолчанию `customer_reviews`)
-- `LAB3_PLANNER_MODEL` (по умолчанию `qwen3:8b`)
-- `LAB3_TOOL_CALLER_MODEL` (по умолчанию `qwen2.5-coder:7b`)
-- `LAB3_CRITIC_MODEL` (по умолчанию `deepseek-r1:8b`)
+- `OLLAMA_BASE_URL` (РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ `http://host.docker.internal:11434`)
+- `OLLAMA_MODEL` (РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ `qwen3:8b`)
+- `LAB2_DATASET_FILENAME` (РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ `customer_reviews`)
+- `LAB3_PLANNER_MODEL` (РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ `qwen3:8b`)
+- `LAB3_TOOL_CALLER_MODEL` (РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ `qwen2.5-coder:7b`)
+- `LAB3_CRITIC_MODEL` (РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ `deepseek-r1:8b`)
 - `DATASETS_DIR`
 - `OUTPUTS_DIR`
+

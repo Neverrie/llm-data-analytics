@@ -16,10 +16,11 @@ class Lab1StatusResponse(BaseModel):
 
 
 class Lab2RunRequest(BaseModel):
-    limit: int = Field(default=10, ge=1)
+    limit: int = Field(default=20, ge=1)
     min_score: int | None = Field(default=None, ge=1, le=5)
     max_score: int | None = Field(default=None, ge=1, le=5)
-    batch_size: int = Field(default=5, ge=1, le=20)
+    batch_size: int | None = Field(default=None, ge=1, le=200)
+    process_all: bool = False
 
 
 class UberReviewInput(BaseModel):
@@ -151,7 +152,7 @@ class Lab3AskRequest(BaseModel):
     column_overrides: dict[str, str | None] = Field(default_factory=dict)
     max_tool_calls: int = Field(default=6, ge=1, le=20)
     use_critic: bool = False
-    analysis_mode: Literal["fast", "balanced", "full", "code_interpreter"] = "fast"
+    analysis_mode: Literal["fast", "balanced", "full", "code_interpreter"] = "code_interpreter"
     max_code_steps: int = Field(default=5, ge=1, le=10)
     session_id: str | None = None
     include_history: bool = True

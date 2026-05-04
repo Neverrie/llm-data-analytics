@@ -5,15 +5,10 @@ import { SectionCard } from "../../components/SectionCard";
 import { api, apiBaseUrl } from "../../lib/api";
 
 type Lab2Status = {
-  lab: number;
-  name: string;
-  status: string;
   provider: string;
-  dataset: string;
   model: string;
+  dataset: string;
   configured: boolean;
-  pipeline: string[];
-  available_endpoints: string[];
 };
 
 type SampleReview = {
@@ -24,12 +19,7 @@ type SampleReview = {
   at: string | null;
 };
 
-type Lab2SampleDataResponse = {
-  dataset: string;
-  total_rows: number;
-  sample: SampleReview[];
-};
-
+type Lab2SampleDataResponse = { dataset: string; total_rows: number; sample: SampleReview[] };
 type ReviewClassification = {
   row_id: number;
   sentiment: "positive" | "negative" | "neutral" | "mixed";
@@ -39,10 +29,7 @@ type ReviewClassification = {
   summary: string;
   suggested_action: string;
 };
-
 type Lab2RunResponse = {
-  lab: number;
-  status: string;
   provider: string;
   model: string;
   dataset: string;
@@ -52,12 +39,14 @@ type Lab2RunResponse = {
   batches_processed: number;
   output_file: string;
   warnings: string[];
-  results: ReviewClassification[];
+  results?: ReviewClassification[];
+  data?: { results?: ReviewClassification[] };
 };
 
-function truncate(text: string, maxLength = 120): string {
-  if (text.length <= maxLength) return text;
-  return `${text.slice(0, maxLength)}...`;
+const MAX_LIMIT = 200;
+
+function truncate(text: string, maxLength = 130): string {
+  return text.length <= maxLength ? text : `${text.slice(0, maxLength)}...`;
 }
 
 export default function Lab2Page() {
@@ -65,195 +54,134 @@ export default function Lab2Page() {
   const [sampleData, setSampleData] = useState<Lab2SampleDataResponse | null>(null);
   const [runResult, setRunResult] = useState<Lab2RunResponse | null>(null);
 
-  const [limit, setLimit] = useState(10);
-  const [batchSize, setBatchSize] = useState(5);
+  const [limit, setLimit] = useState(20);
   const [minScore, setMinScore] = useState("");
   const [maxScore, setMaxScore] = useState("");
+  const [batchSize, setBatchSize] = useState("");
+  const [processAll, setProcessAll] = useState(false);
 
-  const [loadingStatus, setLoadingStatus] = useState(false);
-  const [loadingSample, setLoadingSample] = useState(false);
-  const [loadingRun, setLoadingRun] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchStatus = async () => {
-      setLoadingStatus(true);
-      setError(null);
-      try {
-        const data = await api.getLab2Status<Lab2Status>();
-        setStatus(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Не удалось получить статус Lab 2");
-      } finally {
-        setLoadingStatus(false);
-      }
-    };
-    void fetchStatus();
+    api.getLab2Status<Lab2Status>().then(setStatus).catch((e) => setError(e.message));
   }, []);
 
-  const parsedMinScore = useMemo(() => {
-    const value = minScore.trim();
-    if (!value) return null;
-    const parsed = Number(value);
-    return Number.isNaN(parsed) ? null : parsed;
+  const parsedMin = useMemo(() => {
+    const v = minScore.trim();
+    if (!v) return null;
+    const n = Number(v);
+    return Number.isNaN(n) ? null : n;
   }, [minScore]);
 
-  const parsedMaxScore = useMemo(() => {
-    const value = maxScore.trim();
-    if (!value) return null;
-    const parsed = Number(value);
-    return Number.isNaN(parsed) ? null : parsed;
+  const parsedMax = useMemo(() => {
+    const v = maxScore.trim();
+    if (!v) return null;
+    const n = Number(v);
+    return Number.isNaN(n) ? null : n;
   }, [maxScore]);
 
-  const handleLoadSample = async () => {
-    setLoadingSample(true);
+  const parsedBatch = useMemo(() => {
+    const v = batchSize.trim();
+    if (!v) return null;
+    const n = Number(v);
+    return Number.isNaN(n) ? null : n;
+  }, [batchSize]);
+
+  const resultRows = runResult?.results ?? runResult?.data?.results ?? [];
+
+  const loadSample = async () => {
+    setLoading(true);
     setError(null);
     try {
-      const data = await api.getLab2SampleData<Lab2SampleDataResponse>({
-        limit,
-        min_score: parsedMinScore,
-        max_score: parsedMaxScore,
-      });
+      const data = await api.getLab2SampleData<Lab2SampleDataResponse>({ limit, min_score: parsedMin, max_score: parsedMax });
       setSampleData(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось загрузить sample data");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Не удалось загрузить sample data");
     } finally {
-      setLoadingSample(false);
+      setLoading(false);
     }
   };
 
-  const handleRunPipeline = async () => {
-    setLoadingRun(true);
+  const runPipeline = async () => {
+    setLoading(true);
     setError(null);
     try {
-      const data = await api.runLab2Pipeline<Lab2RunResponse, { limit: number; batch_size: number; min_score: number | null; max_score: number | null }>({
+      const payload = {
         limit,
-        batch_size: batchSize,
-        min_score: parsedMinScore,
-        max_score: parsedMaxScore,
-      });
+        min_score: parsedMin,
+        max_score: parsedMax,
+        batch_size: parsedBatch,
+        process_all: processAll,
+      };
+      const data = await api.runLab2Pipeline<Lab2RunResponse, typeof payload>(payload);
       setRunResult(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось запустить pipeline");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Не удалось запустить pipeline");
     } finally {
-      setLoadingRun(false);
+      setLoading(false);
     }
   };
 
   return (
     <div className="space-y-6">
       <SectionCard title="Лаба 2 — API Pipeline">
-        <p>Пайплайн читает отзывы Uber из CSV, отправляет их в OpenRouter и сохраняет структурированный JSON.</p>
+        <p>Классификация отзывов Uber через OpenRouter. Backend читает датасет, обрабатывает батчами и сохраняет JSON в outputs.</p>
       </SectionCard>
 
-      <section className="app-card space-y-3 p-6">
-        <h2 className="app-section-title">Pipeline</h2>
-        <ol className="list-decimal space-y-1 pl-6 text-sm app-muted">
-          <li>read dataset</li>
-          <li>filter reviews</li>
-          <li>build prompt</li>
-          <li>call LLM API</li>
-          <li>parse JSON</li>
-          <li>validate with Pydantic</li>
-          <li>save result.json</li>
-        </ol>
-      </section>
-
-      <section className="app-card space-y-4 p-6">
-        <h2 className="app-section-title">Настройки запуска</h2>
-
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <label className="space-y-1">
-            <span className="text-sm font-medium">limit</span>
-            <input type="number" min={1} value={limit} onChange={(event) => setLimit(Number(event.target.value) || 10)} className="app-input" />
-          </label>
-          <label className="space-y-1">
-            <span className="text-sm font-medium">batch_size</span>
-            <input type="number" min={1} max={20} value={batchSize} onChange={(event) => setBatchSize(Number(event.target.value) || 5)} className="app-input" />
-          </label>
-          <label className="space-y-1">
-            <span className="text-sm font-medium">min_score</span>
-            <input type="number" min={1} max={5} value={minScore} onChange={(event) => setMinScore(event.target.value)} className="app-input" />
-          </label>
-          <label className="space-y-1">
-            <span className="text-sm font-medium">max_score</span>
-            <input type="number" min={1} max={5} value={maxScore} onChange={(event) => setMaxScore(event.target.value)} className="app-input" />
-          </label>
+      <section className="app-card p-6 space-y-4">
+        <h2 className="app-section-title">Параметры запуска</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <label className="space-y-1"><span className="text-sm">limit (до {MAX_LIMIT})</span><input className="app-input" type="number" min={1} max={MAX_LIMIT} value={limit} onChange={(e) => setLimit(Number(e.target.value) || 20)} /></label>
+          <label className="space-y-1"><span className="text-sm">min_score</span><input className="app-input" type="number" min={1} max={5} value={minScore} onChange={(e) => setMinScore(e.target.value)} /></label>
+          <label className="space-y-1"><span className="text-sm">max_score</span><input className="app-input" type="number" min={1} max={5} value={maxScore} onChange={(e) => setMaxScore(e.target.value)} /></label>
         </div>
+
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={processAll} onChange={(e) => setProcessAll(e.target.checked)} /> Обработать максимум строк</label>
+
+        <details className="app-expansion">
+          <summary>Расширенные настройки</summary>
+          <div className="p-3">
+            <label className="space-y-1 block"><span className="text-sm">batch_size (опционально)</span><input className="app-input" type="number" min={1} max={200} value={batchSize} onChange={(e) => setBatchSize(e.target.value)} /></label>
+          </div>
+        </details>
 
         <div className="flex flex-wrap gap-2">
-          <button className="app-button app-button-secondary" onClick={handleLoadSample} disabled={loadingSample}>
-            {loadingSample ? "Загрузка..." : "Показать sample data"}
-          </button>
-          <button className="app-button app-button-primary" onClick={handleRunPipeline} disabled={loadingRun}>
-            {loadingRun ? "Запуск..." : "Запустить pipeline"}
-          </button>
+          <button className="app-button app-button-secondary" onClick={() => { setLimit(20); setMinScore("1"); setMaxScore("2"); }}>Demo на негативных отзывах</button>
+          <button className="app-button app-button-secondary" onClick={loadSample} disabled={loading}>Показать sample data</button>
+          <button className="app-button app-button-primary" onClick={runPipeline} disabled={loading}>Запустить pipeline</button>
         </div>
 
-        {loadingStatus ? <p className="text-sm app-muted">Загрузка статуса...</p> : null}
-        {status ? (
-          <p className="text-sm app-muted">
-            Provider: <strong>{status.provider}</strong> | Model: <strong>{status.model}</strong> | Dataset: <strong>{status.dataset}</strong>
-          </p>
-        ) : null}
-        {status && !status.configured ? (
-          <p className="rounded-lg px-3 py-2 text-sm" style={{ background: "color-mix(in srgb, var(--danger) 14%, transparent)", color: "var(--danger)" }}>
-            OpenRouter API key не настроен. Создайте .env на основе .env.example.
-          </p>
-        ) : null}
-        {error ? (
-          <p className="rounded-lg px-3 py-2 text-sm" style={{ background: "color-mix(in srgb, var(--danger) 14%, transparent)", color: "var(--danger)" }}>
-            {error}
-          </p>
-        ) : null}
+        {status ? <p className="text-sm app-muted">Provider: <b>{status.provider}</b> · Model: <b>{status.model}</b> · Dataset: <b>{status.dataset}</b></p> : null}
+        {status && !status.configured ? <p className="text-sm" style={{ color: "var(--danger)" }}>OpenRouter API key не настроен. Создайте .env на основе .env.example.</p> : null}
+        {error ? <p className="text-sm" style={{ color: "var(--danger)" }}>{error}</p> : null}
       </section>
 
       {sampleData ? (
-        <section className="app-card space-y-4 p-6">
+        <section className="app-card p-6 space-y-3">
           <h2 className="app-section-title">Sample data</h2>
-          <div className="overflow-x-auto">
-            <table className="app-table">
-              <thead>
-                <tr>
-                  <th>row_id</th>
-                  <th>score</th>
-                  <th>thumbs_up_count</th>
-                  <th>at</th>
-                  <th>content</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sampleData.sample.map((row) => (
-                  <tr key={row.row_id}>
-                    <td>{row.row_id}</td>
-                    <td>{row.score ?? "-"}</td>
-                    <td>{row.thumbs_up_count ?? "-"}</td>
-                    <td>{row.at ?? "-"}</td>
-                    <td>{truncate(row.content, 140)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <div className="overflow-x-auto"><table className="app-table"><thead><tr><th>row_id</th><th>score</th><th>thumbs_up_count</th><th>at</th><th>content</th></tr></thead><tbody>{sampleData.sample.map((r) => <tr key={r.row_id}><td>{r.row_id}</td><td>{r.score ?? "-"}</td><td>{r.thumbs_up_count ?? "-"}</td><td>{r.at ?? "-"}</td><td>{truncate(r.content)}</td></tr>)}</tbody></table></div>
         </section>
       ) : null}
 
       {runResult ? (
-        <section className="app-card space-y-4 p-6">
+        <section className="app-card p-6 space-y-4">
           <h2 className="app-section-title">Результат pipeline</h2>
-          <div className="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
-            <p>provider: {runResult.provider}</p>
-            <p>model: {runResult.model}</p>
-            <p>dataset: {runResult.dataset}</p>
-            <p>rows_processed: {runResult.rows_processed}</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+            <p>provider: {runResult.provider}</p><p>model: {runResult.model}</p>
+            <p>dataset: {runResult.dataset}</p><p>rows_requested: {runResult.rows_requested}</p>
+            <p>rows_processed: {runResult.rows_processed}</p><p>batch_size: {runResult.batch_size}</p>
+            <p>batches_processed: {runResult.batches_processed}</p><p>output_file: {runResult.output_file}</p>
           </div>
-          <details className="app-expansion">
-            <summary>Raw JSON</summary>
-            <pre className="app-code-block m-3">{JSON.stringify(runResult, null, 2)}</pre>
-          </details>
-          <a href={`${apiBaseUrl}/lab2/download`} className="inline-flex text-sm font-semibold underline" style={{ color: "var(--primary)" }} target="_blank" rel="noreferrer">
-            Скачать result.json
-          </a>
+
+          {runResult.warnings?.length ? <div className="text-sm app-muted">{runResult.warnings.map((w) => <p key={w}>{w}</p>)}</div> : null}
+
+          {resultRows.length > 0 ? (
+            <div className="overflow-x-auto"><table className="app-table"><thead><tr><th>row_id</th><th>sentiment</th><th>issue_type</th><th>topic</th><th>urgency</th><th>summary</th><th>suggested_action</th></tr></thead><tbody>{resultRows.map((r) => <tr key={r.row_id}><td>{r.row_id}</td><td>{r.sentiment}</td><td>{r.issue_type}</td><td>{r.topic}</td><td>{r.urgency}</td><td>{r.summary}</td><td>{r.suggested_action}</td></tr>)}</tbody></table></div>
+          ) : <p className="text-sm app-muted">Pipeline завершён, но results пустой.</p>}
+
+          <details className="app-expansion"><summary>Raw JSON</summary><pre className="app-code-block m-3">{JSON.stringify(runResult, null, 2)}</pre></details>
+          <a href={`${apiBaseUrl}/lab2/download`} target="_blank" rel="noreferrer" className="font-semibold underline" style={{ color: "var(--primary)" }}>Скачать result.json</a>
         </section>
       ) : null}
     </div>

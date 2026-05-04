@@ -16,7 +16,7 @@ class OpenRouterClient:
         self,
         api_key: str | None,
         base_url: str = "https://openrouter.ai/api/v1",
-        default_model: str = "qwen/qwen3-next-80b-a3b-instruct:free",
+        default_model: str = "openai/gpt-oss-120b:free",
     ) -> None:
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
@@ -63,6 +63,8 @@ class OpenRouterClient:
             raise OpenRouterClientError("OpenRouter authentication failed. Check OPENROUTER_API_KEY.")
         if response.status_code == 429:
             raise OpenRouterClientError("OpenRouter rate limit reached. Try again later.")
+        if response.status_code == 503:
+            raise OpenRouterClientError("OpenRouter is at capacity. Try again later.")
         if response.status_code >= 400:
             low = response.text.lower()
             if "model" in low and ("unavailable" in low or "not found" in low):

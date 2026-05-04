@@ -22,7 +22,7 @@ def lab3_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(settings, "outputs_dir", str(outputs_dir))
     monkeypatch.setattr(settings, "llm_provider", "openrouter")
     monkeypatch.setattr(settings, "openrouter_api_key", "test")
-    monkeypatch.setattr(settings, "openrouter_model", "qwen/qwen3-next-80b-a3b-instruct:free")
+    monkeypatch.setattr(settings, "openrouter_model", "openai/gpt-oss-120b:free")
     return datasets_dir
 
 
@@ -181,6 +181,7 @@ def test_lab3_status_endpoint(lab3_paths: Path) -> None:
     client = TestClient(app)
     response = client.get("/api/lab3/status")
     assert response.status_code == 200
+    assert response.json()["default_mode"] == "code_interpreter"
 
 
 def test_lab3_profile_endpoint(lab3_paths: Path) -> None:
@@ -222,6 +223,34 @@ def test_lab3_ask_code_interpreter_mode_mocked(lab3_paths: Path, monkeypatch: py
     )
     assert response.status_code == 200
     assert response.json()["analysis_mode"] == "code_interpreter"
+
+
+@pytest.mark.asyncio
+async def test_lab3_openrouter_does_not_use_ollama_model_ids(lab3_paths: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _write_dataset(lab3_paths / "customers_reviews.csv")
+    models: list[str | None] = []
+
+    async def fake_chat(self, messages, purpose="general", model=None, temperature=0.1):  # noqa: ANN001,ARG001
+        models.append(model)
+        if purpose == "code_interpreter":
+            return '{"action":"final_answer","answer":"ok"}'
+        return "ok"
+
+    monkeypatch.setattr(lab3_agent.LLMClient, "chat", fake_chat)
+    monkeypatch.setattr(settings, "llm_provider", "openrouter")
+    monkeypatch.setattr(settings, "openrouter_model", "openai/gpt-oss-120b:free")
+
+    await lab3_agent.run_agent(
+        dataset_name="customers_reviews.csv",
+        question="Сделай обзор",
+        column_overrides={},
+        max_tool_calls=4,
+        use_critic=False,
+        analysis_mode="code_interpreter",
+    )
+
+    assert models
+    assert all(model == "openai/gpt-oss-120b:free" for model in models if model is not None)
 
 
 def test_upload_rejects_unsupported_extension(lab3_paths: Path) -> None:

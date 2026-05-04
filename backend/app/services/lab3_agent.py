@@ -285,6 +285,7 @@ async def _planner_output_llm(
 ) -> tuple[dict[str, Any], list[str], str | None]:
     warnings: list[str] = []
     client = LLMClient()
+    model_name = client.resolve_model()
     available_tools = [{"tool": key, **value} for key, value in TOOL_METADATA.items()]
 
     prompt = (
@@ -306,7 +307,7 @@ async def _planner_output_llm(
         planner_response_raw = await client.chat(
             messages=[{"role": "system", "content": "Planner mode."}, {"role": "user", "content": prompt}],
             purpose="planner",
-            model=settings.lab3_planner_model,
+            model=model_name,
             temperature=0.1,
         )
         planner_data = parse_planner_output(planner_response_raw)
@@ -370,6 +371,7 @@ async def _final_answer(
     history_context: dict[str, Any] | None,
 ) -> str:
     client = LLMClient()
+    model_name = client.resolve_model()
     history_block = _build_history_block(history_context or {}, mapping)
     prompt = (
         "Ты аналитик данных. Пиши только на русском языке.\\n"
@@ -392,7 +394,7 @@ async def _final_answer(
     return await client.chat(
         messages=[{"role": "system", "content": "Final answer mode."}, {"role": "user", "content": prompt}],
         purpose="final_answer",
-        model=settings.lab3_planner_model,
+        model=model_name,
         temperature=0.1,
     )
 
@@ -404,13 +406,14 @@ async def _critic_review(
     final_answer: str,
 ) -> tuple[dict[str, Any], str | None, list[str]]:
     client = LLMClient()
+    model_name = client.resolve_model()
     prompt = build_critic_prompt(question, mapping, executed_tools, final_answer)
     warnings: list[str] = []
 
     raw = await client.chat(
         messages=[{"role": "system", "content": "Critic mode."}, {"role": "user", "content": prompt}],
         purpose="critic",
-        model=settings.lab3_critic_model,
+        model=model_name,
         temperature=0.1,
     )
     try:
