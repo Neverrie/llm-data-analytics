@@ -1,97 +1,172 @@
-﻿function getApiBaseUrl(): string {
-  const envUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+﻿export type User = {
+  id: string;
+  email: string;
+  display_name: string;
+  is_demo: boolean;
+};
 
-  // SSR/build fallback
-  if (typeof window === "undefined") {
-    return envUrl || "http://localhost:8003/api";
-  }
+export type AuthResponse = {
+  user: User;
+  access_token: string;
+  token_type: "bearer";
+};
 
-  const { protocol, hostname } = window.location;
+export type Chat = {
+  id: string;
+  title: string;
+  kind: "lab3_chat" | "lab2_pipeline" | "general";
+  dataset_name?: string | null;
+  created_at: string;
+  updated_at: string;
+  archived: boolean;
+};
 
-  // If explicitly set to a real public URL, use it.
-  // Ignore localhost env when the site is opened from another device.
-  if (envUrl && !envUrl.includes("localhost") && !envUrl.includes("127.0.0.1")) {
-    return envUrl.replace(/\/$/, "");
-  }
+export type ChatMessage = {
+  id: string;
+  chat_id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  blocks: unknown[];
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
 
-  return `${protocol}//${hostname}:8003/api`;
+export type DatasetItem = {
+  id: string;
+  name: string;
+  source: "built_in" | "upload";
+  rows_count: number | null;
+  columns_count: number | null;
+  created_at: string;
+  preview_available: boolean;
+};
+
+export type ArtifactItem = {
+  id: string;
+  kind: string;
+  title: string;
+  filename: string;
+  path: string;
+  mime_type: string;
+  size_bytes: number;
+  created_at: string;
+  preview_url: string;
+  download_url: string;
+  metadata?: Record<string, unknown>;
+};
+
+const TOKEN_KEY = "workspace_access_token";
+
+export function getApiBaseUrl() {
+  return process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") || "/api";
 }
-async function getJson<T>(path: string): Promise<T> {
+
+export function setAuthToken(token: string | null) {
+  if (typeof window === "undefined") return;
+  if (!token) {
+    window.localStorage.removeItem(TOKEN_KEY);
+    return;
+  }
+  window.localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function getAuthToken() {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(TOKEN_KEY);
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const token = getAuthToken();
+  const headers = new Headers(init.headers || {});
+  headers.set("Accept", "application/json");
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  if (!(init.body instanceof FormData) && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
   const response = await fetch(`${getApiBaseUrl()}${path}`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
+    ...init,
+    headers,
     cache: "no-store"
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Ошибка API: ${response.status}. ${errorText}`);
+    const text = await response.text();
+    throw new Error(text || `API error ${response.status}`);
   }
 
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    return (await response.text()) as T;
+  }
   return (await response.json()) as T;
 }
 
-async function postJson<TResponse, TBody>(path: string, body: TBody): Promise<TResponse> {
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    cache: "no-store"
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Ошибка API: ${response.status}. ${errorText}`);
-  }
-
-  return (await response.json()) as TResponse;
-}
-
-async function postForm<TResponse>(path: string, formData: FormData): Promise<TResponse> {
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
-    method: "POST",
-    body: formData,
-    cache: "no-store"
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Ошибка API: ${response.status}. ${errorText}`);
-  }
-
-  return (await response.json()) as TResponse;
-}
-
 export const api = {
-  getHealth: <T>() => getJson<T>("/health"),
-  getLab1Status: <T>() => getJson<T>("/lab1/status"),
-  getLab2Status: <T>() => getJson<T>("/lab2/status"),
-  getLab2SampleData: <T>(params: { limit?: number; min_score?: number | null; max_score?: number | null }) => {
+  getHealth: <T = { status: string; service: string }>() => request<T>("/health"),
+
+  demoLogin: () => request<AuthResponse>("/auth/demo-login", { method: "POST" }),
+  login: (email: string, password: string) =>
+    request<AuthResponse>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password })
+    }),
+  register: (email: string, password: string, display_name: string) =>
+    request<AuthResponse>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ email, password, display_name })
+    }),
+  me: () => request<User>("/auth/me"),
+
+  getWorkspace: () => request<{ user: User; counts: { chats: number; datasets: number; artifacts: number }; recent_chats: Chat[]; recent_artifacts: ArtifactItem[] }>("/workspace"),
+
+  listChats: (params?: { kind?: string; archived?: boolean }) => {
+    const search = new URLSearchParams();
+    if (params?.kind) search.set("kind", params.kind);
+    if (typeof params?.archived === "boolean") search.set("archived", String(params.archived));
+    const qs = search.toString() ? `?${search.toString()}` : "";
+    return request<{ items: Chat[] }>(`/chats${qs}`);
+  },
+  createChat: (body: { title: string; kind: "lab3_chat" | "lab2_pipeline" | "general"; dataset_name?: string | null }) =>
+    request<Chat>("/chats", { method: "POST", body: JSON.stringify(body) }),
+  getChat: (chatId: string) => request<{ chat: Chat; messages: ChatMessage[] }>(`/chats/${chatId}`),
+  addMessage: (chatId: string, body: { role: "user" | "assistant" | "system"; content: string; blocks?: unknown[]; metadata?: Record<string, unknown> }) =>
+    request<ChatMessage>(`/chats/${chatId}/messages`, { method: "POST", body: JSON.stringify(body) }),
+  updateChat: (chatId: string, body: { title?: string; archived?: boolean }) =>
+    request<Chat>(`/chats/${chatId}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteChat: (chatId: string) => request<Chat>(`/chats/${chatId}`, { method: "DELETE" }),
+
+  listDatasets: () => request<{ items: DatasetItem[] }>("/datasets"),
+  uploadDataset: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<DatasetItem>("/datasets/upload", { method: "POST", body: form });
+  },
+  previewDataset: (datasetId: string, limit = 20) => request<{ columns: string[]; rows: Record<string, unknown>[] }>(`/datasets/${datasetId}/preview?limit=${limit}`),
+  profileDataset: (datasetId: string) => request<{ rows_count: number; columns_count: number; columns: Array<{ name: string; dtype: string; missing_count: number; unique_count: number }> }>(`/datasets/${datasetId}/profile`),
+
+  listArtifacts: (params?: { kind?: string; chat_id?: string }) => {
+    const search = new URLSearchParams();
+    if (params?.kind) search.set("kind", params.kind);
+    if (params?.chat_id) search.set("chat_id", params.chat_id);
+    const qs = search.toString() ? `?${search.toString()}` : "";
+    return request<{ items: ArtifactItem[] }>(`/artifacts${qs}`);
+  },
+  getArtifact: (id: string) => request<ArtifactItem>(`/artifacts/${id}`),
+  artifactPreviewUrl: (id: string) => `${getApiBaseUrl()}/artifacts/${id}/preview`,
+  artifactDownloadUrl: (id: string) => `${getApiBaseUrl()}/artifacts/${id}/download`,
+
+  runLab2Pipeline: (body: { limit: number; min_score?: number | null; max_score?: number | null; process_all?: boolean; batch_size?: number }) =>
+    request<any>("/lab2/run", { method: "POST", body: JSON.stringify(body) }),
+  getLab2SampleData: (params: { limit?: number; min_score?: number | null; max_score?: number | null }) => {
     const search = new URLSearchParams();
     if (typeof params.limit === "number") search.set("limit", String(params.limit));
     if (typeof params.min_score === "number") search.set("min_score", String(params.min_score));
     if (typeof params.max_score === "number") search.set("max_score", String(params.max_score));
-    const suffix = search.toString() ? `?${search.toString()}` : "";
-    return getJson<T>(`/lab2/sample-data${suffix}`);
+    return request<any>(`/lab2/sample-data?${search.toString()}`);
   },
-  runLab2Pipeline: <TResponse, TBody>(body: TBody) => postJson<TResponse, TBody>("/lab2/run", body),
-  getLab2Result: <T>() => getJson<T>("/lab2/result"),
-  getLab3Status: <T>() => getJson<T>("/lab3/status"),
-  getLab3Datasets: <T>() => getJson<T>("/lab3/datasets"),
-  uploadLab3Dataset: <T>(file: File) => {
-    const formData = new FormData();
-    formData.append("file", file);
-    return postForm<T>("/lab3/upload-dataset", formData);
-  },
-  getLab3Profile: <T>(datasetName: string) =>
-    getJson<T>(`/lab3/profile?dataset_name=${encodeURIComponent(datasetName)}`),
-  mapLab3Columns: <TResponse, TBody>(body: TBody) => postJson<TResponse, TBody>("/lab3/map-columns", body),
-  getLab3Tools: <T>() => getJson<T>("/lab3/tools"),
-  runLab3Tool: <TResponse, TBody>(body: TBody) => postJson<TResponse, TBody>("/lab3/run-tool", body),
-  askLab3Agent: <TResponse, TBody>(body: TBody) => postJson<TResponse, TBody>("/lab3/ask", body),
-  getLab3Result: <T>() => getJson<T>("/lab3/result"),
-  resetLab3Session: <TResponse, TBody>(body: TBody) => postJson<TResponse, TBody>("/lab3/reset-session", body),
-  getLab3Session: <T>(sessionId: string) => getJson<T>(`/lab3/session?session_id=${encodeURIComponent(sessionId)}`)
+  askLab3Agent: (body: { dataset_name: string; question: string; analysis_mode?: "code_interpreter" | "fast" | "balanced" | "full"; include_history?: boolean; max_code_steps?: number; max_tool_calls?: number; use_critic?: boolean; column_overrides?: Record<string, string | null> }) =>
+    request<any>("/lab3/ask", { method: "POST", body: JSON.stringify(body) }),
+  getLab3Status: () => request<any>("/lab3/status")
 };
 
-export const apiBaseUrl = getApiBaseUrl;

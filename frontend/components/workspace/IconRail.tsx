@@ -1,0 +1,29 @@
+﻿"use client";
+
+import { Archive, Bot, Database, Home, LogOut, Settings2, Workflow } from "lucide-react";
+import { ActiveSection } from "./types";
+
+const items: Array<{ id: ActiveSection; icon: React.ReactNode; title: string }> = [
+  { id: "agent", icon: <Bot size={20} />, title: "Lab 3 Agent" },
+  { id: "pipeline", icon: <Workflow size={20} />, title: "Lab 2 Pipeline" },
+  { id: "datasets", icon: <Database size={20} />, title: "Datasets" },
+  { id: "artifacts", icon: <Archive size={20} />, title: "Artifacts" },
+  { id: "settings", icon: <Settings2 size={20} />, title: "Settings" }
+];
+
+export function IconRail({ active, onChange, onLogout }: { active: ActiveSection; onChange: (s: ActiveSection) => void; onLogout: () => void }) {
+  return (
+    <aside className="rail">
+      <div className="rail-logo"><Home size={20} /></div>
+      <div className="rail-items">
+        {items.map((item) => (
+          <button key={item.id} title={item.title} className={`rail-btn ${active === item.id ? "active" : ""}`} onClick={() => onChange(item.id)}>
+            {item.icon}
+          </button>
+        ))}
+      </div>
+      <button className="rail-btn" title="Logout" onClick={onLogout}><LogOut size={20} /></button>
+    </aside>
+  );
+}
+

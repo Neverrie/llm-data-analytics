@@ -220,3 +220,9 @@ curl -X POST "http://localhost:8003/api/lab3/upload-dataset" \
 
 Demo account:
 - email: demo@example.com`n- password: demo`n
+
+## Workspace Frontend (New Shell)
+- Frontend now uses a single workspace route `/` with sections: Lab 3 Agent, Lab 2 Pipeline, Datasets, Artifacts, Settings.
+- Demo login is available from the auth screen (`demo@example.com` / `demo`).
+- Frontend uses proxy-first API access: `/api/*` is rewritten to backend (`http://backend:8000/api/*`) inside Docker.
+- Legacy `/lab1`, `/lab2`, `/lab3` pages were removed from UI in favor of workspace sections.
