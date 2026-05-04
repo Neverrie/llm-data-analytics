@@ -377,7 +377,7 @@ body {
 
 .dataset-row .row-actions { justify-content: space-between; align-items: center; }
 .chip.tiny { font-size: 10px; padding: 1px 6px; }
-.pipeline-card { flex: 0 0 auto; }
+.pipeline-card { min-height: 0; height: 100%; flex: 1 1 auto; overflow: hidden; display: flex; flex-direction: column; padding: 0; }
 .sidebar-group.sidebar-bottom { min-height: 0; }
 .sidebar-group.sidebar-bottom .mini-list { min-height: 0; overflow: auto; }
 
@@ -386,6 +386,9 @@ body {
 .workspace-screen { display: flex; flex-direction: column; min-height: 0; }
 .screen-body-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 12px; padding-right: 2px; }
 .glass-panel { border: 1px solid var(--border); border-radius: 16px; background: rgba(255,255,255,.52); padding: 10px; min-height: 0; min-width: 0; overflow: hidden; }
+.pipeline-card-scroll { min-height: 0; flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; padding: 12px; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 12px; }
+.pipeline-card-scroll::-webkit-scrollbar { width: 8px; }
+.pipeline-card-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,.18); border-radius: 999px; }
 .raw-card .raw { margin: 0; }
 .raw-card .raw summary { display: inline-flex; padding: 6px 10px; border: 1px solid var(--border); border-radius: 10px; background: rgba(255,255,255,.7); }
 .raw-scroll { max-height: 360px; overflow: auto; }

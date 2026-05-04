@@ -67,7 +67,8 @@ export function PipelinePanel({
 
   return (
     <section className="main-panel workspace-screen">
-      <div className="screen-body-scroll">
+      <div className="glass-panel pipeline-card">
+      <div className="pipeline-card-scroll">
         <article className="glass-panel">
           <strong>Lab 2 Pipeline</strong>
           <p className="muted">CSV → OpenRouter → JSON classification → result artifact</p>
@@ -80,7 +81,6 @@ export function PipelinePanel({
             <input type="number" value={form.limit} onChange={(e) => onForm("limit", e.target.value)} placeholder="limit" />
             <input type="number" value={form.min_score} onChange={(e) => onForm("min_score", e.target.value)} placeholder="min_score" />
             <input type="number" value={form.max_score} onChange={(e) => onForm("max_score", e.target.value)} placeholder="max_score" />
-            <button className="btn-secondary" onClick={onSample} disabled={loading}>Показать sample</button>
             <button className="btn-primary" onClick={onRun} disabled={loading}>{loading ? "Выполняется..." : "Запустить pipeline"}</button>
           </div>
         </article>
@@ -120,7 +120,7 @@ export function PipelinePanel({
         <article className="glass-panel">
           <div className="panel-row">
             <h3>Предпросмотр данных</h3>
-            <button className="btn-ghost" onClick={() => setSampleOpen((v) => !v)}>{sampleOpen ? "Скрыть sample" : "Показать sample"}</button>
+            <button className="btn-ghost" onClick={() => { if (!sampleRows.length) onSample(); setSampleOpen((v) => !v); }}>{sampleOpen ? "Скрыть sample" : "Показать sample"}</button>
           </div>
           {sampleOpen ? (
             <>
@@ -140,6 +140,7 @@ export function PipelinePanel({
             </details>
           </article>
         ) : null}
+      </div>
       </div>
     </section>
   );
