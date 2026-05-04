@@ -1,7 +1,9 @@
 ﻿from __future__ import annotations
 
 import json
+import logging
 import re
+import time
 from typing import Any
 
 import httpx
@@ -9,6 +11,9 @@ import httpx
 
 class OpenRouterClientError(RuntimeError):
     """Raised when OpenRouter API call fails."""
+
+
+logger = logging.getLogger(__name__)
 
 
 class OpenRouterClient:
@@ -143,9 +148,12 @@ class OpenRouterClient:
         }
         url = f"{self.base_url}/chat/completions"
 
+        started = time.perf_counter()
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
                 response = await client.post(url, headers=headers, json=payload)
+        except httpx.TimeoutException as exc:
+            raise OpenRouterClientError(f"OpenRouter request timed out after {int(timeout)} seconds.") from exc
         except httpx.RequestError as exc:
             raise OpenRouterClientError(f"OpenRouter request failed: {exc}") from exc
 
@@ -169,6 +177,12 @@ class OpenRouterClient:
 
         content = self.extract_openrouter_text(response_json)
         preview = self.make_openrouter_response_preview(response_json)
+        logger.info(
+            "LAB3_LLM_CALL_DONE elapsed=%.3f used_model=%s content_len=%s",
+            time.perf_counter() - started,
+            used_model,
+            len(content),
+        )
         return {
             "content": content,
             "model": used_model,

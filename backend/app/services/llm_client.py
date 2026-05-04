@@ -61,8 +61,18 @@ class LLMClient:
         for index, current_model in enumerate(models):
             try:
                 if want_json:
-                    return await client.chat_json(messages=messages, model=current_model, temperature=temperature)
-                payload = await client.chat(messages=messages, model=current_model, temperature=temperature)
+                    return await client.chat_json(
+                        messages=messages,
+                        model=current_model,
+                        temperature=temperature,
+                        timeout=settings.openrouter_timeout_seconds,
+                    )
+                payload = await client.chat(
+                    messages=messages,
+                    model=current_model,
+                    temperature=temperature,
+                    timeout=settings.openrouter_timeout_seconds,
+                )
                 return str(payload.get("content", "")).strip()
             except OpenRouterClientError as exc:
                 last_error = exc

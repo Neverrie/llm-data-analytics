@@ -1,6 +1,8 @@
 ﻿from __future__ import annotations
 
 from pathlib import Path
+import inspect
+import time
 
 import pandas as pd
 import pytest
@@ -88,7 +90,7 @@ async def test_code_interpreter_prompt_forces_json_content(ci_paths: None, monke
         max_steps=2,
     )
     assert "Return ONLY a JSON object" in captured["system"]
-    assert "Do not use tool_calls" in captured["system"]
+    assert "No tool_calls" in captured["system"]
 
 
 @pytest.mark.asyncio
@@ -172,3 +174,29 @@ async def test_code_interpreter_meta_text_is_not_returned_as_final_answer(ci_pat
     )
     assert "we need to output json" not in result["final_answer"].lower()
     assert "краткий обзор" in result["final_answer"].lower()
+
+
+def test_code_interpreter_default_max_steps_is_3() -> None:
+    signature = inspect.signature(lab3_code_interpreter.run_code_interpreter_agent)
+    assert signature.parameters["max_steps"].default == 3
+
+
+@pytest.mark.asyncio
+async def test_code_interpreter_total_timeout_returns_partial(ci_paths: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "lab3_code_interpreter_max_total_seconds", 1)
+
+    async def fake_chat(self, messages, purpose="general", model=None, temperature=0.1):  # noqa: ANN001
+        time.sleep(1.2)
+        return '{"action":"run_code","code":"print(df.shape)"}'
+
+    monkeypatch.setattr(LLMClient, "chat", fake_chat)
+    result = await lab3_code_interpreter.run_code_interpreter_agent(
+        dataset_name="demo.csv",
+        question="overview",
+        column_mapping={"roles": {}},
+        profile={"columns": ["x", "y"]},
+        session_context=None,
+        max_steps=3,
+    )
+    assert result["status"] == "timeout"
+    assert any("timeout" in warning.lower() for warning in result["warnings"])

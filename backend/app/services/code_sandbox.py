@@ -2,6 +2,7 @@
 
 import ast
 import json
+import logging
 import shutil
 import subprocess
 import sys
@@ -38,7 +39,7 @@ FORBIDDEN_TOKENS = [
 MAX_STDIO = 12000
 MAX_FILES = 20
 MAX_FILE_SIZE = 5 * 1024 * 1024
-TIMEOUT_SECONDS = 15
+logger = logging.getLogger(__name__)
 
 
 def _block_reason(code: str) -> str | None:
@@ -111,22 +112,25 @@ def execute_python_code(code: str, dataset_name: str, run_id: str) -> dict[str, 
     script_path.write_text(script, encoding="utf-8")
 
     started = time.perf_counter()
+    timeout_seconds = int(getattr(settings, "lab3_code_exec_timeout_seconds", 15))
+    logger.info("LAB3_CODE_EXEC_START step=%s code_chars=%s", run_id, len(code))
     try:
         proc = subprocess.run(
             [sys.executable, "-I", str(script_path)],
             capture_output=True,
             text=True,
-            timeout=TIMEOUT_SECONDS,
+            timeout=timeout_seconds,
             cwd=run_dir,
         )
         status = "success" if proc.returncode == 0 else "error"
         stdout = (proc.stdout or "")[:MAX_STDIO]
         stderr = (proc.stderr or "")[:MAX_STDIO]
     except subprocess.TimeoutExpired as exc:
+        logger.error("LAB3_CODE_EXEC_DONE step=%s status=timeout elapsed=%.3f", run_id, time.perf_counter() - started)
         return {
             "status": "error",
             "stdout": (exc.stdout or "")[:MAX_STDIO],
-            "stderr": "Execution timeout exceeded 15 seconds.",
+            "stderr": f"Execution timeout exceeded {timeout_seconds} seconds.",
             "files": [],
             "elapsed_seconds": round(time.perf_counter() - started, 3),
         }
@@ -145,10 +149,19 @@ def execute_python_code(code: str, dataset_name: str, run_id: str) -> dict[str, 
         if len(files) >= MAX_FILES:
             break
 
-    return {
+    result = {
         "status": status,
         "stdout": stdout,
         "stderr": stderr,
         "files": files,
         "elapsed_seconds": round(time.perf_counter() - started, 3),
     }
+    logger.info(
+        "LAB3_CODE_EXEC_DONE step=%s status=%s elapsed=%.3f stdout_len=%s stderr_len=%s",
+        run_id,
+        status,
+        result["elapsed_seconds"],
+        len(stdout),
+        len(stderr),
+    )
+    return result

@@ -266,3 +266,16 @@ def test_upload_secure_filename_no_traversal(lab3_paths: Path) -> None:
     dataset_name = response.json()["dataset"]["name"]
     assert ".." not in dataset_name
     assert "uploads/" in dataset_name
+
+
+def test_lab3_debug_openrouter_ping_mocked(lab3_paths: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.routers import lab3 as lab3_router
+
+    async def fake_ping() -> dict:
+        return {"status": "success", "provider": "openrouter", "model": "openai/gpt-oss-120b:free", "elapsed_seconds": 0.1}
+
+    monkeypatch.setattr(lab3_router, "debug_openrouter_ping", fake_ping)
+    client = TestClient(app)
+    response = client.get("/api/lab3/debug/openrouter-ping")
+    assert response.status_code == 200
+    assert response.json()["status"] == "success"

@@ -1,5 +1,7 @@
 ﻿from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 
@@ -7,6 +9,9 @@ from app.schemas import Lab3AskRequest, Lab3MapColumnsRequest, Lab3ResetSessionR
 from app.services.lab2_service import Lab2PipelineError
 from app.services.lab3_service import (
     ask_agent,
+    clear_session,
+    debug_openrouter_ping,
+    get_current_status,
     get_datasets,
     get_lab3_status,
     get_last_result,
@@ -17,10 +22,10 @@ from app.services.lab3_service import (
     map_columns,
     run_tool,
     upload_dataset,
-    clear_session,
 )
 
 router = APIRouter(prefix="/lab3", tags=["lab3"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/status")
@@ -78,6 +83,12 @@ async def lab3_run_tool(request: Lab3RunToolRequest) -> dict:
 @router.post("/ask")
 async def lab3_ask(request: Lab3AskRequest) -> dict:
     try:
+        logger.info(
+            "LAB3_ASK_START dataset=%s mode=%s question_len=%s",
+            request.dataset_name,
+            request.analysis_mode,
+            len(request.question or ""),
+        )
         return await ask_agent(
             dataset_name=request.dataset_name,
             question=request.question,
@@ -91,6 +102,7 @@ async def lab3_ask(request: Lab3AskRequest) -> dict:
             max_code_steps=request.max_code_steps,
         )
     except Lab2PipelineError as exc:
+        logger.exception("LAB3_ASK_ERROR detail=%s", exc.message)
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
 
@@ -125,3 +137,16 @@ def lab3_download_report() -> FileResponse:
     except Lab2PipelineError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
     return FileResponse(report_path, media_type="text/markdown", filename="lab3_report.md")
+
+
+@router.get("/debug/openrouter-ping")
+async def lab3_debug_openrouter_ping() -> dict:
+    try:
+        return await debug_openrouter_ping()
+    except Lab2PipelineError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+
+
+@router.get("/current-status")
+def lab3_current_status() -> dict:
+    return get_current_status()

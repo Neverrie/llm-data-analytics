@@ -40,7 +40,7 @@ export default function Lab3Page() {
   const [profile, setProfile] = useState<Lab3Profile | null>(null);
   const [analysisMode, setAnalysisMode] = useState<AskResult["analysis_mode"]>("code_interpreter");
   const [maxToolCalls, setMaxToolCalls] = useState(6);
-  const [maxCodeSteps, setMaxCodeSteps] = useState(5);
+  const [maxCodeSteps, setMaxCodeSteps] = useState(3);
   const [useCritic, setUseCritic] = useState(false);
   const [question, setQuestion] = useState("Сделай краткий обзор датасета: строки, колонки, пропуски и 3 главных наблюдения.");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -48,6 +48,16 @@ export default function Lab3Page() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AskResult | null>(null);
   const [tab, setTab] = useState<ResultTab>("answer");
+  const [loadingSeconds, setLoadingSeconds] = useState(0);
+
+  useEffect(() => {
+    if (!loading) {
+      setLoadingSeconds(0);
+      return;
+    }
+    const id = setInterval(() => setLoadingSeconds((prev) => prev + 1), 1000);
+    return () => clearInterval(id);
+  }, [loading]);
 
   const getFriendlyError = (message: string) => {
     if (message.toLowerCase().includes("did not contain usable text")) {
@@ -107,6 +117,8 @@ export default function Lab3Page() {
       setError(err instanceof Error ? err.message : "Ошибка запуска агента");
     } finally { setLoading(false); }
   };
+
+  const stageIndex = Math.min(4, Math.floor(loadingSeconds / 8) + 1);
 
   return (
     <div className="space-y-6">
@@ -173,8 +185,33 @@ export default function Lab3Page() {
       <section className="app-card space-y-3 p-4">
         <h2 className="app-section-title">Вопрос</h2>
         <textarea className="app-textarea min-h-24" value={question} onChange={(e) => setQuestion(e.target.value)} />
-        <button className="app-button app-button-primary" onClick={runAgent} disabled={loading}>{loading ? "Запуск..." : "Отправить агенту"}</button>
+        <button className="app-button app-button-primary" onClick={runAgent} disabled={loading}>{loading ? "Агент работает..." : "Отправить агенту"}</button>
+        {loading ? (
+          <button
+            className="app-button app-button-secondary"
+            onClick={() => {
+              setLoading(false);
+              setError("Ожидание сброшено. Backend может ещё завершать предыдущий запрос.");
+            }}
+          >
+            Сбросить ожидание
+          </button>
+        ) : null}
         {!result ? <p className="text-xs app-muted">В этом режиме модель сама пишет Python-код, backend выполняет его в sandbox и возвращает результат модели.</p> : null}
+        {loading ? (
+          <div className="app-card p-4 space-y-2">
+            <p className="font-semibold">Агент работает...</p>
+            <p className="text-sm app-muted">Прошло: {loadingSeconds} сек</p>
+            <ol className="list-decimal pl-5 text-sm space-y-1">
+              <li style={{ opacity: stageIndex >= 1 ? 1 : 0.55 }}>Отправляем вопрос в backend</li>
+              <li style={{ opacity: stageIndex >= 2 ? 1 : 0.55 }}>OpenRouter генерирует Python-код</li>
+              <li style={{ opacity: stageIndex >= 3 ? 1 : 0.55 }}>Backend выполняет код в sandbox</li>
+              <li style={{ opacity: stageIndex >= 4 ? 1 : 0.55 }}>Модель формирует ответ</li>
+            </ol>
+            {loadingSeconds > 30 ? <p className="text-xs app-muted">Free-модели OpenRouter могут отвечать медленно. Можно подождать или уменьшить max_code_steps.</p> : null}
+            {loadingSeconds > 90 ? <p className="text-xs app-muted">Запрос выполняется дольше обычного. Попробуйте повторить позже или сменить модель.</p> : null}
+          </div>
+        ) : null}
         {error ? (
           <div className="app-card p-4" style={{ borderColor: "color-mix(in srgb, var(--danger) 45%, var(--border))", background: "color-mix(in srgb, var(--danger) 8%, var(--surface))" }}>
             <p className="font-semibold" style={{ color: "var(--danger)" }}>Не удалось получить ответ от OpenRouter.</p>

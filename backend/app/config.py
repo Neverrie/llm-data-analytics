@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_model: str = "openai/gpt-oss-120b:free"
     openrouter_fallback_models: str = "openai/gpt-oss-20b:free"
+    openrouter_timeout_seconds: int = 60
     ollama_base_url: str = "http://host.docker.internal:11434"
     ollama_model: str = "qwen3:8b"
     datasets_dir: str = str(BASE_DIR / "datasets")
@@ -21,6 +22,9 @@ class Settings(BaseSettings):
     lab3_planner_model: str = "qwen3:8b"
     lab3_tool_caller_model: str = "qwen2.5-coder:7b"
     lab3_critic_model: str = "deepseek-r1:8b"
+    lab3_code_exec_timeout_seconds: int = 15
+    lab3_code_interpreter_max_total_seconds: int = 120
+    lab3_code_interpreter_max_steps: int = 3
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

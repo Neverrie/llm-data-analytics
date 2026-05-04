@@ -154,7 +154,7 @@ class Lab3AskRequest(BaseModel):
     max_tool_calls: int = Field(default=6, ge=1, le=20)
     use_critic: bool = False
     analysis_mode: Literal["fast", "balanced", "full", "code_interpreter"] = "code_interpreter"
-    max_code_steps: int = Field(default=5, ge=1, le=10)
+    max_code_steps: int = Field(default=3, ge=1, le=10)
     session_id: str | None = None
     include_history: bool = True
     reset_session: bool = False

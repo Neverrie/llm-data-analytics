@@ -1,7 +1,9 @@
 ﻿from __future__ import annotations
 
 import json
+import logging
 import re
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -14,12 +16,14 @@ from app.services.lab2_service import Lab2PipelineError
 from app.services.lab3_agent import run_agent
 from app.services.lab3_column_mapper import get_effective_column_mapping, list_datasets, load_dataset, profile_dataset
 from app.services.llm_client import LLMClient
+from app.services.openrouter_client import OpenRouterClient, OpenRouterClientError
 from app.services.lab3_session import load_session, reset_session
 from app.services.lab3_tools import TOOL_METADATA, execute_tool
 
 MAX_UPLOAD_SIZE_BYTES = 20 * 1024 * 1024
 _ALLOWED_UPLOAD_SUFFIXES = {".csv": "csv", ".xlsx": "xlsx", ".xls": "xls"}
 _SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9_.-]+")
+logger = logging.getLogger(__name__)
 
 
 def get_lab3_status() -> dict[str, Any]:
@@ -94,7 +98,23 @@ async def ask_agent(
     reset_session_flag: bool = False,
     max_code_steps: int = 5,
 ) -> dict[str, Any]:
-    return await run_agent(
+    llm = LLMClient()
+    started = time.perf_counter()
+    logger.info(
+        "LAB3_ASK_START dataset=%s mode=%s provider=%s model=%s question_len=%s",
+        dataset_name,
+        analysis_mode,
+        llm.provider_name(),
+        llm.resolve_model(),
+        len(question or ""),
+    )
+    profile = profile_dataset(dataset_name)
+    logger.info(
+        "LAB3_PROFILE_READY rows=%s columns=%s",
+        profile.get("total_rows"),
+        profile.get("total_columns"),
+    )
+    result = await run_agent(
         dataset_name=dataset_name,
         question=question,
         column_overrides=column_overrides,
@@ -106,6 +126,42 @@ async def ask_agent(
         reset_session=reset_session_flag,
         max_code_steps=max_code_steps,
     )
+    logger.info("LAB3_ASK_DONE elapsed=%.3f", time.perf_counter() - started)
+    return result
+
+
+async def debug_openrouter_ping() -> dict[str, Any]:
+    llm = LLMClient()
+    if llm.provider_name() != "openrouter":
+        raise Lab2PipelineError("Debug endpoint is available only for openrouter provider.", status_code=400)
+    started = time.perf_counter()
+    client = OpenRouterClient(
+        api_key=settings.openrouter_api_key,
+        base_url=settings.openrouter_base_url,
+        default_model=settings.openrouter_model,
+    )
+    try:
+        payload = await client.chat(
+            messages=[{"role": "user", "content": "Return JSON: {\"ok\": true}"}],
+            model=llm.resolve_model(),
+            temperature=0.0,
+            timeout=min(settings.openrouter_timeout_seconds, 20),
+        )
+    except OpenRouterClientError as exc:
+        raise Lab2PipelineError(str(exc), status_code=503) from exc
+    return {
+        "status": "success",
+        "provider": "openrouter",
+        "model": payload.get("model", llm.resolve_model()),
+        "elapsed_seconds": round(time.perf_counter() - started, 3),
+    }
+
+
+def get_current_status() -> dict[str, Any]:
+    status_path = Path(settings.outputs_dir) / "lab3" / "current_status.json"
+    if not status_path.exists():
+        return {"status": "idle"}
+    return json.loads(status_path.read_text(encoding="utf-8"))
 
 
 def get_session_state(session_id: str) -> dict[str, Any]:

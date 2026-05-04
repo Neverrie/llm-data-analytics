@@ -3,6 +3,7 @@
 import json
 
 import pytest
+import httpx
 
 from app.services.openrouter_client import OpenRouterClient, OpenRouterClientError
 
@@ -90,3 +91,28 @@ async def test_openrouter_chat_returns_raw_preview(monkeypatch: pytest.MonkeyPat
     assert result["content"] == "hello"
     assert result["provider"] == "openrouter"
     assert "raw_preview" in result and isinstance(result["raw_preview"], dict)
+
+
+@pytest.mark.asyncio
+async def test_openrouter_timeout_message(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = OpenRouterClient(api_key="x")
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, *args, **kwargs):
+            raise httpx.TimeoutException("timeout")
+
+    import app.services.openrouter_client as module
+
+    monkeypatch.setattr(module.httpx, "AsyncClient", FakeAsyncClient)
+    with pytest.raises(OpenRouterClientError) as exc:
+        await client.chat(messages=[{"role": "user", "content": "hi"}], timeout=60)
+    assert "timed out after 60 seconds" in str(exc.value)

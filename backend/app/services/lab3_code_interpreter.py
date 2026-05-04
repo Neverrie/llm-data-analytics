@@ -1,8 +1,10 @@
 ﻿from __future__ import annotations
 
 import json
+import logging
 import time
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +12,8 @@ from app.config import settings
 from app.services.code_sandbox import execute_python_code
 from app.services.lab2_service import Lab2PipelineError
 from app.services.llm_client import LLMClient, LLMClientError
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_action(text: str) -> dict[str, Any]:
@@ -59,6 +63,19 @@ def _save_run_trace(run_id: str, payload: dict[str, Any]) -> Path:
     return trace_path
 
 
+def _save_status(stage: str, step: int, message: str) -> None:
+    path = Path(settings.outputs_dir) / "lab3"
+    path.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "status": "running",
+        "stage": stage,
+        "step": step,
+        "message": message,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    (path / "current_status.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def _save_lab3_outputs(result_payload: dict[str, Any], final_answer: str) -> tuple[str, str]:
     out_dir = Path(settings.outputs_dir) / "lab3"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -70,28 +87,57 @@ def _save_lab3_outputs(result_payload: dict[str, Any], final_answer: str) -> tup
     return str(result_path), str(report_path)
 
 
+def _timeout_result(
+    *,
+    llm: LLMClient,
+    model: str,
+    run_id: str,
+    steps: list[dict[str, Any]],
+    all_files: dict[str, dict[str, Any]],
+    llm_calls: int,
+    warnings: list[str],
+    started: float,
+) -> dict[str, Any]:
+    warnings = warnings + ["Code Interpreter exceeded total timeout."]
+    final_answer = "Анализ остановлен по таймауту. Ниже доступны уже выполненные шаги."
+    return {
+        "status": "timeout",
+        "mode": "code_interpreter",
+        "provider": llm.provider_name(),
+        "model": model,
+        "run_id": run_id,
+        "steps": steps,
+        "final_answer": final_answer,
+        "files": list(all_files.values()),
+        "elapsed_seconds": round(time.perf_counter() - started, 3),
+        "llm_calls_count": llm_calls,
+        "warnings": warnings,
+        "raw_previews": [],
+    }
+
+
 async def run_code_interpreter_agent(
     dataset_name: str,
     question: str,
     column_mapping: dict,
     profile: dict,
     session_context: str | None,
-    max_steps: int = 5,
+    max_steps: int = 3,
 ) -> dict[str, Any]:
     started = time.perf_counter()
     llm = LLMClient()
     run_id = uuid.uuid4().hex
     model = llm.resolve_model()
+    max_total_seconds = int(getattr(settings, "lab3_code_interpreter_max_total_seconds", 120))
+    max_steps = min(max_steps, int(getattr(settings, "lab3_code_interpreter_max_steps", 3)))
 
     system_prompt = (
-        "Ты аналитик данных в режиме code interpreter.\\n"
-        "Работай через Python-код. У тебя есть DataFrame df и output_dir.\\n"
-        "Запрещено: os, subprocess, requests, socket, shell-команды, произвольный доступ к файлам.\\n"
-        "Return ONLY a JSON object. Do not use markdown. Do not use tool_calls. Do not use function calling. "
-        "Put your JSON in message content.\\n"
-        "Для запуска кода формат: {\"action\":\"run_code\",\"code\":\"print(df.shape)\"}\\n"
-        "Для финального ответа формат: {\"action\":\"final_answer\",\"answer\":\"...\"}\\n"
-        "Пиши финальный answer на русском."
+        "You are a data analyst in code-interpreter mode. "
+        "Return ONLY a JSON object in message content. No markdown. No tool_calls. No function calling. "
+        "Actions: {\"action\":\"run_code\",\"code\":\"...\"} or {\"action\":\"final_answer\",\"answer\":\"...\"}. "
+        "On the first step, run a short inspection code only: print(df.shape), print(df.dtypes), "
+        "print(df.isna().sum().sort_values(ascending=False).head(10)), print(df.head(3).to_string()). "
+        "Prefer at most 40 lines of Python per step. Final answer in Russian."
     )
 
     messages: list[dict[str, str]] = [
@@ -99,9 +145,9 @@ async def run_code_interpreter_agent(
         {
             "role": "user",
             "content": (
-                f"Question: {question}\\n"
-                f"Dataset profile: {json.dumps(profile, ensure_ascii=False)}\\n"
-                f"Column mapping: {json.dumps(column_mapping, ensure_ascii=False)}\\n"
+                f"Question: {question}\n"
+                f"Dataset profile: {json.dumps(profile, ensure_ascii=False)}\n"
+                f"Column mapping: {json.dumps(column_mapping, ensure_ascii=False)}\n"
                 f"Session context: {session_context or 'none'}"
             ),
         },
@@ -112,17 +158,56 @@ async def run_code_interpreter_agent(
     llm_calls = 0
     all_files: dict[str, dict[str, Any]] = {}
     final_answer = ""
-    raw_previews: list[dict[str, Any]] = []
 
     for step_index in range(1, max_steps + 1):
+        elapsed_total = time.perf_counter() - started
+        if elapsed_total > max_total_seconds:
+            logger.warning("LAB3_TIMEOUT total_elapsed=%.3f max_total=%s", elapsed_total, max_total_seconds)
+            result = _timeout_result(
+                llm=llm,
+                model=model,
+                run_id=run_id,
+                steps=steps,
+                all_files=all_files,
+                llm_calls=llm_calls,
+                warnings=warnings,
+                started=started,
+            )
+            trace_path = _save_run_trace(run_id, result)
+            result_json_path, report_path = _save_lab3_outputs(result, result["final_answer"])
+            result["output_files"] = {
+                "code_interpreter_trace": str(trace_path),
+                "lab3_result_json": result_json_path,
+                "lab3_report_md": report_path,
+            }
+            return result
+
+        _save_status("openrouter_call", step_index, "Waiting for model to generate code")
+        logger.info(
+            "LAB3_LLM_CALL_START step=%s model=%s messages=%s approx_prompt_chars=%s",
+            step_index,
+            model,
+            len(messages),
+            sum(len(m.get("content", "")) for m in messages),
+        )
+
         raw: str | None = None
         for repair_attempt in range(0, 3):
+            llm_started = time.perf_counter()
             try:
                 raw = await llm.chat(messages=messages, purpose="code_interpreter", model=model, temperature=0.1)
                 llm_calls += 1
+                logger.info(
+                    "LAB3_LLM_CALL_DONE step=%s elapsed=%.3f used_model=%s content_len=%s",
+                    step_index,
+                    time.perf_counter() - llm_started,
+                    model,
+                    len(raw or ""),
+                )
                 break
             except LLMClientError as exc:
                 msg = str(exc)
+                logger.error("LAB3_LLM_CALL_ERROR step=%s elapsed=%.3f error=%s", step_index, time.perf_counter() - llm_started, msg)
                 if "did not contain usable text" in msg.lower():
                     raise Lab2PipelineError(
                         f"OpenRouter вернул ответ в нестандартном формате. {msg}",
@@ -189,7 +274,18 @@ async def run_code_interpreter_agent(
                 warnings.append("Model returned empty code block.")
                 continue
 
+            _save_status("sandbox_execution", step_index, "Running python code in sandbox")
+            logger.info("LAB3_CODE_EXEC_START step=%s code_chars=%s", step_index, len(code))
+            exec_started = time.perf_counter()
             execution = execute_python_code(code=code, dataset_name=dataset_name, run_id=run_id)
+            logger.info(
+                "LAB3_CODE_EXEC_DONE step=%s status=%s elapsed=%.3f stdout_len=%s stderr_len=%s",
+                step_index,
+                execution.get("status"),
+                time.perf_counter() - exec_started,
+                len(execution.get("stdout", "") or ""),
+                len(execution.get("stderr", "") or ""),
+            )
             steps.append({"step": step_index, "action": "run_code", "code": code, "execution": execution})
 
             for file_item in execution.get("files", []):
@@ -227,6 +323,7 @@ async def run_code_interpreter_agent(
         warnings.append("max_code_steps reached before final_answer.")
 
     result = {
+        "status": "success",
         "mode": "code_interpreter",
         "provider": llm.provider_name(),
         "model": model,
@@ -237,8 +334,14 @@ async def run_code_interpreter_agent(
         "elapsed_seconds": round(time.perf_counter() - started, 3),
         "llm_calls_count": llm_calls,
         "warnings": warnings,
-        "raw_previews": raw_previews,
+        "raw_previews": [],
     }
+    logger.info(
+        "LAB3_FINAL_READY elapsed=%.3f llm_calls=%s code_steps=%s",
+        result["elapsed_seconds"],
+        llm_calls,
+        len(steps),
+    )
     trace_path = _save_run_trace(run_id, result)
     result_json_path, report_path = _save_lab3_outputs(result, final_answer)
     result["output_files"] = {
