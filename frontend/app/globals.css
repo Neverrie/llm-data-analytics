@@ -195,8 +195,34 @@ body {
 .progress-card li.active-step { font-weight: 700; }
 .assistant-summary { font-size: 13px; color: #35515a; }
 
-.composer { border-top: 1px solid var(--border-soft); margin-top: 8px; padding: 10px 2px 2px; display: flex; flex-direction: column; gap: 8px; background: rgba(247,247,244,.9); flex-shrink: 0; }
-.composer textarea { width: 100%; border: 1px solid var(--border); background: rgba(255,255,255,.85); border-radius: 12px; padding: 10px; min-height: 92px; resize: vertical; }
+.composer {
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  margin-top: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: linear-gradient(180deg, rgba(255,255,255,.78), rgba(245,245,241,.72));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.9);
+  flex-shrink: 0;
+}
+.composer:focus-within {
+  border-color: rgba(72,110,121,.38);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.9), 0 0 0 3px rgba(72,110,121,.1);
+}
+.composer textarea {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  border-radius: 12px;
+  padding: 6px 4px;
+  min-height: 92px;
+  resize: vertical;
+  outline: none;
+  color: var(--text);
+}
+.composer textarea::placeholder { color: #4f5d61; opacity: .85; }
 
 .block-card, .raw {
   border: 1px solid var(--border);
@@ -215,6 +241,19 @@ body {
 .pipeline-controls { display: flex; flex-wrap: wrap; gap: 8px; }
 .pipeline-controls input { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; background: rgba(255,255,255,.85); }
 .result-block h3 { margin: 0 0 6px; font-size: 15px; }
+.pipeline-panel .result-block { min-height: 0; }
+.pipeline-progress-prominent { border-color: rgba(72,110,121,.4); background: linear-gradient(180deg, rgba(72,110,121,.2), rgba(72,110,121,.08)); }
+.pipeline-progress-prominent ul { list-style: none; margin-left: 0; }
+.pipeline-progress-prominent li { display: flex; align-items: center; gap: 8px; padding: 4px 0; color: #506167; }
+.pipeline-progress-prominent li.active-step { color: #1f3f48; font-weight: 700; }
+.stage-dot { width: 8px; height: 8px; border-radius: 999px; background: rgba(31,63,72,.25); }
+.stage-dot.active { background: #2f5d69; box-shadow: 0 0 0 6px rgba(47,93,105,.12); animation: pulseDot 1.2s ease-in-out infinite; }
+.pipeline-success .metric-grid.small { grid-template-columns: repeat(4, minmax(0,1fr)); }
+@keyframes pulseDot {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
 
 .table-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 14px; background: rgba(255,255,255,.7); }
 .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
