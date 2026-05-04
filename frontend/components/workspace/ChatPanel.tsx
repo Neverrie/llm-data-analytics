@@ -22,11 +22,15 @@ export function ChatPanel({
   datasetNotice?: string;
 }) {
   return (
-    <section className="main-panel chat-panel">
+    <section className="main-panel chat-panel workspace-screen">
       {datasetNotice ? <div className="dataset-notice">{datasetNotice}</div> : null}
-      {!messages.length ? <EmptyChatState datasetName={datasetName} onPrompt={onSend} /> : <ChatThread messages={messages} />}
-      <AgentRunProgress active={loading} />
-      {lab3Response?.error ? <article className="block-card"><strong>Ошибка</strong><pre className="code-pre error">{String(lab3Response.error)}</pre></article> : null}
+      <div className="chat-thread-wrap">
+        {!messages.length ? <EmptyChatState datasetName={datasetName} onPrompt={onSend} /> : <ChatThread messages={messages} />}
+      </div>
+      <div className="chat-status-wrap">
+        <AgentRunProgress active={loading} />
+        {lab3Response?.error ? <article className="block-card"><strong>Ошибка</strong><pre className="code-pre error">{String(lab3Response.error)}</pre></article> : null}
+      </div>
       <ChatComposer onSend={onSend} loading={loading} />
     </section>
   );

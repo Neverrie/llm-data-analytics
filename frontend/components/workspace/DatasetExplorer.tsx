@@ -26,7 +26,8 @@ export function DatasetExplorer({
   const selectedDataset = useMemo(() => datasets.find((d) => d.id === selected), [datasets, selected]);
 
   return (
-    <section className="main-panel">
+    <section className="main-panel workspace-screen">
+      <div className="screen-body-scroll">
       <div className="explorer-toolbar">
         <h3>Датасеты</h3>
         <div className="panel-row">
@@ -57,7 +58,7 @@ export function DatasetExplorer({
           </div>
 
           {tab === "preview" ? (
-            preview?.rows?.length ? <DataTable columns={preview.columns || []} rows={preview.rows} /> : <EmptyState title="Нет preview" description="Данные preview пока недоступны." />
+            preview?.rows?.length ? <DataTable columns={preview.columns || []} rows={preview.rows} maxHeight={560} /> : <EmptyState title="Нет preview" description="Данные preview пока недоступны." />
           ) : null}
 
           {tab === "profile" ? (
@@ -65,10 +66,11 @@ export function DatasetExplorer({
           ) : null}
 
           {tab === "columns" ? (
-            profile?.columns?.length ? <DataTable columns={["name", "dtype", "missing_count", "unique_count"]} rows={profile.columns} /> : <EmptyState title="Нет columns profile" description="Профиль колонок пока недоступен." />
+            profile?.columns?.length ? <DataTable columns={["name", "dtype", "missing_count", "unique_count"]} rows={profile.columns} maxHeight={560} /> : <EmptyState title="Нет columns profile" description="Профиль колонок пока недоступен." />
           ) : null}
         </>
       )}
+      </div>
     </section>
   );
 }

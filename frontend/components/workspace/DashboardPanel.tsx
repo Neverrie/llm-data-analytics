@@ -22,7 +22,8 @@ export function DashboardPanel({
   onOpenArtifacts: () => void;
 }) {
   return (
-    <section className="main-panel">
+    <section className="main-panel workspace-screen">
+      <div className="screen-body-scroll">
       <article className="dash-card hero-card">
         <h3>Dashboard</h3>
         <p className="muted">Последние анализы, датасеты и запуски pipeline</p>
@@ -63,6 +64,7 @@ export function DashboardPanel({
           <div className="mini-list">{artifacts.slice(0, 5).map((a) => <div key={a.id} className="mini-item"><strong>{a.title}</strong><span>{a.kind}</span></div>)}</div>
           <button className="btn-secondary" onClick={onOpenArtifacts}>Открыть артефакты</button>
         </article>
+      </div>
       </div>
     </section>
   );
