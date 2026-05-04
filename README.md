@@ -212,3 +212,11 @@ curl -X POST "http://localhost:8003/api/lab3/upload-dataset" \
 
 1. `Сделай краткий обзор датасета: строки, колонки, пропуски и 3 главных наблюдения.`
 2. `Выдели таргет переменную и посчитай корреляции Спирмана, Пирсона всех колонок с этой переменной, дай свои выводы исходя из полученных данных.`
+
+## Workspace backend foundation
+- Added backend foundation for workspace APIs: auth/demo account, chats, datasets registry, artifacts registry.
+- Existing Lab2 and Lab3 endpoints are preserved and still available.
+- SQLite storage location: outputs/app.db.
+
+Demo account:
+- email: demo@example.com`n- password: demo`n

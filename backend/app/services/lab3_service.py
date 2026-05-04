@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import logging
@@ -13,8 +13,9 @@ from fastapi import UploadFile
 
 from app.config import settings
 from app.services.lab2_service import Lab2PipelineError
+from app.services.dataset_registry import datasets_for_lab3
 from app.services.lab3_agent import run_agent
-from app.services.lab3_column_mapper import get_effective_column_mapping, list_datasets, load_dataset, profile_dataset
+from app.services.lab3_column_mapper import get_effective_column_mapping, profile_dataset
 from app.services.llm_client import LLMClient
 from app.services.openrouter_client import OpenRouterClient, OpenRouterClientError
 from app.services.lab3_session import load_session, reset_session
@@ -59,7 +60,7 @@ def get_lab3_status() -> dict[str, Any]:
 
 
 def get_datasets() -> dict[str, Any]:
-    return {"datasets": list_datasets()}
+    return {"datasets": datasets_for_lab3()}
 
 
 async def get_profile(dataset_name: str) -> dict[str, Any]:

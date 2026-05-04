@@ -1,4 +1,4 @@
-﻿fastapi==0.115.2
+fastapi==0.115.2
 uvicorn[standard]==0.32.0
 pydantic==2.9.2
 pydantic-settings==2.6.1
@@ -12,3 +12,4 @@ python-multipart==0.0.20
 langchain==0.3.26
 langchain-openai==0.2.14
 langgraph==0.2.60
+PyJWT==2.9.0

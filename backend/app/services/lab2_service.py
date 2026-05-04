@@ -10,6 +10,8 @@ import pandas as pd
 
 from app.config import settings
 from app.services.llm_client import LLMClient, LLMClientError
+from app.services.artifact_service import register_artifact
+from app.services.auth_service import demo_login, ensure_demo_user
 from app.schemas import (
     Lab2ResultPayload,
     Lab2RunRequest,
@@ -401,7 +403,21 @@ async def run_pipeline(request: Lab2RunRequest) -> Lab2RunResponse:
         warnings=warnings,
         results=combined_results,
     )
-    save_result(response)
+    output_path = save_result(response)
+    try:
+        ensure_demo_user()
+        demo_user = demo_login()
+        register_artifact(
+            user_id=demo_user["id"],
+            kind="json",
+            title="Lab2 result",
+            path=str(output_path),
+            chat_id=None,
+            message_id=None,
+            metadata={"source": "lab2"},
+        )
+    except Exception:
+        pass
     return response
 
 
