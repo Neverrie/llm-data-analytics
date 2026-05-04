@@ -28,6 +28,15 @@ def _parse_action(text: str) -> dict[str, Any]:
     return data
 
 
+def _as_fallback_final_answer(text: str) -> str:
+    cleaned = text.strip()
+    if not cleaned:
+        return ""
+    if len(cleaned) > 4000:
+        return cleaned[:4000] + "..."
+    return cleaned
+
+
 def _save_run_trace(run_id: str, payload: dict[str, Any]) -> Path:
     run_dir = Path(settings.outputs_dir) / "lab3" / "code_runs" / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -111,13 +120,15 @@ async def run_code_interpreter_agent(
             raise Lab2PipelineError("Code interpreter failed to receive response from model.", status_code=503)
 
         action: dict[str, Any] | None = None
+        last_parse_error: Exception | None = None
         for repair_attempt in range(0, 3):
             try:
                 action = _parse_action(raw)
                 break
             except Exception as exc:
+                last_parse_error = exc
                 if repair_attempt >= 2:
-                    raise Lab2PipelineError(f"Code interpreter JSON parse failed after retries: {exc}", status_code=502) from exc
+                    break
                 messages.append(
                     {
                         "role": "user",
@@ -132,6 +143,16 @@ async def run_code_interpreter_agent(
                     raise Lab2PipelineError(str(llm_exc), status_code=503) from llm_exc
 
         if action is None:
+            fallback_answer = _as_fallback_final_answer(raw)
+            if fallback_answer:
+                warnings.append(
+                    "Модель вернула обычный текст вместо JSON action. Ответ принят как final_answer (fallback)."
+                )
+                if last_parse_error is not None:
+                    warnings.append(f"JSON parse warning: {last_parse_error}")
+                final_answer = fallback_answer
+                steps.append({"step": step_index, "action": "final_answer_fallback"})
+                break
             raise Lab2PipelineError("Code interpreter action is empty.", status_code=502)
 
         action_name = str(action.get("action", "")).strip()

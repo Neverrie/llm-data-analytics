@@ -129,3 +129,21 @@ async def test_code_interpreter_uses_openrouter_model_not_ollama(ci_paths: None,
         max_steps=2,
     )
     assert models and all(model == "openai/gpt-oss-120b:free" for model in models if model)
+
+
+@pytest.mark.asyncio
+async def test_code_interpreter_plain_text_fallback_to_final_answer(ci_paths: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def fake_chat(self, messages, purpose="general", model=None, temperature=0.1):  # noqa: ANN001
+        return "We need to output final answer JSON. Provide overview and observations."
+
+    monkeypatch.setattr(LLMClient, "chat", fake_chat)
+    result = await lab3_code_interpreter.run_code_interpreter_agent(
+        dataset_name="demo.csv",
+        question="overview",
+        column_mapping={"roles": {}},
+        profile={"columns": ["x", "y"]},
+        session_context=None,
+        max_steps=2,
+    )
+    assert "Provide overview and observations" in result["final_answer"]
+    assert any("fallback" in warning.lower() for warning in result["warnings"])
