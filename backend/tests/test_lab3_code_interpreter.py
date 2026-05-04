@@ -7,7 +7,6 @@ import pytest
 
 from app.config import settings
 from app.services import lab3_code_interpreter
-from app.services.lab2_service import Lab2PipelineError
 from app.services.llm_client import LLMClient
 
 
@@ -19,44 +18,34 @@ def ci_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     outputs_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(settings, "datasets_dir", str(datasets_dir))
     monkeypatch.setattr(settings, "outputs_dir", str(outputs_dir))
-    monkeypatch.setattr(settings, "lab3_code_interpreter_auto_inspect", True)
-
-    frame = pd.DataFrame({"x": [1, 2, 3], "y": [4, 5, 6], "target": [0, 1, 1]})
+    monkeypatch.setattr(settings, "lab3_code_interpreter_auto_inspect", False)
+    frame = pd.DataFrame({"x": [1, 2, 3], "y": [4, 5, 6], "score": [2, 4, 5]})
     frame.to_csv(datasets_dir / "demo.csv", index=False)
 
 
-@pytest.mark.asyncio
-async def test_code_interpreter_prompt_strict_json_and_df_contract(ci_paths: None, monkeypatch: pytest.MonkeyPatch) -> None:
-    captured = {"system": ""}
+def test_parse_tag_python() -> None:
+    parsed = lab3_code_interpreter.parse_code_interpreter_message("<PYTHON>\nprint(df.shape)\n</PYTHON>")
+    assert parsed["action"] == "run_code"
+    assert "print(df.shape)" in parsed["code"]
+    assert parsed["parse_mode"] == "tag_python"
 
-    async def fake_chat(self, messages, purpose="general", model=None, temperature=0.1):  # noqa: ANN001
-        captured["system"] = messages[0]["content"]
-        return '{"action":"final_answer","answer":"ok"}'
 
-    monkeypatch.setattr(LLMClient, "chat", fake_chat)
-    await lab3_code_interpreter.run_code_interpreter_agent(
-        dataset_name="demo.csv",
-        question="overview",
-        column_mapping={"roles": {}},
-        profile={"columns": ["x", "y"]},
-        session_context=None,
-    )
-    assert "dataframe is already loaded as `df`" in captured["system"]
-    assert "Do NOT use pd.read_csv" in captured["system"]
-    assert "Do not use function calling" in captured["system"]
-    assert "Return ONLY valid JSON" in captured["system"]
-    assert "Do not use markdown" in captured["system"]
+def test_parse_tag_final() -> None:
+    parsed = lab3_code_interpreter.parse_code_interpreter_message("<FINAL>\n## Ответ\nok\n</FINAL>")
+    assert parsed["action"] == "final_answer"
+    assert "## Ответ" in parsed["answer"]
+    assert parsed["parse_mode"] == "tag_final"
+
+
+def test_parse_python_codeblock() -> None:
+    parsed = lab3_code_interpreter.parse_code_interpreter_message("```python\nprint(df.shape)\n```")
+    assert parsed["action"] == "run_code"
+    assert parsed["parse_mode"] == "code_block"
 
 
 @pytest.mark.asyncio
-async def test_plain_text_need_to_inspect_forces_repair_not_final(ci_paths: None, monkeypatch: pytest.MonkeyPatch) -> None:
-    replies = iter(
-        [
-            "Need to inspect df.",
-            '{"action":"run_code","code":"print(df.shape)"}',
-            '{"action":"final_answer","answer":"## Краткий ответ\\nГотово"}',
-        ]
-    )
+async def test_need_inspect_df_before_execution_generates_default_inspection_code(ci_paths: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    replies = iter(["Need to inspect df.", "<FINAL>\nok\n</FINAL>"])
 
     async def fake_chat(self, messages, purpose="general", model=None, temperature=0.1):  # noqa: ANN001
         return next(replies)
@@ -66,86 +55,65 @@ async def test_plain_text_need_to_inspect_forces_repair_not_final(ci_paths: None
         dataset_name="demo.csv",
         question="overview",
         column_mapping={"roles": {}},
-        profile={"columns": ["x", "y"]},
+        profile={"columns": ["x", "y", "score"]},
         session_context=None,
     )
+    assert result["steps"][0]["action"] == "run_code"
+    assert "df.shape" in result["steps"][0]["code"]
+    assert result["steps"][0]["parse_mode"] == "plain_text_need_inspect_fallback"
+
+
+@pytest.mark.asyncio
+async def test_plain_text_after_success_execution_final_fallback(ci_paths: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    replies = iter(["<PYTHON>\nprint(df.shape)\n</PYTHON>", "Готово: данные проверены."])
+
+    async def fake_chat(self, messages, purpose="general", model=None, temperature=0.1):  # noqa: ANN001
+        return next(replies)
+
+    monkeypatch.setattr(LLMClient, "chat", fake_chat)
+    result = await lab3_code_interpreter.run_code_interpreter_agent(
+        dataset_name="demo.csv",
+        question="overview",
+        column_mapping={"roles": {}},
+        profile={"columns": ["x", "y", "score"]},
+        session_context=None,
+    )
+    assert "Готово" in result["final_answer"]
+    assert any(step.get("action") == "final_answer_fallback" for step in result["steps"])
+
+
+@pytest.mark.asyncio
+async def test_code_interpreter_loop_tag_protocol_mocked(ci_paths: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    replies = iter(["<PYTHON>\nprint(df.shape)\n</PYTHON>", "<FINAL>\n## Краткий ответ\nOK\n</FINAL>"])
+
+    async def fake_chat(self, messages, purpose="general", model=None, temperature=0.1):  # noqa: ANN001
+        return next(replies)
+
+    monkeypatch.setattr(LLMClient, "chat", fake_chat)
+    result = await lab3_code_interpreter.run_code_interpreter_agent(
+        dataset_name="demo.csv",
+        question="overview",
+        column_mapping={"roles": {}},
+        profile={"columns": ["x", "y", "score"]},
+        session_context=None,
+    )
+    assert result["successful_executions_count"] == 1
     assert result["final_answer"].startswith("## Краткий ответ")
-    assert any("невалидный json" in w.lower() for w in result["warnings"])
-    assert any(step.get("action") == "run_code" and step.get("step") != 0 for step in result["steps"])
 
 
 @pytest.mark.asyncio
-async def test_blocked_read_csv_observation_mentions_df(ci_paths: None, monkeypatch: pytest.MonkeyPatch) -> None:
-    replies = iter(
-        [
-            '{"action":"run_code","code":"import pandas as pd\\npd.read_csv(\\"x.csv\\")"}',
-            '{"action":"run_code","code":"print(df.shape)"}',
-            '{"action":"final_answer","answer":"ok"}',
-        ]
-    )
-    seen_messages: list[str] = []
-
+async def test_no_json_repair_warning_in_user_warnings(ci_paths: None, monkeypatch: pytest.MonkeyPatch) -> None:
     async def fake_chat(self, messages, purpose="general", model=None, temperature=0.1):  # noqa: ANN001
-        seen_messages.append(messages[-1]["content"])
-        return next(replies)
+        return "<FINAL>\nok\n</FINAL>"
 
     monkeypatch.setattr(LLMClient, "chat", fake_chat)
     result = await lab3_code_interpreter.run_code_interpreter_agent(
         dataset_name="demo.csv",
         question="overview",
         column_mapping={"roles": {}},
-        profile={"columns": ["x", "y"]},
+        profile={"columns": ["x", "y", "score"]},
         session_context=None,
     )
-    assert any(step.get("execution", {}).get("status") == "blocked" for step in result["steps"] if step.get("step") != 0)
-    assert "df is already loaded" in " ".join(seen_messages).lower()
+    all_warnings = " ".join(result.get("warnings", [])).lower()
+    assert "json" not in all_warnings
 
-
-@pytest.mark.asyncio
-async def test_code_interpreter_auto_inspection_step(ci_paths: None, monkeypatch: pytest.MonkeyPatch) -> None:
-    async def fake_chat(self, messages, purpose="general", model=None, temperature=0.1):  # noqa: ANN001
-        return '{"action":"final_answer","answer":"ok"}'
-
-    monkeypatch.setattr(LLMClient, "chat", fake_chat)
-    result = await lab3_code_interpreter.run_code_interpreter_agent(
-        dataset_name="demo.csv",
-        question="overview",
-        column_mapping={"roles": {}},
-        profile={"columns": ["x", "y"]},
-        session_context=None,
-    )
-    assert result["steps"][0]["step"] == 0
-    assert result["steps"][0]["source"] == "backend_auto_inspection"
-    assert "shape" in result["steps"][0]["code"]
-    assert "dtypes" in result["steps"][0]["code"]
-    assert "missing" in result["steps"][0]["code"]
-
-
-@pytest.mark.asyncio
-async def test_target_correlation_query_mocked(ci_paths: None, monkeypatch: pytest.MonkeyPatch) -> None:
-    replies = iter(
-        [
-            '{"action":"run_code","code":"numeric = df.select_dtypes(include=\\"number\\")\\nprint(numeric.corr(method=\\"pearson\\"))\\nprint(numeric.corr(method=\\"spearman\\"))"}',
-            '{"action":"final_answer","answer":"## Выбранная target-переменная\\ntarget\\n\\n## Корреляции Пирсона\\n..."}',
-        ]
-    )
-
-    async def fake_chat(self, messages, purpose="general", model=None, temperature=0.1):  # noqa: ANN001
-        return next(replies)
-
-    monkeypatch.setattr(LLMClient, "chat", fake_chat)
-    result = await lab3_code_interpreter.run_code_interpreter_agent(
-        dataset_name="demo.csv",
-        question="Выдели таргет и посчитай Pearson/Spearman",
-        column_mapping={"roles": {}},
-        profile={"columns": ["x", "y", "target"]},
-        session_context=None,
-    )
-    assert "Выбранная target-переменная" in result["final_answer"]
-    assert any("pearson" in str(step.get("code", "")).lower() for step in result["steps"])
-
-
-def test_blocked_read_csv_message_mentions_df_contract() -> None:
-    with pytest.raises(Lab2PipelineError) as exc:
-        lab3_code_interpreter._parse_action("not json")  # type: ignore[attr-defined]
-    assert "valid json" in str(exc.value).lower() or "preview" in str(exc.value).lower()

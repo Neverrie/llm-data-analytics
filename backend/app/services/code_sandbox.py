@@ -22,6 +22,7 @@ FORBIDDEN_IMPORTS = {
     "urllib",
     "shutil",
     "sys",
+    "pathlib",
 }
 FORBIDDEN_TOKENS = [
     "open(",
@@ -48,6 +49,10 @@ FORBIDDEN_TOKENS = [
     "rmdir(",
     "mkdir(",
     "makedirs(",
+    "pathlib",
+    "powershell",
+    "bash -c",
+    "cmd /c",
 ]
 MAX_STDIO = 12000
 MAX_FILES = 20

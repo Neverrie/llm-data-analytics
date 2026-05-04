@@ -185,6 +185,8 @@ class Lab3AskResponse(BaseModel):
     code_interpreter_trace: str | None = None
     output_files: dict[str, str] | None = None
     successful_executions_count: int = 0
+    debug_warnings: list[str] = Field(default_factory=list)
+    raw_messages: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class Lab3ResetSessionRequest(BaseModel):

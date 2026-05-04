@@ -518,6 +518,7 @@ async def run_agent(
             "llm_calls_count": ci_result.get("llm_calls_count", 0),
             "elapsed_seconds": ci_result.get("elapsed_seconds", 0.0),
             "warnings": ci_result.get("warnings", []),
+            "debug_warnings": ci_result.get("debug_warnings", []),
             "session_id": session_id_value,
             "history_length": len(session_state.get("turns", [])),
             "conversation_summary": session_state.get("conversation_summary", ""),
@@ -532,6 +533,7 @@ async def run_agent(
             "code_interpreter_trace": ci_result.get("output_files", {}).get("code_interpreter_trace"),
             "output_files": ci_result.get("output_files", {}),
             "successful_executions_count": ci_result.get("successful_executions_count", 0),
+            "raw_messages": ci_result.get("raw_messages", []),
         }
         return result_payload
 
@@ -622,6 +624,8 @@ async def run_agent(
         "generated_files": [],
         "code_interpreter_trace": None,
         "successful_executions_count": 0,
+        "debug_warnings": [],
+        "raw_messages": [],
     }
 
     export_tool = execute_tool(dataset_name, "export_lab3_result_json", mapping, {"result_payload": result_payload})

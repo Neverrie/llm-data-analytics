@@ -187,6 +187,14 @@ curl -X POST "http://localhost:8003/api/lab3/upload-dataset" \
 - Модель получает результат выполнения (`stdout/stderr`) и продолжает анализ по этим данным.
 - Это ограничение защищает от prompt injection и произвольного выполнения кода.
 
+### Tag protocol
+
+- Основной протокол Code Interpreter теперь tag-based:
+  - код: `<PYTHON> ... </PYTHON>`
+  - финал: `<FINAL> ... </FINAL>`
+- JSON action loop больше не основной путь (оставлен только для backward compatibility).
+- Backend в trace сохраняет `raw_messages` и `parse_mode` для каждого шага.
+
 ## Lab 3 Code Interpreter Loop (Updated)
 
 - Mode is JSON action loop only: `run_code` or `final_answer`.
