@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ArtifactItem, Chat, ChatMessage, DatasetItem, setAuthToken, User } from "@/lib/api";
 import { AppShell } from "@/components/workspace/AppShell";
 import { ArtifactExplorer } from "@/components/workspace/ArtifactExplorer";
@@ -39,28 +39,30 @@ export default function HomePage() {
   const [datasetPreview, setDatasetPreview] = useState<any>(null);
   const [datasetProfile, setDatasetProfile] = useState<any>(null);
 
+  const chatThreadRef = useRef<HTMLDivElement | null>(null);
+
   const selectedDataset = useMemo(() => datasets.find((d) => d.id === selectedDatasetId), [datasets, selectedDatasetId]);
   const selectedArtifact = useMemo(() => artifacts.find((a) => a.id === selectedArtifactId), [artifacts, selectedArtifactId]);
 
-  const refreshSharedData = useCallback(async () => {
+  async function refreshSharedData() {
     const [ds, arts] = await Promise.all([api.listDatasets(), api.listArtifacts()]);
     setDatasets(ds.items || []);
     setArtifacts(arts.items || []);
-    if (!selectedDatasetId && ds.items?.[0]?.id) setSelectedDatasetId(ds.items[0].id);
-  }, [selectedDatasetId]);
+    setSelectedDatasetId((prev) => prev || ds.items?.[0]?.id || "");
+  }
 
-  const refreshChats = useCallback(async () => {
+  async function refreshChats() {
     const listedChats = await api.listChats({ kind: "lab3_chat" });
     setChats(listedChats.items || []);
     return listedChats.items || [];
-  }, []);
+  }
 
-  const selectChat = useCallback(async (chatId: string) => {
+  async function selectChat(chatId: string) {
     const detail = await api.getChat(chatId);
     setSelectedChatId(chatId);
     setMessages(detail.messages || []);
     setActiveSection("agent");
-  }, []);
+  }
 
   useEffect(() => {
     (async () => {
@@ -69,8 +71,7 @@ export default function HomePage() {
         const me = await api.me();
         setUser(me);
         await refreshSharedData();
-        const list = await refreshChats();
-        if (list[0]?.id) await selectChat(list[0].id);
+        await refreshChats();
       } catch {
         setAuthToken(null);
         setUser(null);
@@ -78,7 +79,7 @@ export default function HomePage() {
         setLoading(false);
       }
     })();
-  }, [refreshSharedData, refreshChats, selectChat]);
+  }, []);
 
   async function doAuth(type: "demo" | "login" | "register") {
     try {
@@ -106,8 +107,9 @@ export default function HomePage() {
     try {
       const dsName = selectedDataset?.name || datasets[0]?.name || "customers_reviews.csv";
       const newChat = await api.createChat({ title: "Новый анализ", kind: "lab3_chat", dataset_name: dsName });
-      await refreshChats();
-      setSelectedChatId(newChat.id);
+      const refreshed = await refreshChats();
+      const created = refreshed.find((c) => c.id === newChat.id) || newChat;
+      setSelectedChatId(created.id);
       setMessages([]);
       setActiveSection("agent");
     } catch (e) {
@@ -116,10 +118,12 @@ export default function HomePage() {
   }
 
   async function sendAgentMessage(text: string) {
-    if (!selectedChatId) {
+    let chatId = selectedChatId;
+    if (!chatId) {
       await createChat();
+      const list = await refreshChats();
+      chatId = list[0]?.id || "";
     }
-    const chatId = selectedChatId || (await api.listChats({ kind: "lab3_chat" })).items[0]?.id;
     if (!chatId) return;
 
     const optimistic: ChatMessage = {
@@ -135,6 +139,7 @@ export default function HomePage() {
     setMessages((prev) => [...prev, optimistic]);
     setLoading(true);
     setLab3Response(null);
+
     try {
       await api.addMessage(chatId, { role: "user", content: text, blocks: [], metadata: {} });
       const answer = await api.askLab3Agent({
@@ -198,10 +203,10 @@ export default function HomePage() {
   async function openDatasetPreview(id: string) {
     try {
       setSelectedDatasetId(id);
+      setActiveSection("datasets");
       const [preview, profile] = await Promise.all([api.previewDataset(id, 30), api.profileDataset(id)]);
       setDatasetPreview(preview);
       setDatasetProfile(profile);
-      setActiveSection("datasets");
     } catch (e) {
       setError((e as Error).message);
     }
@@ -273,8 +278,6 @@ export default function HomePage() {
             selectedChatId={selectedChatId}
             onSelectChat={selectChat}
             onCreateChat={createChat}
-            onOpenDashboard={() => setActiveSection("dashboard")}
-            onOpenAgent={() => setActiveSection("agent")}
             onOpenPipeline={() => setActiveSection("pipeline")}
             datasets={datasets}
             selectedDatasetId={selectedDatasetId}
@@ -286,7 +289,7 @@ export default function HomePage() {
           />
         }
         main={
-          <div className="main-wrap">
+          <div className="main-wrap" ref={chatThreadRef}>
             <TopBar title={title} subtitle={subtitle} />
             {activeSection === "dashboard" ? (
               <DashboardPanel
@@ -302,7 +305,11 @@ export default function HomePage() {
 
             {activeSection === "agent" ? (
               <>
-                <div className="context-strip"><span>Dataset: {selectedDataset?.name || "not selected"}</span></div>
+                <div className="context-strip">
+                  <span>Dataset: {selectedDataset?.name || "not selected"}</span>
+                  <button className="btn-ghost" onClick={() => setActiveSection("datasets")}>Change</button>
+                  <button className="btn-ghost" onClick={() => selectedDatasetId && openDatasetPreview(selectedDatasetId)}>Preview</button>
+                </div>
                 <ChatPanel messages={messages} onSend={sendAgentMessage} loading={loading} lab3Response={lab3Response} datasetName={selectedDataset?.name} />
               </>
             ) : null}

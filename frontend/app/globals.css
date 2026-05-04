@@ -306,3 +306,31 @@ body {
   .metric-grid, .metric-grid.small, .dashboard-grid { grid-template-columns: 1fr 1fr; }
   .prompt-grid { grid-template-columns: 1fr; }
 }
+.workspace-root { height: 100vh; min-height: 100vh; padding: 16px; overflow: hidden; }
+.workspace-shell { height: 100%; min-height: 0; display: grid; grid-template-columns: 78px 360px 1fr; gap: 12px; }
+.rail-logo { font-size: 0; }
+.main-wrap { min-height: 0; height: 100%; display: flex; flex-direction: column; gap: 10px; }
+.topbar { flex: 0 0 auto; }
+.context-strip { flex: 0 0 auto; }
+.main-panel { min-height: 0; height: 100%; overflow: hidden; }
+.chat-panel { display: flex; flex-direction: column; }
+.chat-thread { flex: 1 1 auto; min-height: 0; overflow: auto; padding-right: 4px; }
+.composer { flex: 0 0 auto; }
+.raw.compact { flex: 0 0 auto; }
+
+.dataset-row .row-actions { justify-content: space-between; align-items: center; }
+.chip.tiny { font-size: 10px; padding: 1px 6px; }
+.pipeline-card { flex: 0 0 auto; }
+.sidebar-group.sidebar-bottom { min-height: 0; }
+.sidebar-group.sidebar-bottom .mini-list { min-height: 0; overflow: auto; }
+
+.explorer-toolbar { flex: 0 0 auto; }
+.tab-row { flex: 0 0 auto; }
+.table-wrap { max-height: 52vh; }
+
+.dashboard-grid .dash-card:first-child { min-height: 220px; }
+.metric-card strong { font-size: 18px; }
+
+@media (max-width: 1280px) {
+  .workspace-shell { grid-template-columns: 72px 320px 1fr; }
+}

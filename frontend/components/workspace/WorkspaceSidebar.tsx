@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { Archive, Database, Search, Workflow } from "lucide-react";
+import { useMemo } from "react";
 import { ArtifactItem, Chat, DatasetItem } from "@/lib/api";
 import { ActiveSection } from "./types";
 
@@ -13,8 +14,6 @@ type SidebarProps = {
   selectedChatId?: string;
   onSelectChat: (id: string) => void;
   onCreateChat: () => void;
-  onOpenDashboard: () => void;
-  onOpenAgent: () => void;
   onOpenPipeline: () => void;
   datasets: DatasetItem[];
   selectedDatasetId?: string;
@@ -35,8 +34,6 @@ export function WorkspaceSidebar(props: SidebarProps) {
     selectedChatId,
     onSelectChat,
     onCreateChat,
-    onOpenDashboard,
-    onOpenAgent,
     onOpenPipeline,
     datasets,
     selectedDatasetId,
@@ -48,9 +45,13 @@ export function WorkspaceSidebar(props: SidebarProps) {
   } = props;
 
   const q = search.trim().toLowerCase();
-  const filteredChats = chats.filter((c) => c.title.toLowerCase().includes(q) || (c.dataset_name || "").toLowerCase().includes(q));
-  const filteredDatasets = datasets.filter((d) => d.name.toLowerCase().includes(q));
-  const filteredArtifacts = artifacts.filter((a) => a.title.toLowerCase().includes(q) || a.filename.toLowerCase().includes(q));
+
+  const filteredChats = useMemo(
+    () => chats.filter((c) => c.title.toLowerCase().includes(q) || (c.dataset_name || "").toLowerCase().includes(q)),
+    [chats, q]
+  );
+  const filteredDatasets = useMemo(() => datasets.filter((d) => d.name.toLowerCase().includes(q)), [datasets, q]);
+  const filteredArtifacts = useMemo(() => artifacts.filter((a) => a.title.toLowerCase().includes(q) || a.filename.toLowerCase().includes(q)), [artifacts, q]);
 
   return (
     <aside className="sidebar-panel">
@@ -69,28 +70,26 @@ export function WorkspaceSidebar(props: SidebarProps) {
       </div>
 
       <section className="sidebar-group">
-        <div className="group-head"><h4>Projects</h4></div>
+        <div className="group-head">
+          <h4>Projects</h4>
+          <button className="btn-ghost" onClick={onCreateChat}>New</button>
+        </div>
         <div className="mini-list">
-          <button className={`mini-item ${section === "dashboard" ? "active" : ""}`} onClick={onOpenDashboard}><strong>Dashboard</strong><span>Overview and history</span></button>
-          <button className={`mini-item ${section === "agent" ? "active" : ""}`} onClick={onOpenAgent}><strong>Agent Chats</strong><span>Lab 3 workspace</span></button>
-          <button className={`mini-item ${section === "pipeline" ? "active" : ""}`} onClick={onOpenPipeline}><strong><Workflow size={14} /> Lab 2 Pipeline</strong><span>API pipeline runs</span></button>
+          {filteredChats.slice(0, 10).map((chat) => (
+            <button key={chat.id} className={`mini-item ${selectedChatId === chat.id ? "active" : ""}`} onClick={() => onSelectChat(chat.id)}>
+              <strong>{chat.title}</strong>
+              <span>{chat.dataset_name || "no dataset"} · {new Date(chat.updated_at).toLocaleDateString()}</span>
+            </button>
+          ))}
+          {!filteredChats.length ? <div className="empty-mini">Нет проектов</div> : null}
         </div>
       </section>
 
-      <section className="sidebar-group">
-        <div className="group-head">
-          <h4>Chats</h4>
-          <button className="btn-ghost" onClick={onCreateChat}>New chat</button>
-        </div>
-        <div className="mini-list">
-          {filteredChats.slice(0, 8).map((chat) => (
-            <button key={chat.id} className={`mini-item ${selectedChatId === chat.id ? "active" : ""}`} onClick={() => onSelectChat(chat.id)}>
-              <strong>{chat.title}</strong>
-              <span>{chat.dataset_name || "no dataset"}</span>
-            </button>
-          ))}
-          {!filteredChats.length ? <div className="empty-mini">Нет чатов</div> : null}
-        </div>
+      <section className="sidebar-group pipeline-card">
+        <button className={`mini-item ${section === "pipeline" ? "active" : ""}`} onClick={onOpenPipeline}>
+          <strong><Workflow size={14} /> Lab 2 Pipeline</strong>
+          <span>API review classification</span>
+        </button>
       </section>
 
       <section className="sidebar-group">
@@ -102,14 +101,27 @@ export function WorkspaceSidebar(props: SidebarProps) {
         </div>
         <div className="mini-list">
           {filteredDatasets.slice(0, 10).map((dataset) => (
-            <div key={dataset.id} className={`mini-item dataset-row ${selectedDatasetId === dataset.id ? "active" : ""}`}>
+            <button
+              key={dataset.id}
+              className={`mini-item dataset-row ${selectedDatasetId === dataset.id ? "active" : ""}`}
+              onClick={() => onUseDataset(dataset.id)}
+            >
               <strong>{dataset.name}</strong>
               <span>{dataset.source} · {dataset.rows_count ?? "?"} rows</span>
               <div className="row-actions">
-                <button className="link-btn" title="Use in chat" onClick={() => onUseDataset(dataset.id)}>Use</button>
-                <button className="link-btn" title="Preview" onClick={() => onPreviewDataset(dataset.id)}>Preview</button>
+                {selectedDatasetId === dataset.id ? <span className="chip tiny">selected</span> : null}
+                <button
+                  className="link-btn"
+                  title="Preview"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onPreviewDataset(dataset.id);
+                  }}
+                >
+                  Preview
+                </button>
               </div>
-            </div>
+            </button>
           ))}
           {!filteredDatasets.length ? <div className="empty-mini">Нет датасетов</div> : null}
         </div>
@@ -120,7 +132,7 @@ export function WorkspaceSidebar(props: SidebarProps) {
           <h4><Archive size={14} /> Artifacts</h4>
         </div>
         <div className="mini-list">
-          {filteredArtifacts.slice(0, 10).map((artifact) => (
+          {filteredArtifacts.slice(0, 8).map((artifact) => (
             <button key={artifact.id} className="mini-item" onClick={() => onSelectArtifact(artifact.id)}>
               <strong>{artifact.title}</strong>
               <span>{artifact.kind} · {artifact.filename}</span>

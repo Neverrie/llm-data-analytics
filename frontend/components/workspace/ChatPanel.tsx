@@ -23,6 +23,7 @@ export function ChatPanel({
   lab3Response: any;
   datasetName?: string;
 }) {
+  const hasAssistantData = Boolean(lab3Response && (lab3Response.error || lab3Response.final_answer || (lab3Response.code_steps && lab3Response.code_steps.length)));
   return (
     <section className="main-panel chat-panel">
       {!messages.length ? <EmptyChatState datasetName={datasetName} onPrompt={onSend} /> : <ChatThread messages={messages} />}
@@ -39,7 +40,9 @@ export function ChatPanel({
       {lab3Response?.code_steps?.map((step: any, i: number) => <ExecutionBlock key={`exec-${i}`} stdout={step.stdout} stderr={step.stderr} />)}
       {lab3Response?.generated_files?.map((f: any, i: number) => <ArtifactPreviewCard key={i} title="Generated file" value={String(f?.path || f?.name || "unknown")} />)}
 
-      <details className="raw compact"><summary>Raw response</summary><pre>{JSON.stringify(lab3Response || {}, null, 2)}</pre></details>
+      {hasAssistantData ? (
+        <details className="raw compact"><summary>Raw response</summary><pre>{JSON.stringify(lab3Response || {}, null, 2)}</pre></details>
+      ) : null}
       <ChatComposer onSend={onSend} loading={loading} />
     </section>
   );

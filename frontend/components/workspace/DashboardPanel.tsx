@@ -42,9 +42,9 @@ export function DashboardPanel({
         </article>
 
         <article className="dash-card">
-          <h4>Pipeline</h4>
-          <p className="muted">Запускайте классификацию отзывов и просматривайте результаты.</p>
-          <button className="btn-secondary" onClick={onOpenPipeline}>Открыть pipeline</button>
+          <h4>Lab 2 Pipeline</h4>
+          <p className="muted">CSV → OpenRouter → JSON result</p>
+          <button className="btn-secondary" onClick={onOpenPipeline}>Open</button>
         </article>
 
         <article className="dash-card">
