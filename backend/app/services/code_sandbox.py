@@ -21,6 +21,7 @@ FORBIDDEN_IMPORTS = {
     "requests",
     "urllib",
     "shutil",
+    "sys",
 }
 FORBIDDEN_TOKENS = [
     "open(",
@@ -32,9 +33,21 @@ FORBIDDEN_TOKENS = [
     "globals(",
     "locals(",
     "get_ipython",
-    "pip",
-    "conda",
-    "..",
+    ".system(",
+    "!pip",
+    "pip install",
+    "conda install",
+    "pd.read_csv(",
+    "pd.read_excel(",
+    "read_csv(",
+    "read_excel(",
+    "listdir",
+    "walk(",
+    "remove(",
+    "unlink(",
+    "rmdir(",
+    "mkdir(",
+    "makedirs(",
 ]
 MAX_STDIO = 12000
 MAX_FILES = 20
@@ -46,6 +59,8 @@ def _block_reason(code: str) -> str | None:
     low = code.lower()
     for token in FORBIDDEN_TOKENS:
         if token in low:
+            if token in {"pd.read_csv(", "pd.read_excel(", "read_csv(", "read_excel("}:
+                return f"Forbidden token: {token}. The dataframe is already available as df."
             return f"Forbidden token: {token}"
 
     try:
@@ -75,7 +90,14 @@ def _dataset_path(dataset_name: str) -> Path:
     return path
 
 
-def execute_python_code(code: str, dataset_name: str, run_id: str) -> dict[str, Any]:
+def execute_python_code(
+    code: str,
+    dataset_name: str,
+    run_id: str,
+    *,
+    column_mapping: dict[str, Any] | None = None,
+    profile: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     reason = _block_reason(code)
     if reason:
         return {"status": "blocked", "reason": reason}
@@ -102,6 +124,9 @@ def execute_python_code(code: str, dataset_name: str, run_id: str) -> dict[str, 
         "from pathlib import Path\n"
         f"dataset_path = Path(r'''{str(dataset_path)}''')\n"
         f"output_dir = Path(r'''{str(run_dir)}''')\n"
+        f"dataset_name = {dataset_name!r}\n"
+        f"column_mapping = {json.dumps(column_mapping or {}, ensure_ascii=False)}\n"
+        f"profile = {json.dumps(profile or {}, ensure_ascii=False)}\n"
         "output_dir.mkdir(parents=True, exist_ok=True)\n"
         f"df = {loader}\n"
         "\n"

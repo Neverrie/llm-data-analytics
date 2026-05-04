@@ -128,16 +128,38 @@ async def run_code_interpreter_agent(
     llm = LLMClient()
     run_id = uuid.uuid4().hex
     model = llm.resolve_model()
-    max_total_seconds = int(getattr(settings, "lab3_code_interpreter_max_total_seconds", 120))
-    max_steps = min(max_steps, int(getattr(settings, "lab3_code_interpreter_max_steps", 3)))
+    max_total_seconds = int(getattr(settings, "lab3_code_interpreter_max_total_seconds", 180))
+    hard_max_steps = int(getattr(settings, "lab3_code_interpreter_hard_max_steps", 12))
+    _ = max_steps  # compatibility
 
     system_prompt = (
-        "You are a data analyst in code-interpreter mode. "
-        "Return ONLY a JSON object in message content. No markdown. No tool_calls. No function calling. "
-        "Actions: {\"action\":\"run_code\",\"code\":\"...\"} or {\"action\":\"final_answer\",\"answer\":\"...\"}. "
-        "On the first step, run a short inspection code only: print(df.shape), print(df.dtypes), "
-        "print(df.isna().sum().sort_values(ascending=False).head(10)), print(df.head(3).to_string()). "
-        "Prefer at most 40 lines of Python per step. Final answer in Russian."
+        "You are working in Code Interpreter mode for tabular data analysis.\n"
+        "IMPORTANT: backend already loaded the dataset into pandas DataFrame `df`.\n"
+        "Do NOT read files yourself. Do NOT use pd.read_csv, pd.read_excel, open, os, pathlib, subprocess, requests, socket, or shell commands.\n"
+        "Do NOT search for files or directories.\n"
+        "Work only with available variables:\n"
+        "- df: pandas DataFrame\n"
+        "- output_dir: directory for charts/results\n"
+        "- dataset_name: dataset name\n"
+        "- column_mapping: inferred column roles\n"
+        "- profile: dataset profile summary\n"
+        "Allowed libraries are already imported by backend: pandas as pd, numpy as np, matplotlib.pyplot as plt, json, math, statistics, re, Counter/defaultdict, datetime.\n"
+        "If you need a chart, save it only to output_dir.\n"
+        "Return ONLY one JSON object in message content. No markdown. No tool_calls. No function calling. No text before or after JSON.\n"
+        "For code execution use:\n"
+        "{\"action\":\"run_code\",\"code\":\"print(df.shape)\"}\n"
+        "For final answer use:\n"
+        "{\"action\":\"final_answer\",\"answer\":\"...\"}\n"
+        "Rules:\n"
+        "1. First do short df inspection.\n"
+        "2. Do not invent facts without code execution.\n"
+        "3. If code failed or was blocked, fix code using the error message.\n"
+        "4. Do not repeat forbidden operations.\n"
+        "5. Final answer must be in Russian and mention what was computed.\n"
+        "6. Keep one code step short, preferably <=40 lines.\n"
+        "First step for overview should be close to:\n"
+        "{\"action\":\"run_code\",\"code\":\"print('shape:', df.shape)\\nprint('dtypes:')\\nprint(df.dtypes)\\nprint('missing:')\\nprint(df.isna().sum().sort_values(ascending=False).head(10))\\nprint('sample:')\\nprint(df.head(3).to_string())\"}\n"
+        "If you use os, pd.read_csv, open or try to find files, code will be blocked. Use df directly."
     )
 
     messages: list[dict[str, str]] = [
@@ -158,8 +180,15 @@ async def run_code_interpreter_agent(
     llm_calls = 0
     all_files: dict[str, dict[str, Any]] = {}
     final_answer = ""
+    blocked_count = 0
+    last_block_reason = ""
+    invalid_json_count = 0
 
-    for step_index in range(1, max_steps + 1):
+    step_index = 1
+    while True:
+        if step_index > hard_max_steps:
+            warnings.append("Достигнут внутренний лимит шагов Code Interpreter. Возвращён частичный результат.")
+            break
         elapsed_total = time.perf_counter() - started
         if elapsed_total > max_total_seconds:
             logger.warning("LAB3_TIMEOUT total_elapsed=%.3f max_total=%s", elapsed_total, max_total_seconds)
@@ -245,7 +274,11 @@ async def run_code_interpreter_agent(
             fallback_answer = _as_fallback_final_answer(raw)
             if fallback_answer:
                 if _looks_like_meta_json_instruction(fallback_answer):
+                    invalid_json_count += 1
                     warnings.append("Модель вернула служебный текст вместо ответа. Выполнен дополнительный запрос final_answer.")
+                    if invalid_json_count >= 3:
+                        warnings.append("Code Interpreter: повторяющийся невалидный формат ответа от модели.")
+                        break
                     messages.append(
                         {
                             "role": "user",
@@ -277,7 +310,13 @@ async def run_code_interpreter_agent(
             _save_status("sandbox_execution", step_index, "Running python code in sandbox")
             logger.info("LAB3_CODE_EXEC_START step=%s code_chars=%s", step_index, len(code))
             exec_started = time.perf_counter()
-            execution = execute_python_code(code=code, dataset_name=dataset_name, run_id=run_id)
+            execution = execute_python_code(
+                code=code,
+                dataset_name=dataset_name,
+                run_id=run_id,
+                column_mapping=column_mapping,
+                profile=profile,
+            )
             logger.info(
                 "LAB3_CODE_EXEC_DONE step=%s status=%s elapsed=%.3f stdout_len=%s stderr_len=%s",
                 step_index,
@@ -300,7 +339,47 @@ async def run_code_interpreter_agent(
             }
             messages.append({"role": "user", "content": f"Execution result: {json.dumps(observation, ensure_ascii=False)}"})
             if execution.get("status") == "blocked":
-                messages.append({"role": "user", "content": "Code was blocked by sandbox. Rewrite safely."})
+                reason = str(execution.get("reason", "unknown reason"))
+                blocked_count += 1
+                if reason == last_block_reason:
+                    blocked_count += 1
+                last_block_reason = reason
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            f"Your code was blocked by sandbox: {reason}. "
+                            "Remember: df is already loaded. Do not read files, do not import os, do not use pd.read_csv. "
+                            "Write code that operates directly on df."
+                        ),
+                    }
+                )
+                if blocked_count >= 2:
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                "You repeatedly used forbidden operations. The next response must use df directly. "
+                                "Example: {\"action\":\"run_code\",\"code\":\"print(df.shape)\"}"
+                            ),
+                        }
+                    )
+                if blocked_count >= 3:
+                    warnings.append("Модель не смогла адаптироваться к sandbox-ограничениям. Попробуйте повторить запрос.")
+                    break
+            elif execution.get("status") == "error":
+                stderr = str(execution.get("stderr", ""))
+                if "filenotfounderror" in stderr.lower():
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                "Your code tried to read a file manually. This is not allowed and not needed. "
+                                "The dataframe is already available as df. Continue using df directly."
+                            ),
+                        }
+                    )
+            step_index += 1
             continue
 
         if action_name == "final_answer":
@@ -315,12 +394,14 @@ async def run_code_interpreter_agent(
         messages.append({"role": "user", "content": "Unknown action. Use run_code or final_answer."})
         warnings.append(f"Unknown action '{action_name}' from model.")
 
+        step_index += 1
+
     if not final_answer:
         final_answer = (
             "Не удалось получить структурированный ответ от модели в формате Code Interpreter. "
             "Попробуйте повторить запрос или уменьшить сложность вопроса."
         )
-        warnings.append("max_code_steps reached before final_answer.")
+        warnings.append("Code Interpreter завершился без final_answer.")
 
     result = {
         "status": "success",

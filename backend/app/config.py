@@ -23,10 +23,14 @@ class Settings(BaseSettings):
     lab3_tool_caller_model: str = "qwen2.5-coder:7b"
     lab3_critic_model: str = "deepseek-r1:8b"
     lab3_code_exec_timeout_seconds: int = 15
-    lab3_code_interpreter_max_total_seconds: int = 120
-    lab3_code_interpreter_max_steps: int = 3
+    lab3_code_interpreter_max_total_seconds: int = 180
+    lab3_code_interpreter_hard_max_steps: int = 12
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8-sig",
+        extra="ignore",
+    )
 
 
 settings = Settings()

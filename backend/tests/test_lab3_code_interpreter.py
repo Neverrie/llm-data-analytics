@@ -89,8 +89,11 @@ async def test_code_interpreter_prompt_forces_json_content(ci_paths: None, monke
         session_context=None,
         max_steps=2,
     )
-    assert "Return ONLY a JSON object" in captured["system"]
+    assert "Return ONLY one JSON object" in captured["system"]
     assert "No tool_calls" in captured["system"]
+    assert "already loaded the dataset into pandas DataFrame `df`" in captured["system"]
+    assert "Do NOT use pd.read_csv" in captured["system"]
+    assert "Do NOT read files yourself" in captured["system"]
 
 
 @pytest.mark.asyncio
@@ -200,3 +203,37 @@ async def test_code_interpreter_total_timeout_returns_partial(ci_paths: None, mo
     )
     assert result["status"] == "timeout"
     assert any("timeout" in warning.lower() for warning in result["warnings"])
+
+
+@pytest.mark.asyncio
+async def test_code_interpreter_observation_after_blocked_mentions_df(ci_paths: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    replies = iter(
+        [
+            '{"action":"run_code","code":"import os\\nprint(os.listdir())"}',
+            '{"action":"run_code","code":"print(df.shape)"}',
+            '{"action":"final_answer","answer":"Готово"}',
+        ]
+    )
+    captured_messages: list[list[dict[str, str]]] = []
+
+    async def fake_chat(self, messages, purpose="general", model=None, temperature=0.1):  # noqa: ANN001
+        captured_messages.append(list(messages))
+        return next(replies)
+
+    monkeypatch.setattr(LLMClient, "chat", fake_chat)
+    result = await lab3_code_interpreter.run_code_interpreter_agent(
+        dataset_name="demo.csv",
+        question="overview",
+        column_mapping={"roles": {}},
+        profile={"columns": ["x", "y"]},
+        session_context=None,
+    )
+    assert result["steps"][0]["execution"]["status"] == "blocked"
+    assert result["steps"][1]["execution"]["status"] == "success"
+    flattened = " ".join(
+        m.get("content", "")
+        for messages in captured_messages
+        for m in messages
+        if isinstance(m, dict)
+    )
+    assert "df is already loaded" in flattened

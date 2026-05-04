@@ -132,3 +132,9 @@ ollama pull deepseek-r1:8b
 - `DATASETS_DIR`
 - `OUTPUTS_DIR`
 
+## Code Interpreter sandbox contract
+
+- DataFrame `df` загружается backend-ом до запуска кода модели.
+- Модель не должна читать CSV/XLSX вручную и не должна работать с файловой системой напрямую.
+- Запрещены опасные импорты и операции (`os`, `subprocess`, `open`, `eval`, `exec`, `pd.read_csv`, `pd.read_excel`).
+- Ошибки/блокировки возвращаются модели как observation, чтобы она переписала код и продолжила анализ безопасно.

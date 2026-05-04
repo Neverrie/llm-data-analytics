@@ -24,7 +24,7 @@ type AskResult = {
   output_files?: Record<string, string>;
 };
 
-type ResultTab = "answer" | "plan" | "tools" | "code" | "files" | "raw";
+type ResultTab = "answer" | "code" | "execution" | "plan" | "tools" | "files" | "raw";
 
 const MODE_LABEL: Record<AskResult["analysis_mode"], string> = {
   code_interpreter: "Code Interpreter",
@@ -40,7 +40,6 @@ export default function Lab3Page() {
   const [profile, setProfile] = useState<Lab3Profile | null>(null);
   const [analysisMode, setAnalysisMode] = useState<AskResult["analysis_mode"]>("code_interpreter");
   const [maxToolCalls, setMaxToolCalls] = useState(6);
-  const [maxCodeSteps, setMaxCodeSteps] = useState(3);
   const [useCritic, setUseCritic] = useState(false);
   const [question, setQuestion] = useState("Сделай краткий обзор датасета: строки, колонки, пропуски и 3 главных наблюдения.");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -106,7 +105,6 @@ export default function Lab3Page() {
         question,
         column_overrides: {},
         max_tool_calls: maxToolCalls,
-        max_code_steps: maxCodeSteps,
         use_critic: analysisMode === "code_interpreter" ? false : useCritic,
         analysis_mode: analysisMode,
         include_history: true,
@@ -164,11 +162,11 @@ export default function Lab3Page() {
 
           {analysisMode === "code_interpreter" ? (
             <>
-              <label className="space-y-1">
-                <span className="text-xs app-muted">max_code_steps</span>
-                <input type="number" min={1} max={10} value={maxCodeSteps} onChange={(e) => setMaxCodeSteps(Number(e.target.value) || 5)} className="app-input" />
-              </label>
-              <div className="text-xs app-muted md:col-span-2">LLM сама генерирует и выполняет код шаг за шагом.</div>
+              <div className="text-xs app-muted md:col-span-2 space-y-1">
+                <p>Provider: <span className="font-semibold">OpenRouter</span> · Model: <span className="font-semibold">из backend status/run</span></p>
+                <p>Sandbox timeout: <span className="font-semibold">15 сек на шаг</span></p>
+                <p>Датасет уже загружен в переменную <code>df</code>. Модель пишет код анализа, backend выполняет его в sandbox.</p>
+              </div>
             </>
           ) : (
             <details className="app-expansion md:col-span-2">
@@ -197,7 +195,7 @@ export default function Lab3Page() {
             Сбросить ожидание
           </button>
         ) : null}
-        {!result ? <p className="text-xs app-muted">В этом режиме модель сама пишет Python-код, backend выполняет его в sandbox и возвращает результат модели.</p> : null}
+        {!result ? <p className="text-xs app-muted">В Code Interpreter режиме модель не имеет доступа к файловой системе и работает с уже загруженным DataFrame <code>df</code>.</p> : null}
         {loading ? (
           <div className="app-card p-4 space-y-2">
             <p className="font-semibold">Агент работает...</p>
@@ -208,7 +206,7 @@ export default function Lab3Page() {
               <li style={{ opacity: stageIndex >= 3 ? 1 : 0.55 }}>Backend выполняет код в sandbox</li>
               <li style={{ opacity: stageIndex >= 4 ? 1 : 0.55 }}>Модель формирует ответ</li>
             </ol>
-            {loadingSeconds > 30 ? <p className="text-xs app-muted">Free-модели OpenRouter могут отвечать медленно. Можно подождать или уменьшить max_code_steps.</p> : null}
+            {loadingSeconds > 30 ? <p className="text-xs app-muted">Free-модели OpenRouter могут отвечать медленно. Можно подождать или повторить запрос позже.</p> : null}
             {loadingSeconds > 90 ? <p className="text-xs app-muted">Запрос выполняется дольше обычного. Попробуйте повторить позже или сменить модель.</p> : null}
           </div>
         ) : null}
@@ -225,17 +223,60 @@ export default function Lab3Page() {
           <div className="app-badge app-badge-muted">{MODE_LABEL[result.analysis_mode]} · {result.elapsed_seconds} сек · {result.llm_calls_count} LLM · Provider: {result.provider ?? "-"} · Model: {result.model ?? "-"}</div>
 
           <div className="app-tabs">
-            {(["answer", "plan", "tools", "code", "files", "raw"] as ResultTab[]).map((t) => (
+            {(["answer", "code", "execution", "plan", "tools", "files", "raw"] as ResultTab[]).map((t) => (
               <button key={t} className={`app-tab ${tab === t ? "app-tab-active" : ""}`} onClick={() => setTab(t)}>
-                {t === "answer" ? "Ответ" : t === "plan" ? "План" : t === "tools" ? "Tools" : t === "code" ? "Код" : t === "files" ? "Файлы" : "Raw"}
+                {t === "answer" ? "Ответ" : t === "code" ? "Код" : t === "execution" ? "Выполнение" : t === "plan" ? "План" : t === "tools" ? "Tools" : t === "files" ? "Файлы" : "Raw"}
               </button>
             ))}
           </div>
 
           {tab === "answer" ? <MarkdownMessage content={result.final_answer} /> : null}
+          {tab === "code" ? (
+            <div className="space-y-3">
+              {(result.code_steps ?? []).length === 0 ? <p className="text-sm app-muted">Кодовые шаги отсутствуют.</p> : null}
+              {(result.code_steps ?? []).map((step, idx) => {
+                const execution = (step.execution as Record<string, unknown> | undefined) ?? {};
+                const status = String(execution.status ?? "");
+                return (
+                  <div key={idx} className="app-card p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="app-badge app-badge-muted">Step {String(step.step ?? idx + 1)}</span>
+                      <span className="app-badge app-badge-muted">Action: {String(step.action ?? "-")}</span>
+                      {status === "blocked" ? <span className="app-badge" style={{ background: "color-mix(in srgb, var(--warning) 20%, var(--surface))", color: "var(--warning)" }}>Заблокировано sandbox</span> : null}
+                    </div>
+                    {step.code ? <pre className="app-code-block">{String(step.code)}</pre> : null}
+                    {status === "blocked" ? (
+                      <div className="text-sm">
+                        <p><span className="font-semibold">Причина:</span> {String(execution.reason ?? "-")}</p>
+                        <p className="app-muted mt-1">Модель попыталась выполнить запрещённую операцию. Следующий шаг получает подсказку использовать <code>df</code> напрямую.</p>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+          {tab === "execution" ? (
+            <div className="space-y-3">
+              {(result.code_steps ?? []).map((step, idx) => {
+                const execution = (step.execution as Record<string, unknown> | undefined) ?? {};
+                return (
+                  <details key={idx} className="app-expansion">
+                    <summary>Step {String(step.step ?? idx + 1)} · {String(execution.status ?? "-")}</summary>
+                    <div className="p-3 space-y-2">
+                      <p className="text-xs app-muted">elapsed: {String(execution.elapsed_seconds ?? "-")} sec</p>
+                      <p className="text-xs app-muted">stdout</p>
+                      <pre className="app-code-block">{String(execution.stdout ?? "")}</pre>
+                      <p className="text-xs app-muted">stderr</p>
+                      <pre className="app-code-block">{String(execution.stderr ?? "")}</pre>
+                    </div>
+                  </details>
+                );
+              })}
+            </div>
+          ) : null}
           {tab === "plan" ? <pre className="app-code-block">{JSON.stringify(result.planner_output, null, 2)}</pre> : null}
           {tab === "tools" ? <pre className="app-code-block">{JSON.stringify(result.executed_tools, null, 2)}</pre> : null}
-          {tab === "code" ? <pre className="app-code-block">{JSON.stringify(result.code_steps ?? [], null, 2)}</pre> : null}
           {tab === "files" ? (
             <div className="space-y-2 text-sm">
               {(result.generated_files ?? []).map((f, idx) => <p key={idx}>{f.name} · {f.size} bytes · {f.path}</p>)}

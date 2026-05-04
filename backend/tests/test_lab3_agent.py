@@ -216,13 +216,35 @@ def test_lab3_ask_code_interpreter_mode_mocked(lab3_paths: Path, monkeypatch: py
             "question": "Сделай обзор",
             "column_overrides": {},
             "max_tool_calls": 4,
-            "max_code_steps": 3,
             "use_critic": False,
             "analysis_mode": "code_interpreter",
         },
     )
     assert response.status_code == 200
     assert response.json()["analysis_mode"] == "code_interpreter"
+
+
+def test_lab3_request_no_max_code_steps_required(lab3_paths: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _write_dataset(lab3_paths / "customers_reviews.csv")
+
+    async def fake_chat(self, messages, purpose="general", model=None, temperature=0.1):  # noqa: ANN001,ARG001
+        if purpose == "code_interpreter":
+            return '{"action":"final_answer","answer":"Готово"}'
+        return "ok"
+
+    monkeypatch.setattr(lab3_agent.LLMClient, "chat", fake_chat)
+    client = TestClient(app)
+    response = client.post(
+        "/api/lab3/ask",
+        json={
+            "dataset_name": "customers_reviews.csv",
+            "question": "Сделай обзор",
+            "column_overrides": {},
+            "analysis_mode": "code_interpreter",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "success"
 
 
 @pytest.mark.asyncio

@@ -180,3 +180,9 @@ curl -X POST "http://localhost:8003/api/lab3/upload-dataset" \
   -F "file=@./my_dataset.csv"
 ```
 
+## Lab 3 Code Interpreter: контракт sandbox
+
+- Backend заранее загружает датасет в `df`, поэтому модель должна работать с `df` и не читать файлы вручную.
+- В sandbox запрещены `os/subprocess/socket/requests`, а также `open/eval/exec` и ручной `pd.read_csv/pd.read_excel`.
+- Модель получает результат выполнения (`stdout/stderr`) и продолжает анализ по этим данным.
+- Это ограничение защищает от prompt injection и произвольного выполнения кода.

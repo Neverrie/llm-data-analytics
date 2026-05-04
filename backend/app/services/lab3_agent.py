@@ -455,7 +455,7 @@ async def run_agent(
     session_id: str | None = None,
     include_history: bool = True,
     reset_session: bool = False,
-    max_code_steps: int = 5,
+    max_code_steps: int | None = None,
 ) -> dict[str, Any]:
     started_at = time.perf_counter()
     warnings: list[str] = []
@@ -496,7 +496,7 @@ async def run_agent(
             column_mapping=mapping,
             profile=profile,
             session_context=session_context_text,
-            max_steps=max_code_steps,
+            max_steps=max_code_steps or 3,
         )
         session_state = append_turn(
             session_id=session_id_value,

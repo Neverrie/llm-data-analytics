@@ -39,3 +39,21 @@ def test_code_sandbox_timeout(sandbox_paths: Path) -> None:
     result = execute_python_code("while True:\n    pass", "demo.csv", "run3")
     assert result["status"] == "error"
     assert "timeout" in result["stderr"].lower()
+
+
+def test_sandbox_blocks_model_read_csv(sandbox_paths: Path) -> None:
+    result = execute_python_code("pd.read_csv('x.csv')", "demo.csv", "run4")
+    assert result["status"] == "blocked"
+    assert "already available as df" in result["reason"]
+
+
+def test_sandbox_blocks_os_import(sandbox_paths: Path) -> None:
+    result = execute_python_code("import os\nprint(os.listdir())", "demo.csv", "run5")
+    assert result["status"] == "blocked"
+    assert "Forbidden" in result["reason"]
+
+
+def test_sandbox_allows_df_shape(sandbox_paths: Path) -> None:
+    result = execute_python_code("print(df.shape)", "demo.csv", "run6")
+    assert result["status"] == "success"
+    assert "(3, 2)" in result["stdout"]
