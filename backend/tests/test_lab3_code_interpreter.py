@@ -145,5 +145,30 @@ async def test_code_interpreter_plain_text_fallback_to_final_answer(ci_paths: No
         session_context=None,
         max_steps=2,
     )
-    assert "Provide overview and observations" in result["final_answer"]
-    assert any("fallback" in warning.lower() for warning in result["warnings"])
+    assert "не удалось получить структурированный ответ" in result["final_answer"].lower()
+    assert any("служебный текст" in warning.lower() for warning in result["warnings"])
+
+
+@pytest.mark.asyncio
+async def test_code_interpreter_meta_text_is_not_returned_as_final_answer(ci_paths: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    replies = iter(
+        [
+            "We need to output JSON with action final_answer. Provide overview.",
+            '{"action":"final_answer","answer":"Краткий обзор: данные загружены, есть пропуски, нужны дополнительные проверки."}',
+        ]
+    )
+
+    async def fake_chat(self, messages, purpose="general", model=None, temperature=0.1):  # noqa: ANN001
+        return next(replies)
+
+    monkeypatch.setattr(LLMClient, "chat", fake_chat)
+    result = await lab3_code_interpreter.run_code_interpreter_agent(
+        dataset_name="demo.csv",
+        question="overview",
+        column_mapping={"roles": {}},
+        profile={"columns": ["x", "y"]},
+        session_context=None,
+        max_steps=3,
+    )
+    assert "we need to output json" not in result["final_answer"].lower()
+    assert "краткий обзор" in result["final_answer"].lower()

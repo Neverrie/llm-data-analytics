@@ -37,6 +37,20 @@ def _as_fallback_final_answer(text: str) -> str:
     return cleaned
 
 
+def _looks_like_meta_json_instruction(text: str) -> bool:
+    low = text.lower()
+    markers = [
+        "we need to output json",
+        "output json",
+        "action final_answer",
+        "provide overview",
+        "return valid json",
+        "your previous response was not valid json",
+        "json with action",
+    ]
+    return any(marker in low for marker in markers)
+
+
 def _save_run_trace(run_id: str, payload: dict[str, Any]) -> Path:
     run_dir = Path(settings.outputs_dir) / "lab3" / "code_runs" / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -145,6 +159,18 @@ async def run_code_interpreter_agent(
         if action is None:
             fallback_answer = _as_fallback_final_answer(raw)
             if fallback_answer:
+                if _looks_like_meta_json_instruction(fallback_answer):
+                    warnings.append("Модель вернула служебный текст вместо ответа. Выполнен дополнительный запрос final_answer.")
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                "Your previous message was meta-instruction text, not a user-facing answer. "
+                                "Return ONLY valid JSON with action='final_answer' and a concise Russian answer in 'answer'."
+                            ),
+                        }
+                    )
+                    continue
                 warnings.append(
                     "Модель вернула обычный текст вместо JSON action. Ответ принят как final_answer (fallback)."
                 )
@@ -194,7 +220,10 @@ async def run_code_interpreter_agent(
         warnings.append(f"Unknown action '{action_name}' from model.")
 
     if not final_answer:
-        final_answer = "Частичный ответ: лимит шагов исчерпан, но анализ выполнен не полностью."
+        final_answer = (
+            "Не удалось получить структурированный ответ от модели в формате Code Interpreter. "
+            "Попробуйте повторить запрос или уменьшить сложность вопроса."
+        )
         warnings.append("max_code_steps reached before final_answer.")
 
     result = {
