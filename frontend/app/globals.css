@@ -19,7 +19,7 @@
 }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; overflow: hidden; }
+html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; }
 body {
   font-family: "Manrope", "Segoe UI", sans-serif;
   color: var(--text);
@@ -28,9 +28,10 @@ body {
     radial-gradient(900px 500px at 90% 80%, #d0cec8 0%, transparent 50%),
     linear-gradient(160deg, var(--bg-2), var(--bg));
 }
+#__next { width: 100%; height: 100%; overflow: hidden; }
 
-.workspace-root { height: 100vh; min-height: 0; padding: 16px; overflow: hidden; }
-.workspace-shell { height: 100%; min-height: 0; display: grid; grid-template-columns: 78px 360px minmax(0, 1fr); gap: 12px; overflow: hidden; }
+.workspace-root { width: 100vw; height: 100vh; min-height: 0; padding: 12px; overflow: hidden; }
+.workspace-shell { width: 100%; height: 100%; min-height: 0; display: grid; grid-template-columns: 72px 340px minmax(0, 1fr); gap: 12px; overflow: hidden; }
 .workspace-rail-slot,
 .workspace-sidebar-slot,
 .workspace-main {
@@ -66,10 +67,7 @@ body {
 .rail-btn:hover { background: rgba(255,255,255,0.16); }
 .rail-btn.active { background: rgba(255,255,255,0.22); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.18); }
 .workspace-rail-slot .rail,
-.workspace-sidebar-slot .sidebar-panel {
-  height: 100%;
-  min-height: 0;
-}
+.workspace-sidebar-slot .sidebar-panel { height: 100%; min-height: 0; }
 
 .sidebar-panel {
   border-radius: 30px;
@@ -343,11 +341,13 @@ body {
 }
 .rail-bottom { display: flex; flex-direction: column; gap: 8px; }
 .sidebar-panel .mini-list::-webkit-scrollbar,
-.screen-body-scroll::-webkit-scrollbar,
+.workspace-screen-scroll::-webkit-scrollbar,
+.chat-thread-scroll::-webkit-scrollbar,
 .data-table-scroll::-webkit-scrollbar,
 .artifact-list::-webkit-scrollbar { width: 8px; height: 8px; }
 .sidebar-panel .mini-list::-webkit-scrollbar-thumb,
-.screen-body-scroll::-webkit-scrollbar-thumb,
+.workspace-screen-scroll::-webkit-scrollbar-thumb,
+.chat-thread-scroll::-webkit-scrollbar-thumb,
 .data-table-scroll::-webkit-scrollbar-thumb,
 .artifact-list::-webkit-scrollbar-thumb { background: rgba(0,0,0,.18); border-radius: 999px; }
 
@@ -388,8 +388,8 @@ body {
   .metric-grid, .metric-grid.small, .dashboard-grid { grid-template-columns: 1fr 1fr; }
   .prompt-grid { grid-template-columns: 1fr; }
 }
-.workspace-root { height: 100vh; min-height: 0; padding: 16px; overflow: hidden; }
-.workspace-shell { height: 100%; min-height: 0; display: grid; grid-template-columns: 78px 360px minmax(0,1fr); gap: 12px; overflow: hidden; }
+.workspace-root { width: 100vw; height: 100vh; min-height: 0; padding: 12px; overflow: hidden; }
+.workspace-shell { width: 100%; height: 100%; min-height: 0; display: grid; grid-template-columns: 72px 340px minmax(0,1fr); gap: 12px; overflow: hidden; }
 .rail-logo { font-size: 0; }
 .main-wrap { min-height: 0; height: 100%; display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
 .topbar { flex: 0 0 auto; }
@@ -409,8 +409,28 @@ body {
 
 .explorer-toolbar { flex: 0 0 auto; }
 .tab-row { flex: 0 0 auto; }
-.workspace-screen { display: flex; flex-direction: column; min-height: 0; }
-.screen-body-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 12px; padding-right: 2px; }
+.workspace-screen {
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.workspace-screen-header { flex: 0 0 auto; }
+.workspace-screen-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 2px 2px 14px;
+}
+.screen-body-scroll { flex: 1 1 auto; min-height: 0; min-width: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 12px; padding-right: 2px; }
 .glass-panel { border: 1px solid var(--border); border-radius: 16px; background: rgba(255,255,255,.52); padding: 10px; min-height: 0; min-width: 0; overflow: hidden; }
 .raw-card .raw { margin: 0; }
 .raw-card .raw summary { display: inline-flex; padding: 6px 10px; border: 1px solid var(--border); border-radius: 10px; background: rgba(255,255,255,.7); }
@@ -433,13 +453,14 @@ body {
   flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  overscroll-behavior: contain;
-  padding: 2px 2px 14px;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+}
+
+.workspace-scroll-canvas.workspace-screen-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .workspace-section {

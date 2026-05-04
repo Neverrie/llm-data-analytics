@@ -80,7 +80,7 @@ export function ArtifactExplorer({
 
   return (
     <section className="main-panel workspace-screen">
-      <div className="artifacts-grid screen-body-scroll">
+      <div className="artifacts-grid workspace-screen-scroll">
       <div className="artifact-list-wrap">
         <div className="explorer-toolbar">
           <h3>Артефакты</h3>

@@ -7,7 +7,7 @@ import { MessageBubble } from "./MessageBubble";
 
 export const ChatThread = memo(function ChatThread({ messages }: { messages: ChatMessage[] }) {
   return (
-    <div className="chat-thread">
+    <div className="chat-thread chat-thread-scroll">
       {messages.map((message) => (
         <MessageBubble key={message.id} role={message.role} content={message.content} blocks={getMessageBlocks(message)} />
       ))}

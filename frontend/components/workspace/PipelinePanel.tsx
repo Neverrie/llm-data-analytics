@@ -85,7 +85,7 @@ export function PipelinePanel({
 
       <div className="context-strip workspace-context-bar"><span>Pipeline dataset: customers_reviews.csv</span></div>
 
-      <div className="workspace-scroll-canvas">
+      <div className="workspace-scroll-canvas workspace-screen-scroll">
         <article className="workspace-section">
           <strong>Lab 2 Pipeline</strong>
           <p className="muted">CSV → OpenRouter → JSON classification → result artifact</p>

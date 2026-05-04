@@ -27,7 +27,7 @@ export function DatasetExplorer({
 
   return (
     <section className="main-panel workspace-screen">
-      <div className="screen-body-scroll">
+      <div className="workspace-screen-scroll">
       <div className="explorer-toolbar">
         <h3>Датасеты</h3>
         <div className="panel-row">

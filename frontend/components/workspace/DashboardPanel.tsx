@@ -23,7 +23,7 @@ export function DashboardPanel({
 }) {
   return (
     <section className="main-panel workspace-screen">
-      <div className="screen-body-scroll">
+      <div className="workspace-screen-scroll">
       <article className="dash-card hero-card">
         <h3>Dashboard</h3>
         <p className="muted">Последние анализы, датасеты и запуски pipeline</p>
