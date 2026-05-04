@@ -94,17 +94,18 @@ def add_message(user_id: str, chat_id: str, role: str, content: str, blocks: lis
     return message
 
 
-def update_chat(user_id: str, chat_id: str, title: str | None, archived: bool | None) -> dict:
+def update_chat(user_id: str, chat_id: str, title: str | None, archived: bool | None, dataset_name: str | None = None) -> dict:
     with get_connection() as conn:
         chat = fetch_one(conn, "SELECT * FROM chats WHERE id = ? AND user_id = ?", (chat_id, user_id))
         if not chat:
             raise ValueError("Chat not found")
         new_title = title if title is not None else chat["title"]
         new_archived = int(archived) if archived is not None else chat["archived"]
+        new_dataset_name = dataset_name if dataset_name is not None else chat["dataset_name"]
         now = utcnow_iso()
         conn.execute(
-            "UPDATE chats SET title = ?, archived = ?, updated_at = ? WHERE id = ?",
-            (new_title, new_archived, now, chat_id),
+            "UPDATE chats SET title = ?, archived = ?, dataset_name = ?, updated_at = ? WHERE id = ?",
+            (new_title, new_archived, new_dataset_name, now, chat_id),
         )
         conn.commit()
         updated = fetch_one(conn, "SELECT * FROM chats WHERE id = ?", (chat_id,))
@@ -113,4 +114,4 @@ def update_chat(user_id: str, chat_id: str, title: str | None, archived: bool | 
 
 
 def archive_chat(user_id: str, chat_id: str) -> dict:
-    return update_chat(user_id, chat_id, title=None, archived=True)
+    return update_chat(user_id, chat_id, title=None, archived=True, dataset_name=None)

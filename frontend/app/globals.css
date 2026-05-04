@@ -126,7 +126,7 @@ body {
 }
 .mini-item strong { font-size: 12px; }
 .mini-item span { font-size: 11px; color: var(--muted); }
-.mini-item.active { border-color: rgba(72,110,121,.35); background: var(--accent-soft); box-shadow: 0 4px 14px rgba(72,110,121,.12); }
+.mini-item.active { border-color: rgba(72,110,121,.35); background: var(--accent-soft); }
 .empty-mini { font-size: 12px; color: var(--muted); padding: 6px; }
 
 .main-wrap { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
@@ -172,8 +172,8 @@ body {
   gap: 12px;
   overflow: auto;
 }
-.chat-panel { justify-content: flex-end; }
-.chat-thread { display: flex; flex-direction: column; gap: 10px; }
+.chat-panel { display: flex; flex-direction: column; min-height: 0; }
+.chat-thread { display: flex; flex-direction: column; gap: 10px; flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 4px; }
 .message {
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -182,6 +182,8 @@ body {
 }
 .message.user { margin-left: auto; background: rgba(255,255,255,.9); }
 .message.assistant { background: rgba(255,255,255,.58); }
+.assistant-blocks { display: flex; flex-direction: column; gap: 8px; }
+.message-chart { width: 100%; border-radius: 12px; border: 1px solid var(--border); max-height: 360px; object-fit: contain; background: rgba(255,255,255,.8); }
 
 .progress-card {
   border: 1px solid rgba(72,110,121,.24);
@@ -190,10 +192,11 @@ body {
   padding: 10px 12px;
 }
 .progress-card ul { margin: 8px 0 0 16px; padding: 0; color: #344e56; font-size: 13px; }
+.progress-card li.active-step { font-weight: 700; }
 .assistant-summary { font-size: 13px; color: #35515a; }
 
-.composer { border-top: 1px solid var(--border-soft); padding-top: 10px; display: flex; flex-direction: column; gap: 8px; background: rgba(247,247,244,.9); position: sticky; bottom: 0; }
-.composer textarea { border: 1px solid var(--border); background: rgba(255,255,255,.85); border-radius: 12px; padding: 10px; min-height: 92px; resize: vertical; }
+.composer { border-top: 1px solid var(--border-soft); margin-top: 8px; padding: 10px 2px 2px; display: flex; flex-direction: column; gap: 8px; background: rgba(247,247,244,.9); flex-shrink: 0; }
+.composer textarea { width: 100%; border: 1px solid var(--border); background: rgba(255,255,255,.85); border-radius: 12px; padding: 10px; min-height: 92px; resize: vertical; }
 
 .block-card, .raw {
   border: 1px solid var(--border);
@@ -321,7 +324,7 @@ body {
 .context-strip { flex: 0 0 auto; }
 .main-panel { min-height: 0; height: 100%; overflow: hidden; }
 .chat-panel { display: flex; flex-direction: column; }
-.chat-thread { flex: 1 1 auto; min-height: 0; overflow: auto; padding-right: 4px; }
+.chat-thread { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 4px; }
 .composer { flex: 0 0 auto; }
 .raw.compact { flex: 0 0 auto; }
 

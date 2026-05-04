@@ -282,6 +282,7 @@ class ChatDetailResponse(BaseModel):
 class UpdateChatRequest(BaseModel):
     title: str | None = None
     archived: bool | None = None
+    dataset_name: str | None = None
 
 
 class DatasetsResponse(BaseModel):

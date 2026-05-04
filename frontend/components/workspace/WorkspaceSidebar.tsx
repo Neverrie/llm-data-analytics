@@ -147,13 +147,13 @@ const DatasetListItem = memo(function DatasetListItem({
         {active ? <span className="chip tiny">выбран</span> : null}
         <button
           className="link-btn"
-          title="Preview"
+          title="Превью"
           onClick={(e) => {
             e.stopPropagation();
             onPreviewDataset(dataset.id);
           }}
         >
-          Preview
+          Превью
         </button>
       </div>
     </button>

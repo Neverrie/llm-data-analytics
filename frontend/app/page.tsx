@@ -1,7 +1,8 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api, ArtifactItem, Chat, ChatMessage, DatasetItem, setAuthToken, User } from "@/lib/api";
+import { normalizeLab3ResponseToBlocks } from "@/lib/messageBlocks";
 import { AppShell } from "@/components/workspace/AppShell";
 import { ArtifactExplorer } from "@/components/workspace/ArtifactExplorer";
 import { ChatPanel } from "@/components/workspace/ChatPanel";
@@ -21,13 +22,15 @@ export default function HomePage() {
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [authForm, setAuthForm] = useState({ email: "", password: "", displayName: "" });
   const [loading, setLoading] = useState(false);
+  const [agentLoading, setAgentLoading] = useState(false);
+  const [pipelineLoading, setPipelineLoading] = useState(false);
   const [error, setError] = useState<string>("");
 
   const [activeSection, setActiveSection] = useState<ActiveSection>("dashboard");
   const [search, setSearch] = useState("");
   const [datasets, setDatasets] = useState<DatasetItem[]>([]);
   const [artifacts, setArtifacts] = useState<ArtifactItem[]>([]);
-  const [chats, setChats] = useState<Chat[]>([]);
+  const [allChats, setAllChats] = useState<Chat[]>([]);
   const [selectedChatId, setSelectedChatId] = useState<string>("");
   const [selectedDatasetId, setSelectedDatasetId] = useState<string>("");
   const [selectedArtifactId, setSelectedArtifactId] = useState<string>("");
@@ -41,10 +44,11 @@ export default function HomePage() {
   const [datasetProfile, setDatasetProfile] = useState<any>(null);
   const [datasetNotice, setDatasetNotice] = useState("");
 
-  const chatThreadRef = useRef<HTMLDivElement | null>(null);
-
   const selectedDataset = useMemo(() => datasets.find((d) => d.id === selectedDatasetId), [datasets, selectedDatasetId]);
   const selectedArtifact = useMemo(() => artifacts.find((a) => a.id === selectedArtifactId), [artifacts, selectedArtifactId]);
+  const lab3Chats = useMemo(() => allChats.filter((c) => c.kind === "lab3_chat"), [allChats]);
+  const pipelineChats = useMemo(() => allChats.filter((c) => c.kind === "lab2_pipeline"), [allChats]);
+  const latestPipelineChat = pipelineChats[0];
 
   async function refreshSharedData() {
     const [ds, arts] = await Promise.all([api.listDatasets(), api.listArtifacts()]);
@@ -54,8 +58,8 @@ export default function HomePage() {
   }
 
   async function refreshChats() {
-    const listedChats = await api.listChats({ kind: "lab3_chat" });
-    setChats(listedChats.items || []);
+    const listedChats = await api.listChats();
+    setAllChats(listedChats.items || []);
     return listedChats.items || [];
   }
 
@@ -63,7 +67,9 @@ export default function HomePage() {
     const detail = await api.getChat(chatId);
     setSelectedChatId(chatId);
     setMessages(detail.messages || []);
-    setActiveSection("agent");
+    const mappedDataset = datasets.find((d) => d.name === detail.chat.dataset_name);
+    if (mappedDataset?.id) setSelectedDatasetId(mappedDataset.id);
+    setActiveSection(detail.chat.kind === "lab2_pipeline" ? "pipeline" : "agent");
   }
 
   useEffect(() => {
@@ -87,11 +93,12 @@ export default function HomePage() {
     try {
       setError("");
       setLoading(true);
-      const response = type === "demo"
-        ? await api.demoLogin()
-        : type === "login"
-          ? await api.login(authForm.email, authForm.password)
-          : await api.register(authForm.email, authForm.password, authForm.displayName || authForm.email);
+      const response =
+        type === "demo"
+          ? await api.demoLogin()
+          : type === "login"
+            ? await api.login(authForm.email, authForm.password)
+            : await api.register(authForm.email, authForm.password, authForm.displayName || authForm.email);
 
       setAuthToken(response.access_token);
       setUser(response.user);
@@ -108,9 +115,8 @@ export default function HomePage() {
   async function createChat() {
     try {
       const dsName = selectedDataset?.name || datasets[0]?.name || "customers_reviews.csv";
-      const newChat = await api.createChat({ title: "Новый анализ", kind: "lab3_chat", dataset_name: dsName });
-      const refreshed = await refreshChats();
-      const created = refreshed.find((c) => c.id === newChat.id) || newChat;
+      const created = await api.createChat({ title: "Новый чат", kind: "lab3_chat", dataset_name: dsName });
+      await refreshChats();
       setSelectedChatId(created.id);
       setMessages([]);
       setActiveSection("agent");
@@ -119,16 +125,30 @@ export default function HomePage() {
     }
   }
 
+  async function getOrCreatePipelineChat() {
+    const existing = pipelineChats[0];
+    if (existing) return existing;
+    const created = await api.createChat({ title: "Pipeline run", kind: "lab2_pipeline", dataset_name: "customers_reviews.csv" });
+    await refreshChats();
+    return created;
+  }
+
   async function updateChatDatasetContext(datasetId: string) {
     setSelectedDatasetId(datasetId);
     const ds = datasets.find((d) => d.id === datasetId);
     if (!ds) return;
+
+    if (activeSection === "datasets") {
+      await loadDatasetPreview(datasetId, false);
+      return;
+    }
+
     if (selectedChatId) {
       try {
         await api.updateChat(selectedChatId, { dataset_name: ds.name });
         await refreshChats();
       } catch {
-        // Ignore PATCH failure, local context still updated.
+        // Keep local context if PATCH fails.
       }
       setDatasetNotice(`Датасет для следующих запросов: ${ds.name}`);
       setTimeout(() => setDatasetNotice(""), 2400);
@@ -139,8 +159,8 @@ export default function HomePage() {
     let chatId = selectedChatId;
     if (!chatId) {
       await createChat();
-      const list = await refreshChats();
-      chatId = list[0]?.id || "";
+      const updated = await refreshChats();
+      chatId = updated.find((c) => c.kind === "lab3_chat")?.id || "";
     }
     if (!chatId) return;
 
@@ -149,17 +169,17 @@ export default function HomePage() {
       chat_id: chatId,
       role: "user",
       content: text,
-      blocks: [],
+      blocks: [{ type: "markdown", content: text }],
       metadata: {},
       created_at: new Date().toISOString()
     };
 
     setMessages((prev) => [...prev, optimistic]);
-    setLoading(true);
+    setAgentLoading(true);
     setLab3Response(null);
 
     try {
-      await api.addMessage(chatId, { role: "user", content: text, blocks: [], metadata: {} });
+      await api.addMessage(chatId, { role: "user", content: text, blocks: optimistic.blocks, metadata: {} });
       const answer = await api.askLab3Agent({
         dataset_name: selectedDataset?.name || datasets[0]?.name || "customers_reviews.csv",
         question: text,
@@ -170,64 +190,107 @@ export default function HomePage() {
       setLab3Response(answer);
 
       const assistantText = String(answer?.final_answer || "Ответ получен");
+      const blocks = normalizeLab3ResponseToBlocks(answer);
       await api.addMessage(chatId, {
         role: "assistant",
         content: assistantText,
-        blocks: answer?.code_steps || [],
-        metadata: { raw: answer }
+        blocks,
+        metadata: { provider: answer?.provider, model: answer?.model, elapsed_seconds: answer?.elapsed_seconds }
       });
       const refreshed = await api.getChat(chatId);
       setMessages(refreshed.messages || []);
       await refreshSharedData();
       await refreshChats();
     } catch (e) {
-      setLab3Response({ error: (e as Error).message });
+      const errorText = (e as Error).message;
+      setLab3Response({ error: errorText });
+      try {
+        await api.addMessage(chatId, {
+          role: "assistant",
+          content: `Ошибка: ${errorText}`,
+          blocks: [{ type: "warning", content: errorText }],
+          metadata: { error: true }
+        });
+        const refreshed = await api.getChat(chatId);
+        setMessages(refreshed.messages || []);
+      } catch {
+        setError(errorText);
+      }
     } finally {
-      setLoading(false);
+      setAgentLoading(false);
     }
   }
 
   async function runPipelineSample() {
     try {
-      setLoading(true);
-      setPipelineSample(await api.getLab2SampleData({
-        limit: pipelineForm.limit,
-        min_score: pipelineForm.min_score ? Number(pipelineForm.min_score) : null,
-        max_score: pipelineForm.max_score ? Number(pipelineForm.max_score) : null
-      }));
+      setPipelineLoading(true);
+      setPipelineSample(
+        await api.getLab2SampleData({
+          limit: pipelineForm.limit,
+          min_score: pipelineForm.min_score ? Number(pipelineForm.min_score) : null,
+          max_score: pipelineForm.max_score ? Number(pipelineForm.max_score) : null
+        })
+      );
     } catch (e) {
       setError((e as Error).message);
     } finally {
-      setLoading(false);
+      setPipelineLoading(false);
     }
   }
 
   async function runPipeline() {
     try {
-      setLoading(true);
-      setPipelineResult(await api.runLab2Pipeline({
+      setPipelineLoading(true);
+      const pipelineChat = await getOrCreatePipelineChat();
+      const prompt = `Запуск pipeline: limit=${pipelineForm.limit}, min_score=${pipelineForm.min_score || "-"}, max_score=${pipelineForm.max_score || "-"}`;
+      await api.addMessage(pipelineChat.id, { role: "user", content: prompt, blocks: [{ type: "markdown", content: prompt }], metadata: {} });
+      const result = await api.runLab2Pipeline({
         limit: pipelineForm.limit,
         min_score: pipelineForm.min_score ? Number(pipelineForm.min_score) : null,
         max_score: pipelineForm.max_score ? Number(pipelineForm.max_score) : null
-      }));
+      });
+      setPipelineResult(result);
+      await api.addMessage(pipelineChat.id, {
+        role: "assistant",
+        content: "Pipeline завершен",
+        blocks: [
+          { type: "markdown", content: "Pipeline завершен" },
+          { type: "table", title: "Результаты", columns: result?.results?.length ? Object.keys(result.results[0]) : [], rows: result?.results?.slice(0, 20) || [] },
+          { type: "raw", title: "Raw JSON", payload: result }
+        ],
+        metadata: { kind: "lab2_result" }
+      });
       await refreshSharedData();
+      await refreshChats();
     } catch (e) {
       setError((e as Error).message);
     } finally {
-      setLoading(false);
+      setPipelineLoading(false);
     }
   }
 
-  async function openDatasetPreview(id: string) {
+  async function loadDatasetPreview(id: string, switchSection: boolean) {
     try {
       setSelectedDatasetId(id);
-      setActiveSection("datasets");
+      if (switchSection) setActiveSection("datasets");
       const [preview, profile] = await Promise.all([api.previewDataset(id, 30), api.profileDataset(id)]);
       setDatasetPreview(preview);
       setDatasetProfile(profile);
     } catch (e) {
       setError((e as Error).message);
     }
+  }
+
+  async function handleSidebarUseDataset(id: string) {
+    if (activeSection === "datasets") {
+      await loadDatasetPreview(id, false);
+      return;
+    }
+    await updateChatDatasetContext(id);
+  }
+
+  async function openDatasetPreview(id: string) {
+    await loadDatasetPreview(id, true);
   }
 
   async function uploadDataset(file: File) {
@@ -242,21 +305,20 @@ export default function HomePage() {
     }
   }
 
-  const title = activeSection === "dashboard"
-    ? "Dashboard"
-    : activeSection === "agent"
-      ? "Агент"
-      : activeSection === "pipeline"
-        ? "Lab 2 Pipeline"
-        : activeSection === "datasets"
-          ? "Датасеты"
-          : activeSection === "artifacts"
-            ? "Артефакты"
-            : "Settings";
+  const title =
+    activeSection === "dashboard"
+      ? "Дашборд"
+      : activeSection === "agent"
+        ? "Агент"
+        : activeSection === "pipeline"
+          ? "Lab 2 Pipeline"
+          : activeSection === "datasets"
+            ? "Датасеты"
+            : activeSection === "artifacts"
+              ? "Артефакты"
+              : "Настройки";
 
-  const subtitle = activeSection === "dashboard"
-    ? "Ваши аналитические сценарии и последние запуски"
-    : "LLM Data Analyst Workspace";
+  const subtitle = activeSection === "dashboard" ? "Последние анализы, датасеты и запуски pipeline" : "LLM Data Analyst Workspace";
 
   if (!user) {
     return (
@@ -292,26 +354,29 @@ export default function HomePage() {
             section={activeSection}
             search={search}
             onSearch={setSearch}
-            chats={chats}
+            chats={lab3Chats}
             selectedChatId={selectedChatId}
             onSelectChat={selectChat}
             onCreateChat={createChat}
             onOpenPipeline={() => setActiveSection("pipeline")}
             datasets={datasets}
             selectedDatasetId={selectedDatasetId}
-            onUseDataset={updateChatDatasetContext}
+            onUseDataset={handleSidebarUseDataset}
             onPreviewDataset={openDatasetPreview}
             onUploadDataset={uploadDataset}
             artifacts={artifacts}
-            onSelectArtifact={(id) => { setSelectedArtifactId(id); setActiveSection("artifacts"); }}
+            onSelectArtifact={(id) => {
+              setSelectedArtifactId(id);
+              setActiveSection("artifacts");
+            }}
           />
         }
         main={
-          <div className="main-wrap" ref={chatThreadRef}>
+          <div className="main-wrap">
             <TopBar title={title} subtitle={subtitle} />
             {activeSection === "dashboard" ? (
               <DashboardPanel
-                chats={chats}
+                chats={lab3Chats}
                 datasets={datasets}
                 artifacts={artifacts}
                 onOpenChat={selectChat}
@@ -335,20 +400,30 @@ export default function HomePage() {
                     }}
                   />
                 </div>
-                <ChatPanel messages={messages} onSend={sendAgentMessage} loading={loading} lab3Response={lab3Response} datasetName={selectedDataset?.name} datasetNotice={datasetNotice} />
+                <ChatPanel messages={messages} onSend={sendAgentMessage} loading={agentLoading} lab3Response={lab3Response} datasetName={selectedDataset?.name} datasetNotice={datasetNotice} />
               </>
             ) : null}
 
             {activeSection === "pipeline" ? (
               <>
                 <div className="context-strip"><span>Pipeline dataset: customers_reviews.csv</span></div>
-                <PipelinePanel sample={pipelineSample} result={pipelineResult} onSample={runPipelineSample} onRun={runPipeline} loading={loading} form={pipelineForm} onForm={(k, v) => setPipelineForm((prev) => ({ ...prev, [k]: k === "limit" ? Number(v || 1) : v }))} />
+                <PipelinePanel
+                  sample={pipelineSample}
+                  result={pipelineResult}
+                  lastRun={latestPipelineChat || null}
+                  running={pipelineLoading}
+                  onSample={runPipelineSample}
+                  onRun={runPipeline}
+                  loading={pipelineLoading}
+                  form={pipelineForm}
+                  onForm={(k, v) => setPipelineForm((prev) => ({ ...prev, [k]: k === "limit" ? Number(v || 1) : v }))}
+                />
               </>
             ) : null}
 
-            {activeSection === "datasets" ? <DatasetExplorer datasets={datasets} selected={selectedDatasetId} preview={datasetPreview} profile={datasetProfile} onSelect={openDatasetPreview} onUpload={uploadDataset} onUseInChat={(id) => { setActiveSection("agent"); updateChatDatasetContext(id); }} /> : null}
+            {activeSection === "datasets" ? <DatasetExplorer datasets={datasets} selected={selectedDatasetId} preview={datasetPreview} profile={datasetProfile} onSelect={(id) => loadDatasetPreview(id, false)} onUpload={uploadDataset} onUseInChat={(id) => { setActiveSection("agent"); updateChatDatasetContext(id); }} /> : null}
             {activeSection === "artifacts" ? <ArtifactExplorer items={artifacts} onSelect={setSelectedArtifactId} selected={selectedArtifact} /> : null}
-            {activeSection === "settings" ? <EmptyState title="Settings" description={`${user.display_name} (${user.email})`} /> : null}
+            {activeSection === "settings" ? <EmptyState title="Настройки" description={`${user.display_name} (${user.email})`} /> : null}
           </div>
         }
       />

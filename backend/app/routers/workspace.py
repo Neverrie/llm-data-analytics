@@ -70,7 +70,7 @@ def post_chat_message(chat_id: str, payload: ChatMessageCreateRequest, user: dic
 @router.patch("/chats/{chat_id}", response_model=ChatItem)
 def patch_chat(chat_id: str, payload: UpdateChatRequest, user: dict = Depends(get_current_user)) -> ChatItem:
     try:
-        item = update_chat(user["id"], chat_id, payload.title, payload.archived)
+        item = update_chat(user["id"], chat_id, payload.title, payload.archived, payload.dataset_name)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return ChatItem.model_validate(item)

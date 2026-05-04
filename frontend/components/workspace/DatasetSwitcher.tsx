@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState } from "react";
 import { DatasetItem } from "@/lib/api";
@@ -33,7 +33,7 @@ export function DatasetSwitcher({
           if (selectedDatasetId) onPreview(selectedDatasetId);
         }}
       >
-        Preview
+        Превью
       </button>
       {open ? (
         <div className="dataset-switcher-popover">
@@ -64,4 +64,3 @@ export function DatasetSwitcher({
     </div>
   );
 }
-
