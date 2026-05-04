@@ -1,9 +1,10 @@
 ﻿"use client";
 
+import { memo } from "react";
 import { ChatMessage } from "@/lib/api";
 import { MessageBubble } from "./MessageBubble";
 
-export function ChatThread({ messages }: { messages: ChatMessage[] }) {
+export const ChatThread = memo(function ChatThread({ messages }: { messages: ChatMessage[] }) {
   return (
     <div className="chat-thread">
       {messages.map((message) => (
@@ -11,5 +12,4 @@ export function ChatThread({ messages }: { messages: ChatMessage[] }) {
       ))}
     </div>
   );
-}
-
+});

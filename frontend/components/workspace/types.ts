@@ -1,1 +1,1 @@
-﻿export type ActiveSection = "agent" | "pipeline" | "datasets" | "artifacts" | "settings";
+﻿export type ActiveSection = "dashboard" | "agent" | "pipeline" | "datasets" | "artifacts" | "settings";

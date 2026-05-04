@@ -5,54 +5,39 @@ import { ArtifactPreviewCard } from "./ArtifactPreviewCard";
 import { ChatComposer } from "./ChatComposer";
 import { ChatThread } from "./ChatThread";
 import { CodeBlockCard } from "./CodeBlockCard";
-import { EmptyState } from "./EmptyState";
+import { EmptyChatState } from "./EmptyChatState";
 import { ExecutionBlock } from "./ExecutionBlock";
 
-const progressSteps = [
-  "Отправляем вопрос",
-  "Модель генерирует код",
-  "Sandbox выполняет Python",
-  "Формируем ответ"
-];
+const progressSteps = ["Отправляем вопрос", "Модель генерирует код", "Sandbox выполняет Python", "Готовим итоговый ответ"];
 
 export function ChatPanel({
   messages,
   onSend,
   loading,
-  lab3Response
+  lab3Response,
+  datasetName
 }: {
   messages: ChatMessage[];
   onSend: (text: string) => void;
   loading: boolean;
   lab3Response: any;
+  datasetName?: string;
 }) {
-  if (!messages.length) {
-    return <EmptyState title="Чат пуст" description="Выберите чат или создайте новый анализ слева." />;
-  }
-
   return (
     <section className="main-panel chat-panel">
-      <ChatThread messages={messages} />
+      {!messages.length ? <EmptyChatState datasetName={datasetName} onPrompt={onSend} /> : <ChatThread messages={messages} />}
 
       {loading ? (
         <div className="progress-card">
-          <strong>Агент анализирует датасет...</strong>
-          <ul>
-            {progressSteps.map((step) => <li key={step}>{step}</li>)}
-          </ul>
+          <strong>Агент выполняет анализ...</strong>
+          <ul>{progressSteps.map((s) => <li key={s}>{s}</li>)}</ul>
         </div>
       ) : null}
 
-      {lab3Response?.final_answer ? <div className="assistant-summary">Ответ подготовлен и сохранён в чат.</div> : null}
-      {lab3Response?.code_steps?.map((step: any, index: number) => (
-        <CodeBlockCard key={index} title={`Step ${index + 1}`} meta={`${step.status || "unknown"} · ${step.source || "llm"}`} code={step.code || ""} />
-      ))}
-      {lab3Response?.code_steps?.map((step: any, index: number) => (
-        <ExecutionBlock key={`exec-${index}`} stdout={step.stdout} stderr={step.stderr} />
-      ))}
-      {lab3Response?.generated_files?.map((file: any, index: number) => (
-        <ArtifactPreviewCard key={index} title="Generated file" value={String(file?.path || file?.name || "unknown")} />
-      ))}
+      {lab3Response?.error ? <article className="block-card"><strong>Ошибка</strong><pre className="code-pre error">{String(lab3Response.error)}</pre></article> : null}
+      {lab3Response?.code_steps?.map((step: any, i: number) => <CodeBlockCard key={i} title={`Step ${i + 1}`} meta={`${step.status || "unknown"} · ${step.source || "llm"}`} code={step.code || ""} />)}
+      {lab3Response?.code_steps?.map((step: any, i: number) => <ExecutionBlock key={`exec-${i}`} stdout={step.stdout} stderr={step.stderr} />)}
+      {lab3Response?.generated_files?.map((f: any, i: number) => <ArtifactPreviewCard key={i} title="Generated file" value={String(f?.path || f?.name || "unknown")} />)}
 
       <details className="raw compact"><summary>Raw response</summary><pre>{JSON.stringify(lab3Response || {}, null, 2)}</pre></details>
       <ChatComposer onSend={onSend} loading={loading} />

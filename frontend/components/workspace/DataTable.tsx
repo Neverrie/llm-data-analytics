@@ -1,8 +1,10 @@
 ﻿"use client";
 
+import { memo } from "react";
+
 type Row = Record<string, unknown>;
 
-export function DataTable({ columns, rows }: { columns: string[]; rows: Row[] }) {
+export const DataTable = memo(function DataTable({ columns, rows }: { columns: string[]; rows: Row[] }) {
   return (
     <div className="table-wrap">
       <table className="data-table">
@@ -17,5 +19,4 @@ export function DataTable({ columns, rows }: { columns: string[]; rows: Row[] })
       </table>
     </div>
   );
-}
-
+});
