@@ -1,7 +1,23 @@
-﻿const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8003/api";
+﻿function getApiBaseUrl(): string {
+  const envUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
 
+  // SSR/build fallback
+  if (typeof window === "undefined") {
+    return envUrl || "http://localhost:8003/api";
+  }
+
+  const { protocol, hostname } = window.location;
+
+  // If explicitly set to a real public URL, use it.
+  // Ignore localhost env when the site is opened from another device.
+  if (envUrl && !envUrl.includes("localhost") && !envUrl.includes("127.0.0.1")) {
+    return envUrl.replace(/\/$/, "");
+  }
+
+  return `${protocol}//${hostname}:8003/api`;
+}
 async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(`${getApiBaseUrl()}${path}`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     cache: "no-store"
@@ -16,7 +32,7 @@ async function getJson<T>(path: string): Promise<T> {
 }
 
 async function postJson<TResponse, TBody>(path: string, body: TBody): Promise<TResponse> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(`${getApiBaseUrl()}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -32,7 +48,7 @@ async function postJson<TResponse, TBody>(path: string, body: TBody): Promise<TR
 }
 
 async function postForm<TResponse>(path: string, formData: FormData): Promise<TResponse> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(`${getApiBaseUrl()}${path}`, {
     method: "POST",
     body: formData,
     cache: "no-store"
@@ -78,4 +94,4 @@ export const api = {
   getLab3Session: <T>(sessionId: string) => getJson<T>(`/lab3/session?session_id=${encodeURIComponent(sessionId)}`)
 };
 
-export const apiBaseUrl = API_BASE_URL;
+export const apiBaseUrl = getApiBaseUrl;

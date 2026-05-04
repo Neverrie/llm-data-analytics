@@ -6,13 +6,16 @@ from app.routers import health, lab1, lab2, lab3
 
 app = FastAPI(title=settings.app_name, version=settings.app_version)
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3003",
-        "http://127.0.0.1:3003"
+        "http://127.0.0.1:3003",
+        "http://82.162.61.44:3003",
     ],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

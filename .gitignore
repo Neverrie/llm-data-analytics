@@ -33,3 +33,4 @@ outputs/*.tmp.json
 .vscode/
 .idea/
 
+outputs/
