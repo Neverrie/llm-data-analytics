@@ -13,6 +13,7 @@ from app.config import settings
 from app.services.lab2_service import Lab2PipelineError
 from app.services.lab3_agent import run_agent
 from app.services.lab3_column_mapper import get_effective_column_mapping, list_datasets, load_dataset, profile_dataset
+from app.services.llm_client import LLMClient
 from app.services.lab3_session import load_session, reset_session
 from app.services.lab3_tools import TOOL_METADATA, execute_tool
 
@@ -22,13 +23,18 @@ _SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9_.-]+")
 
 
 def get_lab3_status() -> dict[str, Any]:
+    llm = LLMClient()
     return {
         "lab": 3,
         "status": "ready",
+        "provider": llm.provider_name(),
+        "openrouter_configured": bool((settings.openrouter_api_key or "").strip()),
+        "available_modes": ["fast", "balanced", "full", "code_interpreter"],
         "models": {
             "planner_model": settings.lab3_planner_model,
             "tool_caller_model": settings.lab3_tool_caller_model,
             "critic_model": settings.lab3_critic_model,
+            "default_model": llm.resolve_model(),
         },
         "features": [
             "semantic column mapping",
@@ -88,6 +94,7 @@ async def ask_agent(
     session_id: str | None = None,
     include_history: bool = True,
     reset_session_flag: bool = False,
+    max_code_steps: int = 5,
 ) -> dict[str, Any]:
     return await run_agent(
         dataset_name=dataset_name,
@@ -99,6 +106,7 @@ async def ask_agent(
         session_id=session_id,
         include_history=include_history,
         reset_session=reset_session_flag,
+        max_code_steps=max_code_steps,
     )
 
 

@@ -14,6 +14,18 @@ Swagger:
 
 - http://localhost:8003/docs
 
+## OpenRouter setup
+
+1. Создайте `.env` из `.env.example`
+2. Заполните:
+- `OPENROUTER_API_KEY=your_key`
+- `LLM_PROVIDER=openrouter`
+- `OPENROUTER_MODEL=qwen/qwen3-next-80b-a3b-instruct:free`
+3. Запустите:
+`docker compose up --build`
+
+Не коммитьте `.env`.
+
 ## Lab 2: API Pipeline
 
 Pipeline:
@@ -40,12 +52,14 @@ Lab 3 поддерживает универсальный анализ CSV/XLSX 
 - session context для follow-up вопросов (`outputs/lab3/sessions`)
 - markdown-ответы в workspace UI
 - исправлен warning pandas date parsing в column mapper
+- добавлен режим `code_interpreter`
 
 Режимы:
 
 - `fast`: только heuristics + rule-based planner + один LLM-вызов для финального ответа
 - `balanced`: LLM planner + финальный ответ (+ critic опционально)
 - `full`: LLM-assisted mapping + LLM planner + финальный ответ (+ critic опционально)
+- `code_interpreter`: LLM генерирует Python-код, backend выполняет его в sandbox loop, модель продолжает анализ по результатам выполнения
 
 В ответе `/api/lab3/ask`:
 
@@ -105,6 +119,7 @@ ollama pull deepseek-r1:8b
 - Нет произвольного выполнения Python-кода из ответа LLM
 - Аргументы tools валидируются
 - Чувствительные колонки (`username`, `image`) исключаются из контекста LLM
+- Code sandbox блокирует опасные импорты и токены, ограничивает timeout и артефакты выполнения
 
 ## Переменные окружения
 

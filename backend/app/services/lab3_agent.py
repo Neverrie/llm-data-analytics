@@ -6,9 +6,10 @@ from pathlib import Path
 from typing import Any
 
 from app.config import settings
-from app.ollama_client import OllamaClient, OllamaClientError
 from app.services.lab2_service import Lab2PipelineError
 from app.services.lab3_column_mapper import get_effective_column_mapping
+from app.services.lab3_code_interpreter import run_code_interpreter_agent
+from app.services.llm_client import LLMClient, LLMClientError
 from app.services.lab3_security import validate_tool_call
 from app.services.lab3_session import (
     append_turn,
@@ -283,7 +284,7 @@ async def _planner_output_llm(
     max_tool_calls: int,
 ) -> tuple[dict[str, Any], list[str], str | None]:
     warnings: list[str] = []
-    client = OllamaClient(settings.ollama_base_url)
+    client = LLMClient()
     available_tools = [{"tool": key, **value} for key, value in TOOL_METADATA.items()]
 
     prompt = (
@@ -302,10 +303,14 @@ async def _planner_output_llm(
 
     planner_response_raw: str | None = None
     try:
-        planner_response = await client.generate_json(settings.lab3_planner_model, prompt)
-        planner_response_raw = planner_response.response
-        planner_data = parse_planner_output(planner_response.response)
-    except (OllamaClientError, Lab2PipelineError):
+        planner_response_raw = await client.chat(
+            messages=[{"role": "system", "content": "Planner mode."}, {"role": "user", "content": prompt}],
+            purpose="planner",
+            model=settings.lab3_planner_model,
+            temperature=0.1,
+        )
+        planner_data = parse_planner_output(planner_response_raw)
+    except (LLMClientError, Lab2PipelineError):
         warnings.append("Planner вернул невалидный JSON, поэтому использован rule-based fallback.")
         fallback, fallback_warnings = build_rule_based_plan(
             question=question,
@@ -364,7 +369,7 @@ async def _final_answer(
     executed_tools: list[dict[str, Any]],
     history_context: dict[str, Any] | None,
 ) -> str:
-    client = OllamaClient(settings.ollama_base_url)
+    client = LLMClient()
     history_block = _build_history_block(history_context or {}, mapping)
     prompt = (
         "Ты аналитик данных. Пиши только на русском языке.\\n"
@@ -384,8 +389,12 @@ async def _final_answer(
         f"History context: {history_block}\\n"
         f"Tool outputs: {json.dumps(executed_tools, ensure_ascii=False)}"
     )
-    response = await client.generate_text(settings.lab3_planner_model, prompt)
-    return response.response.strip()
+    return await client.chat(
+        messages=[{"role": "system", "content": "Final answer mode."}, {"role": "user", "content": prompt}],
+        purpose="final_answer",
+        model=settings.lab3_planner_model,
+        temperature=0.1,
+    )
 
 
 async def _critic_review(
@@ -394,12 +403,16 @@ async def _critic_review(
     executed_tools: list[dict[str, Any]],
     final_answer: str,
 ) -> tuple[dict[str, Any], str | None, list[str]]:
-    client = OllamaClient(settings.ollama_base_url)
+    client = LLMClient()
     prompt = build_critic_prompt(question, mapping, executed_tools, final_answer)
     warnings: list[str] = []
 
-    response = await client.generate_json(settings.lab3_critic_model, prompt)
-    raw = response.response
+    raw = await client.chat(
+        messages=[{"role": "system", "content": "Critic mode."}, {"role": "user", "content": prompt}],
+        purpose="critic",
+        model=settings.lab3_critic_model,
+        temperature=0.1,
+    )
     try:
         parsed = parse_critic_output(raw)
         return parsed, raw, warnings
@@ -439,6 +452,7 @@ async def run_agent(
     session_id: str | None = None,
     include_history: bool = True,
     reset_session: bool = False,
+    max_code_steps: int = 5,
 ) -> dict[str, Any]:
     started_at = time.perf_counter()
     warnings: list[str] = []
@@ -458,6 +472,8 @@ async def run_agent(
         if history_warning:
             warnings.append(str(history_warning))
 
+    provider = LLMClient().provider_name()
+    model_name = LLMClient().resolve_model()
     use_llm_mapping = analysis_mode == "full"
     profile, mapping_model, mapping_llm_used = await get_effective_column_mapping(
         dataset_name,
@@ -469,6 +485,52 @@ async def run_agent(
         llm_calls_count += 1
 
     planner_raw_output: str | None = None
+    if analysis_mode == "code_interpreter":
+        session_context_text = history_context.get("conversation_summary", "") if include_history else ""
+        ci_result = await run_code_interpreter_agent(
+            dataset_name=dataset_name,
+            question=question,
+            column_mapping=mapping,
+            profile=profile,
+            session_context=session_context_text,
+            max_steps=max_code_steps,
+        )
+        session_state = append_turn(
+            session_id=session_id_value,
+            user_question=question,
+            agent_answer=ci_result.get("final_answer", ""),
+            tool_summary=["code_interpreter"],
+            column_mapping=mapping,
+            dataset_name=dataset_name,
+            key_findings=["code interpreter mode"],
+        )
+        result_payload = {
+            "lab": 3,
+            "status": "success",
+            "dataset": dataset_name,
+            "question": question,
+            "analysis_mode": "code_interpreter",
+            "provider": provider,
+            "model": model_name,
+            "llm_calls_count": ci_result.get("llm_calls_count", 0),
+            "elapsed_seconds": ci_result.get("elapsed_seconds", 0.0),
+            "warnings": ci_result.get("warnings", []),
+            "session_id": session_id_value,
+            "history_length": len(session_state.get("turns", [])),
+            "conversation_summary": session_state.get("conversation_summary", ""),
+            "column_mapping": mapping,
+            "planner_output": {"plan": "code interpreter loop", "tool_calls": []},
+            "planner_warnings": [],
+            "executed_tools": [],
+            "final_answer": ci_result.get("final_answer", ""),
+            "critic_review": None,
+            "code_steps": ci_result.get("steps", []),
+            "generated_files": ci_result.get("files", []),
+            "code_interpreter_trace": ci_result.get("output_files", {}).get("code_interpreter_trace"),
+            "output_files": ci_result.get("output_files", {}),
+        }
+        return result_payload
+
     if analysis_mode == "fast":
         planner_output, planner_warnings = build_rule_based_plan(
             question=question,
@@ -500,7 +562,7 @@ async def run_agent(
     try:
         final_answer = await _final_answer(question, mapping, executed_tools, history_context=history_context)
         llm_calls_count += 1
-    except OllamaClientError as exc:
+    except LLMClientError as exc:
         final_answer = f"Не удалось получить финальный ответ от модели: {exc}"
         warnings.append("Final answer model failed.")
 
@@ -511,7 +573,7 @@ async def run_agent(
             critic_review, critic_raw_output, critic_warnings = await _critic_review(question, mapping, executed_tools, final_answer)
             llm_calls_count += 1
             warnings.extend(critic_warnings)
-        except OllamaClientError as exc:
+        except LLMClientError as exc:
             warnings.append(f"Critic skipped due to error: {exc}")
             critic_review = {
                 "passed": None,
@@ -538,6 +600,8 @@ async def run_agent(
         "dataset": dataset_name,
         "question": question,
         "analysis_mode": analysis_mode,
+        "provider": provider,
+        "model": model_name,
         "llm_calls_count": llm_calls_count,
         "elapsed_seconds": elapsed_seconds,
         "warnings": warnings,
@@ -550,6 +614,9 @@ async def run_agent(
         "executed_tools": executed_tools,
         "final_answer": final_answer,
         "critic_review": critic_review,
+        "code_steps": [],
+        "generated_files": [],
+        "code_interpreter_trace": None,
     }
 
     export_tool = execute_tool(dataset_name, "export_lab3_result_json", mapping, {"result_payload": result_payload})

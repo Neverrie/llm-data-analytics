@@ -21,6 +21,19 @@ docker compose up --build
 - Backend API health: http://localhost:8003/api/health
 - Swagger: http://localhost:8003/docs
 
+## OpenRouter setup
+
+1. Создайте `.env` из шаблона:
+`cp .env.example .env`
+2. Заполните переменные:
+- `OPENROUTER_API_KEY=your_key`
+- `LLM_PROVIDER=openrouter`
+- `OPENROUTER_MODEL=qwen/qwen3-next-80b-a3b-instruct:free`
+3. Запустите проект:
+`docker compose up --build`
+
+Важно: не коммитьте `.env`.
+
 ## Задание 2 — API Pipeline
 
 Lab 2 использует **Uber Customer Reviews Dataset (2024)**.
@@ -56,6 +69,20 @@ Lab 3 — универсальный аналитический агент дл�
 - tools вынесены в Advanced-блок в UI
 - allowlisted tools + защита от prompt injection
 - исправлен warning date parsing в Docker логах (без `Could not infer format...`)
+
+## Lab 3 Code Interpreter Mode
+
+В режиме `code_interpreter` модель сама генерирует Python-код, backend выполняет код в sandbox, затем модель получает `stdout/stderr/files` и продолжает анализ.
+
+Отличие от safe-tools mode:
+- safe-tools mode: модель вызывает заранее определенные backend tools;
+- code_interpreter mode: модель строит вычисления через собственный Python-код в sandbox loop.
+
+Ограничения sandbox:
+- запрещены опасные импорты (`os`, `subprocess`, `socket`, `requests` и др.);
+- запрещены опасные токены (`open(`, `exec(`, `eval(`, `__import__`, `..` и др.);
+- execution timeout 15 секунд;
+- ограничение на размер stdout/stderr и количество/размер файлов.
 
 ### Роли колонок простым языком
 

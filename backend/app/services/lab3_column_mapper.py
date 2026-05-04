@@ -9,9 +9,9 @@ from typing import Any
 import pandas as pd
 
 from app.config import settings
-from app.ollama_client import OllamaClient, OllamaClientError
 from app.schemas import Lab3ColumnMapping, RoleMatch
 from app.services.lab2_service import Lab2PipelineError
+from app.services.llm_client import LLMClient, LLMClientError
 
 ROLE_NAMES = [
     "id_column",
@@ -435,7 +435,7 @@ def _validate_llm_roles(raw: dict[str, Any], columns: list[str], fallback: Lab3C
 
 
 async def infer_column_roles_llm(profile: dict[str, Any], heuristic_mapping: Lab3ColumnMapping) -> Lab3ColumnMapping:
-    client = OllamaClient(settings.ollama_base_url)
+    client = LLMClient()
     prompt = (
         "You are a data schema mapper. Return strict JSON only.\n"
         "Map semantic roles to existing columns.\n"
@@ -446,9 +446,13 @@ async def infer_column_roles_llm(profile: dict[str, Any], heuristic_mapping: Lab
         "Output JSON format: {\"roles\": {\"text_column\": {\"column\": \"...\", \"confidence\": 0.0, \"reason\": \"...\"}}}\n"
     )
     try:
-        response = await client.generate_json(settings.lab3_planner_model, prompt)
-        parsed = json.loads(response.response)
-    except (OllamaClientError, json.JSONDecodeError):
+        parsed = await client.chat_json(
+            messages=[{"role": "system", "content": "Schema mapper mode"}, {"role": "user", "content": prompt}],
+            purpose="mapping",
+            model=settings.lab3_planner_model,
+            temperature=0.0,
+        )
+    except (LLMClientError, json.JSONDecodeError):
         return heuristic_mapping
 
     return _validate_llm_roles(parsed, columns=profile["columns"], fallback=heuristic_mapping)

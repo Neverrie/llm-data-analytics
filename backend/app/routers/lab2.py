@@ -5,6 +5,7 @@ from fastapi.responses import FileResponse
 
 from app.config import settings
 from app.schemas import Lab2RunRequest, Lab2RunResponse, Lab2SampleDataResponse, Lab2StatusResponse
+from app.services.llm_client import LLMClient
 from app.services.lab2_service import (
     MAX_LIMIT,
     Lab2PipelineError,
@@ -24,17 +25,20 @@ def lab2_status() -> Lab2StatusResponse:
     except Lab2PipelineError:
         dataset_file = f"not found (expected base name: {settings.lab2_dataset_filename})"
 
+    llm = LLMClient()
     return Lab2StatusResponse(
         lab=2,
         name="API Pipeline",
         status="ready-batching",
+        provider=llm.provider_name(),
         dataset=dataset_file,
-        model=settings.ollama_model,
+        model=llm.resolve_model(),
+        configured=llm.is_configured(),
         pipeline=[
             "read dataset",
             "filter reviews",
             "build prompt",
-            "call Ollama API",
+            "call LLM API",
             "parse JSON",
             "validate with Pydantic",
             "save result.json",

@@ -88,6 +88,7 @@ async def lab3_ask(request: Lab3AskRequest) -> dict:
             session_id=request.session_id,
             include_history=request.include_history,
             reset_session_flag=request.reset_session,
+            max_code_steps=request.max_code_steps,
         )
     except Lab2PipelineError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc

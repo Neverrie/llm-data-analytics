@@ -9,7 +9,7 @@ from typing import Any
 import pandas as pd
 
 from app.config import settings
-from app.ollama_client import OllamaClient, OllamaClientError
+from app.services.llm_client import LLMClient, LLMClientError
 from app.schemas import (
     Lab2ResultPayload,
     Lab2RunRequest,
@@ -343,17 +343,26 @@ async def run_pipeline(request: Lab2RunRequest) -> Lab2RunResponse:
         raise Lab2PipelineError("No reviews found after filtering.")
 
     batches = _chunk_reviews(reviews, request.batch_size)
-    client = OllamaClient(settings.ollama_base_url)
+    client = LLMClient()
+    model_name = client.resolve_model()
+    provider_name = client.provider_name()
 
     combined_results: list[ReviewClassification] = []
     for batch in batches:
         prompt = build_lab2_prompt(batch)
         try:
-            llm_response = await client.generate_json(settings.ollama_model, prompt)
-        except OllamaClientError as exc:
+            parsed = await client.chat_json(
+                messages=[
+                    {"role": "system", "content": "You are a strict JSON classifier for Uber reviews."},
+                    {"role": "user", "content": prompt},
+                ],
+                purpose="lab2",
+                model=model_name,
+                temperature=0.1,
+            )
+        except LLMClientError as exc:
             raise Lab2PipelineError(str(exc), status_code=503) from exc
 
-        parsed = parse_llm_json(llm_response.response)
         validated_batch = validate_result(parsed, expected_row_ids={review.row_id for review in batch})
         combined_results.extend(validated_batch)
 
@@ -370,7 +379,8 @@ async def run_pipeline(request: Lab2RunRequest) -> Lab2RunResponse:
     response = Lab2RunResponse(
         lab=2,
         status="completed",
-        model=settings.ollama_model,
+        provider=provider_name,
+        model=model_name,
         dataset=dataset_name,
         rows_requested=request.limit,
         rows_processed=len(combined_results),

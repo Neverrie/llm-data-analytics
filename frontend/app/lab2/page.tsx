@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { SectionCard } from "../../components/SectionCard";
@@ -8,8 +8,10 @@ type Lab2Status = {
   lab: number;
   name: string;
   status: string;
+  provider: string;
   dataset: string;
   model: string;
+  configured: boolean;
   pipeline: string[];
   available_endpoints: string[];
 };
@@ -20,8 +22,6 @@ type SampleReview = {
   score: number | null;
   thumbs_up_count: number | null;
   at: string | null;
-  app_version: string | null;
-  review_created_version: string | null;
 };
 
 type Lab2SampleDataResponse = {
@@ -43,6 +43,7 @@ type ReviewClassification = {
 type Lab2RunResponse = {
   lab: number;
   status: string;
+  provider: string;
   model: string;
   dataset: string;
   rows_requested: number;
@@ -87,7 +88,7 @@ export default function Lab2Page() {
         setLoadingStatus(false);
       }
     };
-    fetchStatus();
+    void fetchStatus();
   }, []);
 
   const parsedMinScore = useMemo(() => {
@@ -125,10 +126,7 @@ export default function Lab2Page() {
     setLoadingRun(true);
     setError(null);
     try {
-      const data = await api.runLab2Pipeline<
-        Lab2RunResponse,
-        { limit: number; batch_size: number; min_score: number | null; max_score: number | null }
-      >({
+      const data = await api.runLab2Pipeline<Lab2RunResponse, { limit: number; batch_size: number; min_score: number | null; max_score: number | null }>({
         limit,
         batch_size: batchSize,
         min_score: parsedMinScore,
@@ -145,15 +143,8 @@ export default function Lab2Page() {
   return (
     <div className="space-y-6">
       <SectionCard title="Лаба 2 — API Pipeline">
-        <p>Пайплайн читает отзывы Uber из CSV, отправляет их в локальную LLM через Ollama API и сохраняет структурированный JSON с классификацией отзывов.</p>
+        <p>Пайплайн читает отзывы Uber из CSV, отправляет их в OpenRouter и сохраняет структурированный JSON.</p>
       </SectionCard>
-
-      <section className="app-card space-y-3 p-6">
-        <h2 className="app-section-title">Датасет</h2>
-        <p className="text-sm app-muted">
-          Uber Customer Reviews Dataset (2024). Текстовая колонка: <code>content</code>. Дополнительные поля: <code>score</code>, <code>thumbsUpCount</code>, <code>reviewCreatedVersion</code>, <code>at</code>, <code>appVersion</code>.
-        </p>
-      </section>
 
       <section className="app-card space-y-3 p-6">
         <h2 className="app-section-title">Pipeline</h2>
@@ -161,7 +152,7 @@ export default function Lab2Page() {
           <li>read dataset</li>
           <li>filter reviews</li>
           <li>build prompt</li>
-          <li>call Ollama API</li>
+          <li>call LLM API</li>
           <li>parse JSON</li>
           <li>validate with Pydantic</li>
           <li>save result.json</li>
@@ -170,9 +161,6 @@ export default function Lab2Page() {
 
       <section className="app-card space-y-4 p-6">
         <h2 className="app-section-title">Настройки запуска</h2>
-        <p className="text-sm app-muted">
-          `limit` — сколько отзывов обработать. `batch_size` — сколько отзывов отправлять в модель за один запрос.
-        </p>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <label className="space-y-1">
@@ -184,11 +172,11 @@ export default function Lab2Page() {
             <input type="number" min={1} max={20} value={batchSize} onChange={(event) => setBatchSize(Number(event.target.value) || 5)} className="app-input" />
           </label>
           <label className="space-y-1">
-            <span className="text-sm font-medium">min_score (опционально)</span>
+            <span className="text-sm font-medium">min_score</span>
             <input type="number" min={1} max={5} value={minScore} onChange={(event) => setMinScore(event.target.value)} className="app-input" />
           </label>
           <label className="space-y-1">
-            <span className="text-sm font-medium">max_score (опционально)</span>
+            <span className="text-sm font-medium">max_score</span>
             <input type="number" min={1} max={5} value={maxScore} onChange={(event) => setMaxScore(event.target.value)} className="app-input" />
           </label>
         </div>
@@ -202,10 +190,15 @@ export default function Lab2Page() {
           </button>
         </div>
 
-        {loadingStatus ? <p className="text-sm app-muted">Загрузка статуса Lab 2...</p> : null}
+        {loadingStatus ? <p className="text-sm app-muted">Загрузка статуса...</p> : null}
         {status ? (
           <p className="text-sm app-muted">
-            Модель: <strong>{status.model}</strong> | Датасет: <strong>{status.dataset}</strong>
+            Provider: <strong>{status.provider}</strong> | Model: <strong>{status.model}</strong> | Dataset: <strong>{status.dataset}</strong>
+          </p>
+        ) : null}
+        {status && !status.configured ? (
+          <p className="rounded-lg px-3 py-2 text-sm" style={{ background: "color-mix(in srgb, var(--danger) 14%, transparent)", color: "var(--danger)" }}>
+            OpenRouter API key не настроен. Создайте .env на основе .env.example.
           </p>
         ) : null}
         {error ? (
@@ -218,7 +211,6 @@ export default function Lab2Page() {
       {sampleData ? (
         <section className="app-card space-y-4 p-6">
           <h2 className="app-section-title">Sample data</h2>
-          <p className="text-sm app-muted">Dataset: {sampleData.dataset} | Rows after filtering: {sampleData.total_rows}</p>
           <div className="overflow-x-auto">
             <table className="app-table">
               <thead>
@@ -249,62 +241,16 @@ export default function Lab2Page() {
       {runResult ? (
         <section className="app-card space-y-4 p-6">
           <h2 className="app-section-title">Результат pipeline</h2>
-
           <div className="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
+            <p>provider: {runResult.provider}</p>
             <p>model: {runResult.model}</p>
             <p>dataset: {runResult.dataset}</p>
-            <p>rows_requested: {runResult.rows_requested}</p>
             <p>rows_processed: {runResult.rows_processed}</p>
-            <p>batch_size: {runResult.batch_size}</p>
-            <p>batches_processed: {runResult.batches_processed}</p>
-            <p className="md:col-span-2">output_file: {runResult.output_file}</p>
           </div>
-
-          {runResult.warnings.length > 0 ? (
-            <div className="rounded-lg px-3 py-2 text-sm" style={{ background: "color-mix(in srgb, var(--warning) 14%, transparent)", color: "var(--warning)" }}>
-              <p className="font-medium">Предупреждения:</p>
-              <ul className="list-disc pl-5">
-                {runResult.warnings.map((warning) => (
-                  <li key={warning}>{warning}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-
-          <div className="overflow-x-auto">
-            <table className="app-table">
-              <thead>
-                <tr>
-                  <th>row_id</th>
-                  <th>sentiment</th>
-                  <th>issue_type</th>
-                  <th>topic</th>
-                  <th>urgency</th>
-                  <th>summary</th>
-                  <th>suggested_action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {runResult.results.map((item) => (
-                  <tr key={item.row_id}>
-                    <td>{item.row_id}</td>
-                    <td>{item.sentiment}</td>
-                    <td>{item.issue_type}</td>
-                    <td>{item.topic}</td>
-                    <td>{item.urgency}</td>
-                    <td>{item.summary}</td>
-                    <td>{item.suggested_action}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
           <details className="app-expansion">
             <summary>Raw JSON</summary>
             <pre className="app-code-block m-3">{JSON.stringify(runResult, null, 2)}</pre>
           </details>
-
           <a href={`${apiBaseUrl}/lab2/download`} className="inline-flex text-sm font-semibold underline" style={{ color: "var(--primary)" }} target="_blank" rel="noreferrer">
             Скачать result.json
           </a>

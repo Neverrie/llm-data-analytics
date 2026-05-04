@@ -51,6 +51,7 @@ class Lab2ResultPayload(BaseModel):
 class Lab2RunResponse(BaseModel):
     lab: int
     status: str
+    provider: str = "openrouter"
     model: str
     dataset: str
     rows_requested: int
@@ -72,8 +73,10 @@ class Lab2StatusResponse(BaseModel):
     lab: int
     name: str
     status: str
+    provider: str
     dataset: str
     model: str
+    configured: bool
     pipeline: list[str]
     available_endpoints: list[str]
 
@@ -148,7 +151,8 @@ class Lab3AskRequest(BaseModel):
     column_overrides: dict[str, str | None] = Field(default_factory=dict)
     max_tool_calls: int = Field(default=6, ge=1, le=20)
     use_critic: bool = False
-    analysis_mode: Literal["fast", "balanced", "full"] = "fast"
+    analysis_mode: Literal["fast", "balanced", "full", "code_interpreter"] = "fast"
+    max_code_steps: int = Field(default=5, ge=1, le=10)
     session_id: str | None = None
     include_history: bool = True
     reset_session: bool = False
@@ -159,7 +163,9 @@ class Lab3AskResponse(BaseModel):
     status: str
     dataset: str
     question: str
-    analysis_mode: Literal["fast", "balanced", "full"]
+    analysis_mode: Literal["fast", "balanced", "full", "code_interpreter"]
+    provider: str = "openrouter"
+    model: str
     llm_calls_count: int
     elapsed_seconds: float
     warnings: list[str] = Field(default_factory=list)
@@ -172,6 +178,9 @@ class Lab3AskResponse(BaseModel):
     executed_tools: list[dict[str, Any]] = Field(default_factory=list)
     final_answer: str
     critic_review: dict[str, Any] | None = None
+    code_steps: list[dict[str, Any]] = Field(default_factory=list)
+    generated_files: list[dict[str, Any]] = Field(default_factory=list)
+    code_interpreter_trace: str | None = None
     output_files: dict[str, str] | None = None
 
 

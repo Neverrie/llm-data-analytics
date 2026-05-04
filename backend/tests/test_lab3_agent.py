@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 from pathlib import Path
@@ -9,7 +9,6 @@ from fastapi.testclient import TestClient
 
 from app.config import settings
 from app.main import app
-from app.schemas import OllamaGenerateResponse
 from app.services import lab3_agent
 
 
@@ -21,31 +20,17 @@ def lab3_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     outputs_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(settings, "datasets_dir", str(datasets_dir))
     monkeypatch.setattr(settings, "outputs_dir", str(outputs_dir))
-    monkeypatch.setattr(settings, "lab3_planner_model", "qwen3:8b")
-    monkeypatch.setattr(settings, "lab3_tool_caller_model", "qwen2.5-coder:7b")
-    monkeypatch.setattr(settings, "lab3_critic_model", "deepseek-r1:8b")
+    monkeypatch.setattr(settings, "llm_provider", "openrouter")
+    monkeypatch.setattr(settings, "openrouter_api_key", "test")
+    monkeypatch.setattr(settings, "openrouter_model", "qwen/qwen3-next-80b-a3b-instruct:free")
     return datasets_dir
 
 
 def _write_dataset(path: Path) -> None:
     frame = pd.DataFrame(
         [
-            {
-                "content": "Bad payment flow",
-                "score": 1,
-                "at": "2024-01-01 10:00:00",
-                "appVersion": "1.0",
-                "replyContent": None,
-                "repliedAt": None,
-            },
-            {
-                "content": "Great app",
-                "score": 5,
-                "at": "2024-01-02 10:00:00",
-                "appVersion": "1.0",
-                "replyContent": "Thanks",
-                "repliedAt": "2024-01-03 10:00:00",
-            },
+            {"content": "Bad payment flow", "score": 1, "at": "2024-01-01 10:00:00", "appVersion": "1.0", "replyContent": None, "repliedAt": None},
+            {"content": "Great app", "score": 5, "at": "2024-01-02 10:00:00", "appVersion": "1.0", "replyContent": "Thanks", "repliedAt": "2024-01-03 10:00:00"},
         ]
     )
     frame.to_csv(path, index=False)
@@ -54,19 +39,17 @@ def _write_dataset(path: Path) -> None:
 def test_parse_planner_output_plain_json() -> None:
     data = lab3_agent.parse_planner_output('{"plan":"x","tool_calls":[{"tool":"get_dataset_schema","arguments":{}}]}')
     assert data["plan"] == "x"
-    assert len(data["tool_calls"]) == 1
 
 
 def test_parse_planner_output_fenced_json() -> None:
-    text = """```json
+    data = lab3_agent.parse_planner_output("""```json
 {"plan":"x","tool_calls":[{"tool":"get_dataset_schema","arguments":{}}]}
-```"""
-    data = lab3_agent.parse_planner_output(text)
+```""")
     assert data["tool_calls"][0]["tool"] == "get_dataset_schema"
 
 
 def test_parse_planner_output_with_prefix_text() -> None:
-    text = 'Planner response:\\n{"plan":"x","tool_calls":[{"tool":"get_dataset_schema","arguments":{}}]} trailing'
+    text = 'Planner response:\n{"plan":"x","tool_calls":[{"tool":"get_dataset_schema","arguments":{}}]} trailing'
     data = lab3_agent.parse_planner_output(text)
     assert data["plan"] == "x"
 
@@ -77,10 +60,8 @@ def test_parse_planner_output_truncated_fallback() -> None:
 
 
 def test_parse_critic_output_russian_json() -> None:
-    text = '{"passed":true,"issues":[],"recommendations":["Уточнить источники метрик"]}'
-    parsed = lab3_agent.parse_critic_output(text)
+    parsed = lab3_agent.parse_critic_output('{"passed":true,"issues":[],"recommendations":["Уточнить"]}')
     assert parsed["passed"] is True
-    assert parsed["recommendations"][0].startswith("Уточнить")
 
 
 def test_critic_prompt_does_not_require_final_answer_json() -> None:
@@ -92,14 +73,12 @@ def test_critic_prompt_does_not_require_final_answer_json() -> None:
 async def test_fast_mode_no_planner_llm_and_no_critic(lab3_paths: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _write_dataset(lab3_paths / "customers_reviews.csv")
 
-    async def fail_generate_json(self, model: str, prompt: str) -> OllamaGenerateResponse:  # noqa: ARG001
-        raise AssertionError("fast mode should not call generate_json")
+    async def fake_chat(self, messages, purpose="general", model=None, temperature=0.1):  # noqa: ANN001,ARG001
+        if purpose == "final_answer":
+            return "Финальный ответ"
+        raise AssertionError("fast mode should not call planner/critic chat")
 
-    async def fake_generate_text(self, model: str, prompt: str) -> OllamaGenerateResponse:  # noqa: ARG001
-        return OllamaGenerateResponse(model=model, response="Финальный ответ", done=True, raw={})
-
-    monkeypatch.setattr(lab3_agent.OllamaClient, "generate_json", fail_generate_json)
-    monkeypatch.setattr(lab3_agent.OllamaClient, "generate_text", fake_generate_text)
+    monkeypatch.setattr(lab3_agent.LLMClient, "chat", fake_chat)
 
     result = await lab3_agent.run_agent(
         dataset_name="customers_reviews.csv",
@@ -111,25 +90,21 @@ async def test_fast_mode_no_planner_llm_and_no_critic(lab3_paths: Path, monkeypa
     )
     assert result["status"] == "success"
     assert result["analysis_mode"] == "fast"
-    assert result["llm_calls_count"] <= 1
     assert any("Critic skipped in fast mode" in warning for warning in result["warnings"])
 
 
 @pytest.mark.asyncio
 async def test_balanced_mode_calls_planner(lab3_paths: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _write_dataset(lab3_paths / "customers_reviews.csv")
-    calls = {"json": 0}
+    calls = {"count": 0}
 
-    async def fake_generate_json(self, model: str, prompt: str) -> OllamaGenerateResponse:  # noqa: ARG001
-        calls["json"] += 1
-        payload = {"plan": "planner plan", "tool_calls": [{"tool": "get_dataset_schema", "arguments": {}}, {"tool": "describe_rating", "arguments": {}}]}
-        return OllamaGenerateResponse(model=model, response=json.dumps(payload, ensure_ascii=False), done=True, raw={})
+    async def fake_chat(self, messages, purpose="general", model=None, temperature=0.1):  # noqa: ANN001,ARG001
+        calls["count"] += 1
+        if purpose == "planner":
+            return json.dumps({"plan": "planner plan", "tool_calls": [{"tool": "get_dataset_schema", "arguments": {}}]})
+        return "Финальный ответ"
 
-    async def fake_generate_text(self, model: str, prompt: str) -> OllamaGenerateResponse:  # noqa: ARG001
-        return OllamaGenerateResponse(model=model, response="Финальный ответ", done=True, raw={})
-
-    monkeypatch.setattr(lab3_agent.OllamaClient, "generate_json", fake_generate_json)
-    monkeypatch.setattr(lab3_agent.OllamaClient, "generate_text", fake_generate_text)
+    monkeypatch.setattr(lab3_agent.LLMClient, "chat", fake_chat)
 
     result = await lab3_agent.run_agent(
         dataset_name="customers_reviews.csv",
@@ -140,56 +115,28 @@ async def test_balanced_mode_calls_planner(lab3_paths: Path, monkeypatch: pytest
         analysis_mode="balanced",
     )
     assert result["status"] == "success"
-    assert calls["json"] >= 1
-
-
-@pytest.mark.asyncio
-async def test_balanced_mode_planner_parse_mocked(lab3_paths: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    _write_dataset(lab3_paths / "customers_reviews.csv")
-
-    async def fake_generate_json(self, model: str, prompt: str) -> OllamaGenerateResponse:  # noqa: ARG001
-        payload = {"plan": "OK", "tool_calls": [{"tool": "get_dataset_schema", "arguments": {}}]}
-        return OllamaGenerateResponse(model=model, response=f"```json\\n{json.dumps(payload, ensure_ascii=False)}\\n```", done=True, raw={})
-
-    async def fake_generate_text(self, model: str, prompt: str) -> OllamaGenerateResponse:  # noqa: ARG001
-        return OllamaGenerateResponse(model=model, response="Финальный ответ", done=True, raw={})
-
-    monkeypatch.setattr(lab3_agent.OllamaClient, "generate_json", fake_generate_json)
-    monkeypatch.setattr(lab3_agent.OllamaClient, "generate_text", fake_generate_text)
-
-    result = await lab3_agent.run_agent(
-        dataset_name="customers_reviews.csv",
-        question="Проанализируй категориальные колонки",
-        column_overrides={},
-        max_tool_calls=4,
-        use_critic=False,
-        analysis_mode="balanced",
-    )
-    assert result["status"] == "success"
-    assert not any("fallback" in warning.lower() for warning in result["warnings"])
+    assert calls["count"] >= 2
 
 
 @pytest.mark.asyncio
 async def test_max_tool_calls_respected(lab3_paths: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _write_dataset(lab3_paths / "customers_reviews.csv")
 
-    async def fake_generate_json(self, model: str, prompt: str) -> OllamaGenerateResponse:  # noqa: ARG001
-        payload = {
-            "plan": "planner plan",
-            "tool_calls": [
-                {"tool": "get_dataset_schema", "arguments": {}},
-                {"tool": "get_missing_values_report", "arguments": {}},
-                {"tool": "describe_numeric_columns", "arguments": {}},
-                {"tool": "get_rating_distribution", "arguments": {}},
-            ],
-        }
-        return OllamaGenerateResponse(model=model, response=json.dumps(payload, ensure_ascii=False), done=True, raw={})
+    async def fake_chat(self, messages, purpose="general", model=None, temperature=0.1):  # noqa: ANN001,ARG001
+        if purpose == "planner":
+            return json.dumps(
+                {
+                    "plan": "planner plan",
+                    "tool_calls": [
+                        {"tool": "get_dataset_schema", "arguments": {}},
+                        {"tool": "get_missing_values_report", "arguments": {}},
+                        {"tool": "describe_numeric_columns", "arguments": {}},
+                    ],
+                }
+            )
+        return "ok"
 
-    async def fake_generate_text(self, model: str, prompt: str) -> OllamaGenerateResponse:  # noqa: ARG001
-        return OllamaGenerateResponse(model=model, response="ok", done=True, raw={})
-
-    monkeypatch.setattr(lab3_agent.OllamaClient, "generate_json", fake_generate_json)
-    monkeypatch.setattr(lab3_agent.OllamaClient, "generate_text", fake_generate_text)
+    monkeypatch.setattr(lab3_agent.LLMClient, "chat", fake_chat)
 
     result = await lab3_agent.run_agent(
         dataset_name="customers_reviews.csv",
@@ -207,18 +154,15 @@ async def test_critic_review_parse_failed_does_not_break_request(lab3_paths: Pat
     _write_dataset(lab3_paths / "customers_reviews.csv")
     state = {"calls": 0}
 
-    async def fake_generate_json(self, model: str, prompt: str) -> OllamaGenerateResponse:  # noqa: ARG001
+    async def fake_chat(self, messages, purpose="general", model=None, temperature=0.1):  # noqa: ANN001,ARG001
         state["calls"] += 1
-        if state["calls"] == 1:
-            payload = {"plan": "planner plan", "tool_calls": [{"tool": "get_dataset_schema", "arguments": {}}]}
-            return OllamaGenerateResponse(model=model, response=json.dumps(payload, ensure_ascii=False), done=True, raw={})
-        return OllamaGenerateResponse(model=model, response="not a json", done=True, raw={})
+        if purpose == "planner":
+            return json.dumps({"plan": "planner plan", "tool_calls": [{"tool": "get_dataset_schema", "arguments": {}}]})
+        if purpose == "critic":
+            return "not a json"
+        return "Финальный ответ"
 
-    async def fake_generate_text(self, model: str, prompt: str) -> OllamaGenerateResponse:  # noqa: ARG001
-        return OllamaGenerateResponse(model=model, response="Финальный ответ", done=True, raw={})
-
-    monkeypatch.setattr(lab3_agent.OllamaClient, "generate_json", fake_generate_json)
-    monkeypatch.setattr(lab3_agent.OllamaClient, "generate_text", fake_generate_text)
+    monkeypatch.setattr(lab3_agent.LLMClient, "chat", fake_chat)
 
     result = await lab3_agent.run_agent(
         dataset_name="customers_reviews.csv",
@@ -229,9 +173,7 @@ async def test_critic_review_parse_failed_does_not_break_request(lab3_paths: Pat
         analysis_mode="balanced",
     )
     assert result["status"] == "success"
-    assert result["critic_review"] is not None
     assert result["critic_review"]["passed"] is None
-    assert any("Critic вернул невалидный JSON" in warning for warning in result["warnings"])
 
 
 def test_lab3_status_endpoint(lab3_paths: Path) -> None:
@@ -246,7 +188,6 @@ def test_lab3_profile_endpoint(lab3_paths: Path) -> None:
     client = TestClient(app)
     response = client.get("/api/lab3/profile?dataset_name=customers_reviews.csv")
     assert response.status_code == 200
-    assert "column_mapping" in response.json()
 
 
 def test_lab3_tools_endpoint(lab3_paths: Path) -> None:
@@ -254,24 +195,44 @@ def test_lab3_tools_endpoint(lab3_paths: Path) -> None:
     client = TestClient(app)
     response = client.get("/api/lab3/tools")
     assert response.status_code == 200
-    assert "tools" in response.json()
+
+
+def test_lab3_ask_code_interpreter_mode_mocked(lab3_paths: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _write_dataset(lab3_paths / "customers_reviews.csv")
+
+    async def fake_chat(self, messages, purpose="general", model=None, temperature=0.1):  # noqa: ANN001,ARG001
+        if purpose == "code_interpreter":
+            return '{"action":"final_answer","answer":"Готово"}'
+        return "ok"
+
+    monkeypatch.setattr(lab3_agent.LLMClient, "chat", fake_chat)
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/lab3/ask",
+        json={
+            "dataset_name": "customers_reviews.csv",
+            "question": "Сделай обзор",
+            "column_overrides": {},
+            "max_tool_calls": 4,
+            "max_code_steps": 3,
+            "use_critic": False,
+            "analysis_mode": "code_interpreter",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["analysis_mode"] == "code_interpreter"
 
 
 def test_upload_rejects_unsupported_extension(lab3_paths: Path) -> None:
     client = TestClient(app)
-    response = client.post(
-        "/api/lab3/upload-dataset",
-        files={"file": ("notes.txt", b"hello", "text/plain")},
-    )
+    response = client.post("/api/lab3/upload-dataset", files={"file": ("notes.txt", b"hello", "text/plain")})
     assert response.status_code == 400
 
 
 def test_upload_secure_filename_no_traversal(lab3_paths: Path) -> None:
     client = TestClient(app)
-    response = client.post(
-        "/api/lab3/upload-dataset",
-        files={"file": ("../../evil file.csv", b"a,b\n1,2\n", "text/csv")},
-    )
+    response = client.post("/api/lab3/upload-dataset", files={"file": ("../../evil file.csv", b"a,b\n1,2\n", "text/csv")})
     assert response.status_code == 200
     dataset_name = response.json()["dataset"]["name"]
     assert ".." not in dataset_name

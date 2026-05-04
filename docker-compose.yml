@@ -2,6 +2,8 @@ services:
   backend:
     build: ./backend
     container_name: llm-analytics-backend
+    env_file:
+      - .env
     ports:
       - "8003:8000"
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -10,6 +12,10 @@ services:
       - ./datasets:/datasets
       - ./outputs:/outputs
     environment:
+      LLM_PROVIDER: ${LLM_PROVIDER:-openrouter}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-qwen/qwen3-next-80b-a3b-instruct:free}
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_MODEL: qwen3:8b
       LAB2_DATASET_FILENAME: customer_reviews
