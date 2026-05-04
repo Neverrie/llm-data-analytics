@@ -78,6 +78,7 @@ class Lab2StatusResponse(BaseModel):
     dataset: str
     model: str
     configured: bool
+    batching: str
     pipeline: list[str]
     available_endpoints: list[str]
 

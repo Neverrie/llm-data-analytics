@@ -34,6 +34,7 @@ def lab2_status() -> Lab2StatusResponse:
         dataset=dataset_file,
         model=llm.resolve_model(),
         configured=llm.is_configured(),
+        batching="automatic",
         pipeline=[
             "read dataset",
             "filter reviews",

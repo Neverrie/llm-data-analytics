@@ -7,7 +7,7 @@ import pytest
 
 from app.config import settings
 from app.services import lab3_code_interpreter
-from app.services.llm_client import LLMClient
+from app.services.llm_client import LLMClient, LLMClientError
 
 
 @pytest.fixture
@@ -68,3 +68,64 @@ async def test_code_interpreter_final_answer(ci_paths: None, monkeypatch: pytest
         max_steps=4,
     )
     assert result["final_answer"] == "Итоговый ответ"
+
+
+@pytest.mark.asyncio
+async def test_code_interpreter_prompt_forces_json_content(ci_paths: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    captured = {"system": ""}
+
+    async def fake_chat(self, messages, purpose="general", model=None, temperature=0.1):  # noqa: ANN001
+        captured["system"] = messages[0]["content"]
+        return '{"action":"final_answer","answer":"ok"}'
+
+    monkeypatch.setattr(LLMClient, "chat", fake_chat)
+    await lab3_code_interpreter.run_code_interpreter_agent(
+        dataset_name="demo.csv",
+        question="overview",
+        column_mapping={"roles": {}},
+        profile={"columns": ["x", "y"]},
+        session_context=None,
+        max_steps=2,
+    )
+    assert "Return ONLY a JSON object" in captured["system"]
+    assert "Do not use tool_calls" in captured["system"]
+
+
+@pytest.mark.asyncio
+async def test_code_interpreter_handles_missing_text_content_error(ci_paths: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def fake_chat(self, messages, purpose="general", model=None, temperature=0.1):  # noqa: ANN001
+        raise LLMClientError("OpenRouter response did not contain usable text. Preview: {}")
+
+    monkeypatch.setattr(LLMClient, "chat", fake_chat)
+    with pytest.raises(Exception) as exc:
+        await lab3_code_interpreter.run_code_interpreter_agent(
+            dataset_name="demo.csv",
+            question="overview",
+            column_mapping={"roles": {}},
+            profile={"columns": ["x", "y"]},
+            session_context=None,
+            max_steps=2,
+        )
+    assert "нестандартном формате" in str(exc.value).lower() or "usable text" in str(exc.value).lower()
+
+
+@pytest.mark.asyncio
+async def test_code_interpreter_uses_openrouter_model_not_ollama(ci_paths: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "llm_provider", "openrouter")
+    monkeypatch.setattr(settings, "openrouter_model", "openai/gpt-oss-120b:free")
+    models: list[str | None] = []
+
+    async def fake_chat(self, messages, purpose="general", model=None, temperature=0.1):  # noqa: ANN001
+        models.append(model)
+        return '{"action":"final_answer","answer":"ok"}'
+
+    monkeypatch.setattr(LLMClient, "chat", fake_chat)
+    await lab3_code_interpreter.run_code_interpreter_agent(
+        dataset_name="demo.csv",
+        question="overview",
+        column_mapping={"roles": {}},
+        profile={"columns": ["x", "y"]},
+        session_context=None,
+        max_steps=2,
+    )
+    assert models and all(model == "openai/gpt-oss-120b:free" for model in models if model)

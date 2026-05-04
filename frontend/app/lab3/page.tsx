@@ -49,6 +49,16 @@ export default function Lab3Page() {
   const [result, setResult] = useState<AskResult | null>(null);
   const [tab, setTab] = useState<ResultTab>("answer");
 
+  const getFriendlyError = (message: string) => {
+    if (message.toLowerCase().includes("did not contain usable text")) {
+      return "Модель вернула ответ в нестандартном формате. Попробуйте повторить запрос или сменить модель в .env.";
+    }
+    if (message.toLowerCase().includes("at capacity")) {
+      return "Free provider сейчас перегружен. Повторите запрос или используйте fallback-модель.";
+    }
+    return message;
+  };
+
   const fetchInitial = async () => {
     const [ds, ts] = await Promise.all([
       api.getLab3Datasets<{ datasets: DatasetItem[] }>(),
@@ -164,7 +174,13 @@ export default function Lab3Page() {
         <h2 className="app-section-title">Вопрос</h2>
         <textarea className="app-textarea min-h-24" value={question} onChange={(e) => setQuestion(e.target.value)} />
         <button className="app-button app-button-primary" onClick={runAgent} disabled={loading}>{loading ? "Запуск..." : "Отправить агенту"}</button>
-        {error ? <p className="text-sm" style={{ color: "var(--danger)" }}>{error}</p> : null}
+        {!result ? <p className="text-xs app-muted">В этом режиме модель сама пишет Python-код, backend выполняет его в sandbox и возвращает результат модели.</p> : null}
+        {error ? (
+          <div className="app-card p-4" style={{ borderColor: "color-mix(in srgb, var(--danger) 45%, var(--border))", background: "color-mix(in srgb, var(--danger) 8%, var(--surface))" }}>
+            <p className="font-semibold" style={{ color: "var(--danger)" }}>Не удалось получить ответ от OpenRouter.</p>
+            <p className="text-sm mt-1">{getFriendlyError(error)}</p>
+          </div>
+        ) : null}
       </section>
 
       {result ? (

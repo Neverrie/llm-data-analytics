@@ -121,6 +121,7 @@ def test_lab2_status_endpoint(temp_paths: dict[str, Path]) -> None:
     response = client.get("/api/lab2/status")
     assert response.status_code == 200
     assert response.json()["provider"] in {"openrouter", "ollama"}
+    assert response.json()["batching"] == "automatic"
 
 
 def test_lab2_sample_data_endpoint(temp_paths: dict[str, Path]) -> None:
@@ -148,6 +149,7 @@ async def test_lab2_uses_unified_llm_client_mocked(temp_paths: dict[str, Path], 
     response = await lab2_service.run_pipeline(lab2_service.Lab2RunRequest(limit=5, batch_size=2, min_score=None, max_score=None))
     assert called["value"] is True
     assert response.rows_processed > 0
+    assert isinstance(response.results, list) and len(response.results) > 0
 
 
 @pytest.mark.asyncio

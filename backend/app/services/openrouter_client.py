@@ -28,6 +28,96 @@ class OpenRouterClient:
             raise OpenRouterClientError("OPENROUTER_API_KEY is not configured. Create .env from .env.example.")
         return key
 
+    @staticmethod
+    def make_openrouter_response_preview(response_json: dict[str, Any]) -> dict[str, Any]:
+        choices = response_json.get("choices")
+        choice0 = choices[0] if isinstance(choices, list) and choices else {}
+        if not isinstance(choice0, dict):
+            choice0 = {}
+        message = choice0.get("message")
+        if not isinstance(message, dict):
+            message = {}
+
+        content = message.get("content")
+        content_type = "none"
+        content_preview: str | None = None
+        if isinstance(content, str):
+            content_type = "str"
+            content_preview = content[:300]
+        elif isinstance(content, list):
+            content_type = "list"
+            content_preview = json.dumps(content[:2], ensure_ascii=False)[:300]
+
+        return {
+            "top_level_keys": list(response_json.keys()),
+            "choice_keys": list(choice0.keys()),
+            "message_keys": list(message.keys()),
+            "finish_reason": choice0.get("finish_reason"),
+            "model": response_json.get("model"),
+            "content_type": content_type,
+            "content_preview": content_preview,
+        }
+
+    @staticmethod
+    def _extract_text_from_parts(parts: list[Any]) -> str:
+        chunks: list[str] = []
+        for item in parts:
+            if isinstance(item, str) and item.strip():
+                chunks.append(item)
+                continue
+            if not isinstance(item, dict):
+                continue
+            for key in ("text", "content", "output_text", "value"):
+                value = item.get(key)
+                if isinstance(value, str) and value.strip():
+                    chunks.append(value)
+                    break
+        return "\n".join(chunks).strip()
+
+    @classmethod
+    def extract_openrouter_text(cls, response_json: dict[str, Any]) -> str:
+        choices = response_json.get("choices")
+        if not isinstance(choices, list) or not choices:
+            raise OpenRouterClientError("OpenRouter response does not contain choices.")
+
+        choice0 = choices[0]
+        if not isinstance(choice0, dict):
+            raise OpenRouterClientError("OpenRouter response choice is not an object.")
+
+        message = choice0.get("message") if isinstance(choice0.get("message"), dict) else {}
+
+        content = message.get("content")
+        if isinstance(content, str) and content.strip():
+            return content.strip()
+        if isinstance(content, list):
+            extracted = cls._extract_text_from_parts(content)
+            if extracted:
+                return extracted
+
+        for key in ("reasoning", "reasoning_content"):
+            value = message.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+            if isinstance(value, list):
+                extracted = cls._extract_text_from_parts(value)
+                if extracted:
+                    return extracted
+
+        for source in (choice0, response_json):
+            reasoning = source.get("reasoning") if isinstance(source, dict) else None
+            if isinstance(reasoning, str) and reasoning.strip():
+                return reasoning.strip()
+            if isinstance(reasoning, list):
+                extracted = cls._extract_text_from_parts(reasoning)
+                if extracted:
+                    return extracted
+
+        if message.get("tool_calls") or message.get("function_call"):
+            raise OpenRouterClientError("OpenRouter returned tool_calls instead of text content.")
+
+        preview = cls.make_openrouter_response_preview(response_json)
+        raise OpenRouterClientError(f"OpenRouter response did not contain usable text. Preview: {json.dumps(preview, ensure_ascii=False)}")
+
     async def chat(
         self,
         messages: list[dict[str, str]],
@@ -37,8 +127,9 @@ class OpenRouterClient:
         timeout: float = 120,
     ) -> dict[str, Any]:
         api_key = self._require_key()
+        used_model = model or self.default_model
         payload: dict[str, Any] = {
-            "model": model or self.default_model,
+            "model": used_model,
             "messages": messages,
             "temperature": temperature,
         }
@@ -72,29 +163,20 @@ class OpenRouterClient:
             raise OpenRouterClientError(f"OpenRouter request failed with status {response.status_code}: {text_preview}")
 
         try:
-            data = response.json()
+            response_json = response.json()
         except ValueError as exc:
             raise OpenRouterClientError("OpenRouter returned non-JSON payload.") from exc
 
-        return data
-
-    @staticmethod
-    def _extract_content(response_json: dict[str, Any]) -> str:
-        choices = response_json.get("choices")
-        if not isinstance(choices, list) or not choices:
-            raise OpenRouterClientError("OpenRouter response does not contain choices.")
-        message = choices[0].get("message", {})
-        content = message.get("content")
-        if isinstance(content, str):
-            return content
-        if isinstance(content, list):
-            chunks: list[str] = []
-            for item in content:
-                if isinstance(item, dict) and isinstance(item.get("text"), str):
-                    chunks.append(item["text"])
-            if chunks:
-                return "\n".join(chunks)
-        raise OpenRouterClientError("OpenRouter response does not contain text content.")
+        content = self.extract_openrouter_text(response_json)
+        preview = self.make_openrouter_response_preview(response_json)
+        return {
+            "content": content,
+            "model": used_model,
+            "provider": "openrouter",
+            "attempts": [{"model": used_model, "status": "ok"}],
+            "raw_preview": preview,
+            "raw": response_json,
+        }
 
     async def chat_json(
         self,
@@ -103,8 +185,8 @@ class OpenRouterClient:
         temperature: float = 0.1,
         timeout: float = 120,
     ) -> dict[str, Any]:
-        response_json = await self.chat(messages=messages, model=model, temperature=temperature, timeout=timeout)
-        content = self._extract_content(response_json).strip()
+        response_payload = await self.chat(messages=messages, model=model, temperature=temperature, timeout=timeout)
+        content = str(response_payload.get("content", "")).strip()
 
         fenced = re.search(r"```json\s*(.*?)\s*```", content, flags=re.IGNORECASE | re.DOTALL)
         if fenced:

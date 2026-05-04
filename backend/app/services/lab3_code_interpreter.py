@@ -61,15 +61,13 @@ async def run_code_interpreter_agent(
     model = llm.resolve_model()
 
     system_prompt = (
-        "Ты аналитик данных в режиме code interpreter.\n"
-        "Работай через Python-код.\n"
-        "У тебя есть DataFrame df и output_dir.\n"
-        "Запрещено: os, subprocess, requests, socket, shell-команды, произвольный доступ к файлам.\n"
-        "Отвечай только JSON-объектом.\n"
-        "Для запуска кода формат:\n"
-        '{"action":"run_code","code":"print(df.shape)"}\n'
-        "Для финального ответа формат:\n"
-        '{"action":"final_answer","answer":"..."}\n'
+        "Ты аналитик данных в режиме code interpreter.\\n"
+        "Работай через Python-код. У тебя есть DataFrame df и output_dir.\\n"
+        "Запрещено: os, subprocess, requests, socket, shell-команды, произвольный доступ к файлам.\\n"
+        "Return ONLY a JSON object. Do not use markdown. Do not use tool_calls. Do not use function calling. "
+        "Put your JSON in message content.\\n"
+        "Для запуска кода формат: {\"action\":\"run_code\",\"code\":\"print(df.shape)\"}\\n"
+        "Для финального ответа формат: {\"action\":\"final_answer\",\"answer\":\"...\"}\\n"
         "Пиши финальный answer на русском."
     )
 
@@ -78,9 +76,9 @@ async def run_code_interpreter_agent(
         {
             "role": "user",
             "content": (
-                f"Question: {question}\n"
-                f"Dataset profile: {json.dumps(profile, ensure_ascii=False)}\n"
-                f"Column mapping: {json.dumps(column_mapping, ensure_ascii=False)}\n"
+                f"Question: {question}\\n"
+                f"Dataset profile: {json.dumps(profile, ensure_ascii=False)}\\n"
+                f"Column mapping: {json.dumps(column_mapping, ensure_ascii=False)}\\n"
                 f"Session context: {session_context or 'none'}"
             ),
         },
@@ -91,20 +89,50 @@ async def run_code_interpreter_agent(
     llm_calls = 0
     all_files: dict[str, dict[str, Any]] = {}
     final_answer = ""
+    raw_previews: list[dict[str, Any]] = []
 
     for step_index in range(1, max_steps + 1):
-        try:
-            raw = await llm.chat(messages=messages, purpose="code_interpreter", model=model, temperature=0.1)
-            llm_calls += 1
-        except LLMClientError as exc:
-            raise Lab2PipelineError(str(exc), status_code=503) from exc
+        raw: str | None = None
+        for repair_attempt in range(0, 3):
+            try:
+                raw = await llm.chat(messages=messages, purpose="code_interpreter", model=model, temperature=0.1)
+                llm_calls += 1
+                break
+            except LLMClientError as exc:
+                msg = str(exc)
+                if "did not contain usable text" in msg.lower():
+                    raise Lab2PipelineError(
+                        f"OpenRouter вернул ответ в нестандартном формате. {msg}",
+                        status_code=502,
+                    ) from exc
+                raise Lab2PipelineError(msg, status_code=503) from exc
 
-        try:
-            action = _parse_action(raw)
-        except Exception as exc:
-            messages.append({"role": "user", "content": f"Invalid JSON action: {exc}. Return valid JSON only."})
-            warnings.append("Model returned invalid JSON action; requested retry.")
-            continue
+        if raw is None:
+            raise Lab2PipelineError("Code interpreter failed to receive response from model.", status_code=503)
+
+        action: dict[str, Any] | None = None
+        for repair_attempt in range(0, 3):
+            try:
+                action = _parse_action(raw)
+                break
+            except Exception as exc:
+                if repair_attempt >= 2:
+                    raise Lab2PipelineError(f"Code interpreter JSON parse failed after retries: {exc}", status_code=502) from exc
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": "Your previous response was not valid JSON. Return ONLY valid JSON in message content.",
+                    }
+                )
+                warnings.append("Модель вернула невалидный JSON, запрошен повтор.")
+                try:
+                    raw = await llm.chat(messages=messages, purpose="code_interpreter", model=model, temperature=0.1)
+                    llm_calls += 1
+                except LLMClientError as llm_exc:
+                    raise Lab2PipelineError(str(llm_exc), status_code=503) from llm_exc
+
+        if action is None:
+            raise Lab2PipelineError("Code interpreter action is empty.", status_code=502)
 
         action_name = str(action.get("action", "")).strip()
         if action_name == "run_code":
@@ -159,6 +187,7 @@ async def run_code_interpreter_agent(
         "elapsed_seconds": round(time.perf_counter() - started, 3),
         "llm_calls_count": llm_calls,
         "warnings": warnings,
+        "raw_previews": raw_previews,
     }
     trace_path = _save_run_trace(run_id, result)
     result_json_path, report_path = _save_lab3_outputs(result, final_answer)

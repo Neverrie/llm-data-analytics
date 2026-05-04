@@ -63,7 +63,7 @@ class LLMClient:
                 if want_json:
                     return await client.chat_json(messages=messages, model=current_model, temperature=temperature)
                 payload = await client.chat(messages=messages, model=current_model, temperature=temperature)
-                return OpenRouterClient._extract_content(payload).strip()
+                return str(payload.get("content", "")).strip()
             except OpenRouterClientError as exc:
                 last_error = exc
                 if "authentication failed" in str(exc).lower():

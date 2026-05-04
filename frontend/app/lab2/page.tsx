@@ -9,6 +9,7 @@ type Lab2Status = {
   model: string;
   dataset: string;
   configured: boolean;
+  batching?: string;
 };
 
 type SampleReview = {
@@ -41,12 +42,19 @@ type Lab2RunResponse = {
   warnings: string[];
   results?: ReviewClassification[];
   data?: { results?: ReviewClassification[] };
+  result?: { results?: ReviewClassification[] };
+  raw?: { results?: ReviewClassification[] };
 };
 
 const MAX_LIMIT = 200;
 
 function truncate(text: string, maxLength = 130): string {
   return text.length <= maxLength ? text : `${text.slice(0, maxLength)}...`;
+}
+
+function getResultsFromLab2Response(response: Lab2RunResponse | null): ReviewClassification[] {
+  if (!response) return [];
+  return response.results ?? response.data?.results ?? response.result?.results ?? response.raw?.results ?? [];
 }
 
 export default function Lab2Page() {
@@ -57,7 +65,6 @@ export default function Lab2Page() {
   const [limit, setLimit] = useState(20);
   const [minScore, setMinScore] = useState("");
   const [maxScore, setMaxScore] = useState("");
-  const [batchSize, setBatchSize] = useState("");
   const [processAll, setProcessAll] = useState(false);
 
   const [loading, setLoading] = useState(false);
@@ -81,14 +88,7 @@ export default function Lab2Page() {
     return Number.isNaN(n) ? null : n;
   }, [maxScore]);
 
-  const parsedBatch = useMemo(() => {
-    const v = batchSize.trim();
-    if (!v) return null;
-    const n = Number(v);
-    return Number.isNaN(n) ? null : n;
-  }, [batchSize]);
-
-  const resultRows = runResult?.results ?? runResult?.data?.results ?? [];
+  const resultRows = getResultsFromLab2Response(runResult);
 
   const loadSample = async () => {
     setLoading(true);
@@ -111,7 +111,6 @@ export default function Lab2Page() {
         limit,
         min_score: parsedMin,
         max_score: parsedMax,
-        batch_size: parsedBatch,
         process_all: processAll,
       };
       const data = await api.runLab2Pipeline<Lab2RunResponse, typeof payload>(payload);
@@ -126,7 +125,7 @@ export default function Lab2Page() {
   return (
     <div className="space-y-6">
       <SectionCard title="Лаба 2 — API Pipeline">
-        <p>Классификация отзывов Uber через OpenRouter. Backend читает датасет, обрабатывает батчами и сохраняет JSON в outputs.</p>
+        <p>Классификация отзывов Uber через OpenRouter. Backend сам разбивает данные на батчи при необходимости.</p>
       </SectionCard>
 
       <section className="app-card p-6 space-y-4">
@@ -138,13 +137,7 @@ export default function Lab2Page() {
         </div>
 
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={processAll} onChange={(e) => setProcessAll(e.target.checked)} /> Обработать максимум строк</label>
-
-        <details className="app-expansion">
-          <summary>Расширенные настройки</summary>
-          <div className="p-3">
-            <label className="space-y-1 block"><span className="text-sm">batch_size (опционально)</span><input className="app-input" type="number" min={1} max={200} value={batchSize} onChange={(e) => setBatchSize(e.target.value)} /></label>
-          </div>
-        </details>
+        <p className="text-xs app-muted">Backend сам разобьёт данные на батчи при необходимости.</p>
 
         <div className="flex flex-wrap gap-2">
           <button className="app-button app-button-secondary" onClick={() => { setLimit(20); setMinScore("1"); setMaxScore("2"); }}>Demo на негативных отзывах</button>
@@ -152,7 +145,7 @@ export default function Lab2Page() {
           <button className="app-button app-button-primary" onClick={runPipeline} disabled={loading}>Запустить pipeline</button>
         </div>
 
-        {status ? <p className="text-sm app-muted">Provider: <b>{status.provider}</b> · Model: <b>{status.model}</b> · Dataset: <b>{status.dataset}</b></p> : null}
+        {status ? <p className="text-sm app-muted">Provider: <b>{status.provider}</b> · Model: <b>{status.model}</b> · Dataset: <b>{status.dataset}</b> · Batching: <b>{status.batching ?? "automatic"}</b></p> : null}
         {status && !status.configured ? <p className="text-sm" style={{ color: "var(--danger)" }}>OpenRouter API key не настроен. Создайте .env на основе .env.example.</p> : null}
         {error ? <p className="text-sm" style={{ color: "var(--danger)" }}>{error}</p> : null}
       </section>
@@ -161,6 +154,7 @@ export default function Lab2Page() {
         <section className="app-card p-6 space-y-3">
           <h2 className="app-section-title">Sample data</h2>
           <div className="overflow-x-auto"><table className="app-table"><thead><tr><th>row_id</th><th>score</th><th>thumbs_up_count</th><th>at</th><th>content</th></tr></thead><tbody>{sampleData.sample.map((r) => <tr key={r.row_id}><td>{r.row_id}</td><td>{r.score ?? "-"}</td><td>{r.thumbs_up_count ?? "-"}</td><td>{r.at ?? "-"}</td><td>{truncate(r.content)}</td></tr>)}</tbody></table></div>
+          <details className="app-expansion"><summary>Raw sample JSON</summary><pre className="app-code-block m-3">{JSON.stringify(sampleData, null, 2)}</pre></details>
         </section>
       ) : null}
 
@@ -170,8 +164,8 @@ export default function Lab2Page() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
             <p>provider: {runResult.provider}</p><p>model: {runResult.model}</p>
             <p>dataset: {runResult.dataset}</p><p>rows_requested: {runResult.rows_requested}</p>
-            <p>rows_processed: {runResult.rows_processed}</p><p>batch_size: {runResult.batch_size}</p>
-            <p>batches_processed: {runResult.batches_processed}</p><p>output_file: {runResult.output_file}</p>
+            <p>rows_processed: {runResult.rows_processed}</p><p>batches_processed: {runResult.batches_processed}</p>
+            <p>output_file: {runResult.output_file}</p><p>batch_size (internal): {runResult.batch_size}</p>
           </div>
 
           {runResult.warnings?.length ? <div className="text-sm app-muted">{runResult.warnings.map((w) => <p key={w}>{w}</p>)}</div> : null}
