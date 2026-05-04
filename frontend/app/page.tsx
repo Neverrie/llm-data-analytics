@@ -7,6 +7,7 @@ import { ArtifactExplorer } from "@/components/workspace/ArtifactExplorer";
 import { ChatPanel } from "@/components/workspace/ChatPanel";
 import { DashboardPanel } from "@/components/workspace/DashboardPanel";
 import { DatasetExplorer } from "@/components/workspace/DatasetExplorer";
+import { DatasetSwitcher } from "@/components/workspace/DatasetSwitcher";
 import { EmptyState } from "@/components/workspace/EmptyState";
 import { ErrorBanner } from "@/components/workspace/ErrorBanner";
 import { IconRail } from "@/components/workspace/IconRail";
@@ -38,6 +39,7 @@ export default function HomePage() {
   const [pipelineForm, setPipelineForm] = useState({ limit: 20, min_score: "", max_score: "" });
   const [datasetPreview, setDatasetPreview] = useState<any>(null);
   const [datasetProfile, setDatasetProfile] = useState<any>(null);
+  const [datasetNotice, setDatasetNotice] = useState("");
 
   const chatThreadRef = useRef<HTMLDivElement | null>(null);
 
@@ -114,6 +116,22 @@ export default function HomePage() {
       setActiveSection("agent");
     } catch (e) {
       setError((e as Error).message);
+    }
+  }
+
+  async function updateChatDatasetContext(datasetId: string) {
+    setSelectedDatasetId(datasetId);
+    const ds = datasets.find((d) => d.id === datasetId);
+    if (!ds) return;
+    if (selectedChatId) {
+      try {
+        await api.updateChat(selectedChatId, { dataset_name: ds.name });
+        await refreshChats();
+      } catch {
+        // Ignore PATCH failure, local context still updated.
+      }
+      setDatasetNotice(`Датасет для следующих запросов: ${ds.name}`);
+      setTimeout(() => setDatasetNotice(""), 2400);
     }
   }
 
@@ -227,13 +245,13 @@ export default function HomePage() {
   const title = activeSection === "dashboard"
     ? "Dashboard"
     : activeSection === "agent"
-      ? "Agent Workspace"
+      ? "Агент"
       : activeSection === "pipeline"
         ? "Lab 2 Pipeline"
         : activeSection === "datasets"
-          ? "Datasets"
+          ? "Датасеты"
           : activeSection === "artifacts"
-            ? "Artifacts"
+            ? "Артефакты"
             : "Settings";
 
   const subtitle = activeSection === "dashboard"
@@ -281,7 +299,7 @@ export default function HomePage() {
             onOpenPipeline={() => setActiveSection("pipeline")}
             datasets={datasets}
             selectedDatasetId={selectedDatasetId}
-            onUseDataset={setSelectedDatasetId}
+            onUseDataset={updateChatDatasetContext}
             onPreviewDataset={openDatasetPreview}
             onUploadDataset={uploadDataset}
             artifacts={artifacts}
@@ -297,6 +315,7 @@ export default function HomePage() {
                 datasets={datasets}
                 artifacts={artifacts}
                 onOpenChat={selectChat}
+                onCreateChat={createChat}
                 onOpenPipeline={() => setActiveSection("pipeline")}
                 onOpenDatasets={() => setActiveSection("datasets")}
                 onOpenArtifacts={() => setActiveSection("artifacts")}
@@ -306,11 +325,17 @@ export default function HomePage() {
             {activeSection === "agent" ? (
               <>
                 <div className="context-strip">
-                  <span>Dataset: {selectedDataset?.name || "not selected"}</span>
-                  <button className="btn-ghost" onClick={() => setActiveSection("datasets")}>Change</button>
-                  <button className="btn-ghost" onClick={() => selectedDatasetId && openDatasetPreview(selectedDatasetId)}>Preview</button>
+                  <DatasetSwitcher
+                    datasets={datasets}
+                    selectedDatasetId={selectedDatasetId}
+                    onSelect={updateChatDatasetContext}
+                    onPreview={(id) => {
+                      if (!id) return;
+                      openDatasetPreview(id);
+                    }}
+                  />
                 </div>
-                <ChatPanel messages={messages} onSend={sendAgentMessage} loading={loading} lab3Response={lab3Response} datasetName={selectedDataset?.name} />
+                <ChatPanel messages={messages} onSend={sendAgentMessage} loading={loading} lab3Response={lab3Response} datasetName={selectedDataset?.name} datasetNotice={datasetNotice} />
               </>
             ) : null}
 
@@ -321,7 +346,7 @@ export default function HomePage() {
               </>
             ) : null}
 
-            {activeSection === "datasets" ? <DatasetExplorer datasets={datasets} selected={selectedDatasetId} preview={datasetPreview} profile={datasetProfile} onSelect={openDatasetPreview} onUpload={uploadDataset} /> : null}
+            {activeSection === "datasets" ? <DatasetExplorer datasets={datasets} selected={selectedDatasetId} preview={datasetPreview} profile={datasetProfile} onSelect={openDatasetPreview} onUpload={uploadDataset} onUseInChat={(id) => { setActiveSection("agent"); updateChatDatasetContext(id); }} /> : null}
             {activeSection === "artifacts" ? <ArtifactExplorer items={artifacts} onSelect={setSelectedArtifactId} selected={selectedArtifact} /> : null}
             {activeSection === "settings" ? <EmptyState title="Settings" description={`${user.display_name} (${user.email})`} /> : null}
           </div>

@@ -15,17 +15,21 @@ export function ChatPanel({
   onSend,
   loading,
   lab3Response,
-  datasetName
+  datasetName,
+  datasetNotice
 }: {
   messages: ChatMessage[];
   onSend: (text: string) => void;
   loading: boolean;
   lab3Response: any;
   datasetName?: string;
+  datasetNotice?: string;
 }) {
-  const hasAssistantData = Boolean(lab3Response && (lab3Response.error || lab3Response.final_answer || (lab3Response.code_steps && lab3Response.code_steps.length)));
+  const hasAssistantMessage = messages.some((m) => m.role === "assistant");
+  const hasAssistantData = Boolean(hasAssistantMessage && lab3Response && (lab3Response.final_answer || (lab3Response.code_steps && lab3Response.code_steps.length)));
   return (
     <section className="main-panel chat-panel">
+      {datasetNotice ? <div className="dataset-notice">{datasetNotice}</div> : null}
       {!messages.length ? <EmptyChatState datasetName={datasetName} onPrompt={onSend} /> : <ChatThread messages={messages} />}
 
       {loading ? (
@@ -38,10 +42,10 @@ export function ChatPanel({
       {lab3Response?.error ? <article className="block-card"><strong>Ошибка</strong><pre className="code-pre error">{String(lab3Response.error)}</pre></article> : null}
       {lab3Response?.code_steps?.map((step: any, i: number) => <CodeBlockCard key={i} title={`Step ${i + 1}`} meta={`${step.status || "unknown"} · ${step.source || "llm"}`} code={step.code || ""} />)}
       {lab3Response?.code_steps?.map((step: any, i: number) => <ExecutionBlock key={`exec-${i}`} stdout={step.stdout} stderr={step.stderr} />)}
-      {lab3Response?.generated_files?.map((f: any, i: number) => <ArtifactPreviewCard key={i} title="Generated file" value={String(f?.path || f?.name || "unknown")} />)}
+      {lab3Response?.generated_files?.map((f: any, i: number) => <ArtifactPreviewCard key={i} title="Сгенерированный файл" value={String(f?.path || f?.name || "unknown")} />)}
 
       {hasAssistantData ? (
-        <details className="raw compact"><summary>Raw response</summary><pre>{JSON.stringify(lab3Response || {}, null, 2)}</pre></details>
+        <details className="raw compact"><summary>Технический ответ</summary><pre>{JSON.stringify(lab3Response || {}, null, 2)}</pre></details>
       ) : null}
       <ChatComposer onSend={onSend} loading={loading} />
     </section>

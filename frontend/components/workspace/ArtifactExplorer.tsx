@@ -82,8 +82,8 @@ export function ArtifactExplorer({
     <section className="main-panel artifacts-grid">
       <div className="artifact-list-wrap">
         <div className="explorer-toolbar">
-          <h3>Artifacts</h3>
-          <input className="small-input" placeholder="Search artifacts" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <h3>Артефакты</h3>
+          <input className="small-input" placeholder="Поиск артефактов" value={query} onChange={(e) => setQuery(e.target.value)} />
           <select className="small-input" value={kind} onChange={(e) => setKind(e.target.value)}>
             {kinds.map((k) => <option key={k} value={k}>{k}</option>)}
           </select>
@@ -98,13 +98,19 @@ export function ArtifactExplorer({
         </div>
       </div>
       <div className="artifact-preview">
-        {!selected ? <p className="muted">Выберите артефакт</p> : null}
+        {!selected ? <div className="empty-state"><h3>Выберите артефакт</h3><p>Откройте файл из списка слева, чтобы увидеть превью.</p></div> : null}
         {selected ? <h3>{selected.filename}</h3> : null}
         {preview.kind === "image" ? <img src={preview.url} alt={selected?.filename || "artifact"} /> : null}
         {preview.kind === "table" ? <DataTable columns={preview.columns} rows={preview.rows.slice(0, 30)} /> : null}
         {preview.kind === "json" ? <pre className="code-pre">{JSON.stringify(preview.value, null, 2)}</pre> : null}
         {preview.kind === "text" ? <pre className="code-pre">{preview.value}</pre> : null}
-        {selected ? <a className="btn-secondary" href={selectedDownload}>Download</a> : null}
+        {selected ? (
+          <div className="panel-row">
+            <button className="btn-secondary" onClick={() => onSelect(selected.id)}>Открыть</button>
+            <a className="btn-secondary" href={selectedDownload}>Скачать</a>
+            <button className="btn-ghost" onClick={() => navigator.clipboard.writeText(selected.path)}>Копировать путь</button>
+          </div>
+        ) : null}
       </div>
     </section>
   );

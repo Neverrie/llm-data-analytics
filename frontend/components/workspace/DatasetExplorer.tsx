@@ -11,7 +11,8 @@ export function DatasetExplorer({
   preview,
   profile,
   onSelect,
-  onUpload
+  onUpload,
+  onUseInChat
 }: {
   datasets: DatasetItem[];
   selected?: string;
@@ -19,6 +20,7 @@ export function DatasetExplorer({
   profile: any;
   onSelect: (id: string) => void;
   onUpload: (file: File) => void;
+  onUseInChat?: (id: string) => void;
 }) {
   const [tab, setTab] = useState<"preview" | "profile" | "columns">("preview");
   const selectedDataset = useMemo(() => datasets.find((d) => d.id === selected), [datasets, selected]);
@@ -26,15 +28,16 @@ export function DatasetExplorer({
   return (
     <section className="main-panel">
       <div className="explorer-toolbar">
-        <h3>Datasets</h3>
+        <h3>Датасеты</h3>
         <div className="panel-row">
           <select value={selected} onChange={(e) => onSelect(e.target.value)}>
-            <option value="">Select dataset</option>
+            <option value="">Выберите датасет</option>
             {datasets.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
-          <label className="btn-secondary upload-label">Upload
+          <label className="btn-secondary upload-label">Загрузить
             <input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])} hidden />
           </label>
+          {selected && onUseInChat ? <button className="btn-secondary" onClick={() => onUseInChat(selected)}>Использовать в чате</button> : null}
         </div>
       </div>
 

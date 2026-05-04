@@ -144,7 +144,7 @@ export const api = {
   getChat: (chatId: string) => request<{ chat: Chat; messages: ChatMessage[] }>(`/chats/${chatId}`),
   addMessage: (chatId: string, body: { role: "user" | "assistant" | "system"; content: string; blocks?: unknown[]; metadata?: Record<string, unknown> }) =>
     request<ChatMessage>(`/chats/${chatId}/messages`, { method: "POST", body: JSON.stringify(body) }),
-  updateChat: (chatId: string, body: { title?: string; archived?: boolean }) =>
+  updateChat: (chatId: string, body: { title?: string; archived?: boolean; dataset_name?: string | null }) =>
     request<Chat>(`/chats/${chatId}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteChat: (chatId: string) => request<Chat>(`/chats/${chatId}`, { method: "DELETE" }),
 
