@@ -373,7 +373,7 @@ export default function HomePage() {
         }
         main={
           <div className="main-wrap">
-            <TopBar title={title} subtitle={subtitle} />
+            {activeSection !== "pipeline" ? <TopBar title={title} subtitle={subtitle} /> : null}
             {activeSection === "dashboard" ? (
               <DashboardPanel
                 chats={lab3Chats}
@@ -405,20 +405,17 @@ export default function HomePage() {
             ) : null}
 
             {activeSection === "pipeline" ? (
-              <>
-                <div className="context-strip"><span>Pipeline dataset: customers_reviews.csv</span></div>
-                <PipelinePanel
-                  sample={pipelineSample}
-                  result={pipelineResult}
-                  lastRun={latestPipelineChat || null}
-                  running={pipelineLoading}
-                  onSample={runPipelineSample}
-                  onRun={runPipeline}
-                  loading={pipelineLoading}
-                  form={pipelineForm}
-                  onForm={(k, v) => setPipelineForm((prev) => ({ ...prev, [k]: k === "limit" ? Number(v || 1) : v }))}
-                />
-              </>
+              <PipelinePanel
+                sample={pipelineSample}
+                result={pipelineResult}
+                lastRun={latestPipelineChat || null}
+                running={pipelineLoading}
+                onSample={runPipelineSample}
+                onRun={runPipeline}
+                loading={pipelineLoading}
+                form={pipelineForm}
+                onForm={(k, v) => setPipelineForm((prev) => ({ ...prev, [k]: k === "limit" ? Number(v || 1) : v }))}
+              />
             ) : null}
 
             {activeSection === "datasets" ? <DatasetExplorer datasets={datasets} selected={selectedDatasetId} preview={datasetPreview} profile={datasetProfile} onSelect={(id) => loadDatasetPreview(id, false)} onUpload={uploadDataset} onUseInChat={(id) => { setActiveSection("agent"); updateChatDatasetContext(id); }} /> : null}

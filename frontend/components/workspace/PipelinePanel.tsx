@@ -67,15 +67,24 @@ export function PipelinePanel({
   }, [hasResult]);
 
   return (
-    <section className="main-panel workspace-screen">
-      <div className="screen-body-scroll">
-        <article className="glass-panel">
+    <section className="workspace-page">
+      <header className="topbar workspace-page-header">
+        <div>
+          <strong>Lab 2 Pipeline</strong>
+          <p>LLM Data Analyst Workspace</p>
+        </div>
+      </header>
+
+      <div className="context-strip workspace-context-bar"><span>Pipeline dataset: customers_reviews.csv</span></div>
+
+      <div className="workspace-scroll-canvas">
+        <article className="workspace-section">
           <strong>Lab 2 Pipeline</strong>
           <p className="muted">CSV → OpenRouter → JSON classification → result artifact</p>
           {lastRun?.updated_at ? <span className="muted">Последний запуск: {new Date(lastRun.updated_at).toLocaleString()}</span> : null}
         </article>
 
-        <article className="glass-panel">
+        <article className="workspace-section">
           <h3>Параметры запуска</h3>
           <div className="pipeline-controls">
             <input type="number" value={form.limit} onChange={(e) => onForm("limit", e.target.value)} placeholder="limit" />
@@ -86,7 +95,7 @@ export function PipelinePanel({
         </article>
 
         {running ? (
-          <article className="glass-panel pipeline-progress-prominent">
+          <article className="workspace-section pipeline-progress-prominent">
             <strong>Pipeline выполняется...</strong>
             <ul>
               {runStages.map((s, i) => (
@@ -101,7 +110,7 @@ export function PipelinePanel({
         ) : null}
 
         {!running && hasResult ? (
-          <article className="glass-panel pipeline-success">
+          <article className="workspace-section pipeline-success">
             <strong>Pipeline завершён</strong>
             <div className="metric-grid small">
               <article className="metric-card"><h4>rows_processed</h4><strong>{result?.rows_processed ?? "-"}</strong></article>
@@ -113,13 +122,13 @@ export function PipelinePanel({
         ) : null}
 
         {hasResult ? (
-          <article className="glass-panel result-block" ref={resultRef}>
+          <article className="workspace-section result-block" ref={resultRef}>
             <h3>Результат классификации</h3>
-            <DataTable columns={resultCols} rows={resultRows} maxHeight={400} stickyHeader={false} />
+            <DataTable columns={resultCols} rows={resultRows} maxHeight={360} stickyHeader={false} />
           </article>
         ) : null}
 
-        <article className="glass-panel">
+        <article className="workspace-section">
           <div className="panel-row">
             <h3>Предпросмотр данных</h3>
             <button
@@ -135,7 +144,7 @@ export function PipelinePanel({
           {sampleOpen ? (
             <>
               <p className="muted">Sample data: предпросмотр строк, доступен горизонтальный скролл</p>
-              {sampleRows.length ? <DataTable columns={sampleCols} rows={sampleRows} maxHeight={340} density="compact" stickyHeader={false} /> : <EmptyState title="Нет sample" description="Нажмите «Показать sample» для предварительного просмотра." />}
+              {sampleRows.length ? <DataTable columns={sampleCols} rows={sampleRows} maxHeight={320} density="compact" stickyHeader={false} /> : <EmptyState title="Нет sample" description="Нажмите «Показать sample» для предварительного просмотра." />}
             </>
           ) : (
             <p className="muted">Sample скрыт. Откройте для просмотра строк.</p>
@@ -143,7 +152,7 @@ export function PipelinePanel({
         </article>
 
         {result ? (
-          <article className="glass-panel raw-card">
+          <article className="workspace-section raw-card">
             <details className="raw">
               <summary>Raw JSON</summary>
               <pre className="code-pre raw-scroll">{JSON.stringify(result, null, 2)}</pre>
@@ -152,7 +161,7 @@ export function PipelinePanel({
         ) : null}
 
         {result?.output_file ? (
-          <article className="glass-panel">
+          <article className="workspace-section">
             <h3>Output files</h3>
             <p className="muted">{String(result.output_file)}</p>
           </article>

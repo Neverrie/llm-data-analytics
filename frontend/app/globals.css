@@ -397,7 +397,42 @@ body {
 .glass-panel { border: 1px solid var(--border); border-radius: 16px; background: rgba(255,255,255,.52); padding: 10px; min-height: 0; min-width: 0; overflow: hidden; }
 .raw-card .raw { margin: 0; }
 .raw-card .raw summary { display: inline-flex; padding: 6px 10px; border: 1px solid var(--border); border-radius: 10px; background: rgba(255,255,255,.7); }
-.raw-scroll { max-height: 360px; overflow: auto; }
+.raw-scroll { max-height: 320px; overflow: auto; }
+
+.workspace-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  gap: 10px;
+}
+
+.workspace-page-header { flex: 0 0 auto; }
+.workspace-context-bar { flex: 0 0 auto; }
+
+.workspace-scroll-canvas {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  padding: 2px 2px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.workspace-section {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255,255,255,.52);
+  padding: 10px;
+  overflow: hidden;
+}
 
 .pipeline-controls .btn-primary {
   margin-left: auto;
