@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     lab3_code_exec_timeout_seconds: int = 15
     lab3_code_interpreter_max_total_seconds: int = 180
     lab3_code_interpreter_hard_max_steps: int = 12
+    lab3_code_interpreter_auto_inspect: bool = True
 
     model_config = SettingsConfigDict(
         env_file=".env",

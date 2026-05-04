@@ -22,9 +22,10 @@ type AskResult = {
   generated_files?: Array<{ name?: string; path?: string; size?: number }>;
   final_answer: string;
   output_files?: Record<string, string>;
+  successful_executions_count?: number;
 };
 
-type ResultTab = "answer" | "code" | "execution" | "plan" | "tools" | "files" | "raw";
+type ResultTab = "answer" | "code" | "execution" | "files" | "raw";
 
 const MODE_LABEL: Record<AskResult["analysis_mode"], string> = {
   code_interpreter: "Code Interpreter",
@@ -116,7 +117,7 @@ export default function Lab3Page() {
     } finally { setLoading(false); }
   };
 
-  const stageIndex = Math.min(4, Math.floor(loadingSeconds / 8) + 1);
+  const stageIndex = Math.min(5, Math.floor(loadingSeconds / 6) + 1);
 
   return (
     <div className="space-y-6">
@@ -201,10 +202,11 @@ export default function Lab3Page() {
             <p className="font-semibold">Агент работает...</p>
             <p className="text-sm app-muted">Прошло: {loadingSeconds} сек</p>
             <ol className="list-decimal pl-5 text-sm space-y-1">
-              <li style={{ opacity: stageIndex >= 1 ? 1 : 0.55 }}>Отправляем вопрос в backend</li>
-              <li style={{ opacity: stageIndex >= 2 ? 1 : 0.55 }}>OpenRouter генерирует Python-код</li>
-              <li style={{ opacity: stageIndex >= 3 ? 1 : 0.55 }}>Backend выполняет код в sandbox</li>
-              <li style={{ opacity: stageIndex >= 4 ? 1 : 0.55 }}>Модель формирует ответ</li>
+              <li style={{ opacity: stageIndex >= 1 ? 1 : 0.55 }}>Готовим датасет</li>
+              <li style={{ opacity: stageIndex >= 2 ? 1 : 0.55 }}>Выполняем авто-инспекцию</li>
+              <li style={{ opacity: stageIndex >= 3 ? 1 : 0.55 }}>OpenRouter генерирует код/ответ</li>
+              <li style={{ opacity: stageIndex >= 4 ? 1 : 0.55 }}>Backend исполняет Python в sandbox</li>
+              <li style={{ opacity: stageIndex >= 5 ? 1 : 0.55 }}>Формируем итоговый ответ</li>
             </ol>
             {loadingSeconds > 30 ? <p className="text-xs app-muted">Free-модели OpenRouter могут отвечать медленно. Можно подождать или повторить запрос позже.</p> : null}
             {loadingSeconds > 90 ? <p className="text-xs app-muted">Запрос выполняется дольше обычного. Попробуйте повторить позже или сменить модель.</p> : null}
@@ -220,17 +222,37 @@ export default function Lab3Page() {
 
       {result ? (
         <section className="app-card space-y-4 p-4">
-          <div className="app-badge app-badge-muted">{MODE_LABEL[result.analysis_mode]} · {result.elapsed_seconds} сек · {result.llm_calls_count} LLM · Provider: {result.provider ?? "-"} · Model: {result.model ?? "-"}</div>
+          <div className="flex flex-wrap gap-2 text-xs">
+            <span className="app-badge app-badge-primary">Mode: {MODE_LABEL[result.analysis_mode]}</span>
+            <span className="app-badge app-badge-muted">{result.elapsed_seconds} сек</span>
+            <span className="app-badge app-badge-muted">{result.llm_calls_count} LLM calls</span>
+            <span className="app-badge app-badge-muted">Provider: {result.provider ?? "-"}</span>
+            <span className="app-badge app-badge-muted">Model: {result.model ?? "-"}</span>
+            <span className="app-badge app-badge-muted">Code steps: {(result.code_steps ?? []).length}</span>
+            <span className="app-badge app-badge-muted">Success exec: {result.successful_executions_count ?? 0}</span>
+          </div>
 
           <div className="app-tabs">
-            {(["answer", "code", "execution", "plan", "tools", "files", "raw"] as ResultTab[]).map((t) => (
+            {(["answer", "code", "execution", "files", "raw"] as ResultTab[]).map((t) => (
               <button key={t} className={`app-tab ${tab === t ? "app-tab-active" : ""}`} onClick={() => setTab(t)}>
-                {t === "answer" ? "Ответ" : t === "code" ? "Код" : t === "execution" ? "Выполнение" : t === "plan" ? "План" : t === "tools" ? "Tools" : t === "files" ? "Файлы" : "Raw"}
+                {t === "answer" ? "Ответ" : t === "code" ? "Код" : t === "execution" ? "Выполнение" : t === "files" ? "Файлы" : "Raw"}
               </button>
             ))}
           </div>
 
-          {tab === "answer" ? <MarkdownMessage content={result.final_answer} /> : null}
+          {tab === "answer" ? (
+            <div className="space-y-3">
+              <MarkdownMessage content={result.final_answer} />
+              {result.warnings.length > 0 ? (
+                <details className="app-expansion">
+                  <summary>Системные предупреждения ({result.warnings.length})</summary>
+                  <div className="p-3 text-xs app-muted space-y-1">
+                    {result.warnings.map((w) => <p key={w}>{w}</p>)}
+                  </div>
+                </details>
+              ) : null}
+            </div>
+          ) : null}
           {tab === "code" ? (
             <div className="space-y-3">
               {(result.code_steps ?? []).length === 0 ? <p className="text-sm app-muted">Кодовые шаги отсутствуют.</p> : null}
@@ -241,6 +263,7 @@ export default function Lab3Page() {
                   <div key={idx} className="app-card p-3 space-y-2">
                     <div className="flex items-center gap-2">
                       <span className="app-badge app-badge-muted">Step {String(step.step ?? idx + 1)}</span>
+                      <span className="app-badge app-badge-muted">Source: {String(step.source ?? "llm")}</span>
                       <span className="app-badge app-badge-muted">Action: {String(step.action ?? "-")}</span>
                       {status === "blocked" ? <span className="app-badge" style={{ background: "color-mix(in srgb, var(--warning) 20%, var(--surface))", color: "var(--warning)" }}>Заблокировано sandbox</span> : null}
                     </div>
@@ -266,7 +289,8 @@ export default function Lab3Page() {
                     <div className="p-3 space-y-2">
                       <p className="text-xs app-muted">elapsed: {String(execution.elapsed_seconds ?? "-")} sec</p>
                       <p className="text-xs app-muted">stdout</p>
-                      <pre className="app-code-block">{String(execution.stdout ?? "")}</pre>
+                      <pre className="app-code-block">{String(execution.stdout ?? "").slice(0, 6000)}</pre>
+                      {String(execution.stdout ?? "").length > 6000 ? <p className="text-xs app-muted">stdout обрезан в UI. Полный текст в Raw.</p> : null}
                       <p className="text-xs app-muted">stderr</p>
                       <pre className="app-code-block">{String(execution.stderr ?? "")}</pre>
                     </div>
@@ -275,8 +299,6 @@ export default function Lab3Page() {
               })}
             </div>
           ) : null}
-          {tab === "plan" ? <pre className="app-code-block">{JSON.stringify(result.planner_output, null, 2)}</pre> : null}
-          {tab === "tools" ? <pre className="app-code-block">{JSON.stringify(result.executed_tools, null, 2)}</pre> : null}
           {tab === "files" ? (
             <div className="space-y-2 text-sm">
               {(result.generated_files ?? []).map((f, idx) => <p key={idx}>{f.name} · {f.size} bytes · {f.path}</p>)}
@@ -285,7 +307,6 @@ export default function Lab3Page() {
           ) : null}
           {tab === "raw" ? <pre className="app-code-block">{JSON.stringify(result, null, 2)}</pre> : null}
 
-          {result.warnings.length > 0 ? <div className="text-xs app-muted">{result.warnings.map((w) => <p key={w}>{w}</p>)}</div> : null}
         </section>
       ) : null}
 

@@ -96,7 +96,7 @@ async def ask_agent(
     session_id: str | None = None,
     include_history: bool = True,
     reset_session_flag: bool = False,
-    max_code_steps: int = 5,
+    max_code_steps: int | None = None,
 ) -> dict[str, Any]:
     llm = LLMClient()
     started = time.perf_counter()

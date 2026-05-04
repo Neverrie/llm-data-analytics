@@ -247,6 +247,31 @@ def test_lab3_request_no_max_code_steps_required(lab3_paths: Path, monkeypatch: 
     assert response.json()["status"] == "success"
 
 
+def test_lab3_response_separates_warnings_from_final_answer(lab3_paths: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _write_dataset(lab3_paths / "customers_reviews.csv")
+
+    async def fake_chat(self, messages, purpose="general", model=None, temperature=0.1):  # noqa: ANN001,ARG001
+        if purpose == "code_interpreter":
+            return "Need to inspect df."
+        return "ok"
+
+    monkeypatch.setattr(lab3_agent.LLMClient, "chat", fake_chat)
+    client = TestClient(app)
+    response = client.post(
+        "/api/lab3/ask",
+        json={
+            "dataset_name": "customers_reviews.csv",
+            "question": "Сделай обзор",
+            "column_overrides": {},
+            "analysis_mode": "code_interpreter",
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert isinstance(payload.get("warnings"), list)
+    assert "warning" not in str(payload.get("final_answer", "")).lower()
+
+
 @pytest.mark.asyncio
 async def test_lab3_openrouter_does_not_use_ollama_model_ids(lab3_paths: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _write_dataset(lab3_paths / "customers_reviews.csv")

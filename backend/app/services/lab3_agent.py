@@ -531,6 +531,7 @@ async def run_agent(
             "generated_files": ci_result.get("files", []),
             "code_interpreter_trace": ci_result.get("output_files", {}).get("code_interpreter_trace"),
             "output_files": ci_result.get("output_files", {}),
+            "successful_executions_count": ci_result.get("successful_executions_count", 0),
         }
         return result_payload
 
@@ -620,6 +621,7 @@ async def run_agent(
         "code_steps": [],
         "generated_files": [],
         "code_interpreter_trace": None,
+        "successful_executions_count": 0,
     }
 
     export_tool = execute_tool(dataset_name, "export_lab3_result_json", mapping, {"result_payload": result_payload})

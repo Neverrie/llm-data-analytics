@@ -186,3 +186,22 @@ curl -X POST "http://localhost:8003/api/lab3/upload-dataset" \
 - В sandbox запрещены `os/subprocess/socket/requests`, а также `open/eval/exec` и ручной `pd.read_csv/pd.read_excel`.
 - Модель получает результат выполнения (`stdout/stderr`) и продолжает анализ по этим данным.
 - Это ограничение защищает от prompt injection и произвольного выполнения кода.
+
+## Lab 3 Code Interpreter Loop (Updated)
+
+- Mode is JSON action loop only: `run_code` or `final_answer`.
+- Backend can run step `0` auto inspection (`shape`, `columns`, `dtypes`, `missing`, `sample`) before first LLM call.
+- LLM must use preloaded `df` and must not read files directly.
+- Backend executes generated Python in sandbox and returns `stdout/stderr/files` back to LLM for next step.
+- If LLM returns plain text instead of JSON, backend runs repair attempts and only then optional fallback with warning.
+- UI separates:
+  - Final markdown answer
+  - System warnings
+  - Code steps
+  - Execution logs
+  - Raw JSON trace
+
+### Demo queries
+
+1. `Сделай краткий обзор датасета: строки, колонки, пропуски и 3 главных наблюдения.`
+2. `Выдели таргет переменную и посчитай корреляции Спирмана, Пирсона всех колонок с этой переменной, дай свои выводы исходя из полученных данных.`

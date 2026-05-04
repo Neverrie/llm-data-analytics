@@ -51,8 +51,37 @@ def _looks_like_meta_json_instruction(text: str) -> bool:
         "return valid json",
         "your previous response was not valid json",
         "json with action",
+        "need to run code",
+        "must run code",
+        "run code to",
+        "need code execution",
     ]
     return any(marker in low for marker in markers)
+
+
+def _looks_like_inspection_request_text(text: str) -> bool:
+    low = text.lower()
+    markers = [
+        "need to inspect",
+        "inspect df",
+        "need dataframe",
+        "need data",
+        "inspect the dataframe",
+    ]
+    return any(marker in low for marker in markers)
+
+
+def _default_inspection_code() -> str:
+    return (
+        "print('shape:', df.shape)\n"
+        "print('columns:', list(df.columns))\n"
+        "print('dtypes:')\n"
+        "print(df.dtypes)\n"
+        "print('missing_top10:')\n"
+        "print(df.isna().sum().sort_values(ascending=False).head(10))\n"
+        "print('sample:')\n"
+        "print(df.head(3).to_string())"
+    )
 
 
 def _save_run_trace(run_id: str, payload: dict[str, Any]) -> Path:
@@ -125,6 +154,7 @@ async def run_code_interpreter_agent(
     max_steps: int = 3,
 ) -> dict[str, Any]:
     started = time.perf_counter()
+    logger.info("LAB3_ASK_START dataset=%s question_len=%s", dataset_name, len(question or ""))
     llm = LLMClient()
     run_id = uuid.uuid4().hex
     model = llm.resolve_model()
@@ -133,8 +163,18 @@ async def run_code_interpreter_agent(
     _ = max_steps  # compatibility
 
     system_prompt = (
-        "You are working in Code Interpreter mode for tabular data analysis.\n"
-        "IMPORTANT: backend already loaded the dataset into pandas DataFrame `df`.\n"
+        "You are in Code Interpreter mode for tabular data analysis.\n"
+        "IMPORTANT: dataframe is already loaded as `df` by backend.\n"
+        "Return ONLY valid JSON in message content.\n"
+        "Do not use markdown.\n"
+        "Do not use tool_calls.\n"
+        "Do not use function calling.\n"
+        "Do not write plain text.\n"
+        "Every response must be exactly one JSON object.\n"
+        "Valid actions: run_code, final_answer.\n"
+        "Format run_code: {\"action\":\"run_code\",\"code\":\"print(df.shape)\"}\n"
+        "Format final_answer: {\"action\":\"final_answer\",\"answer\":\"## Краткий ответ\\n...\"}\n"
+        "If you need to inspect df, NEVER write 'Need to inspect df.' Return run_code JSON instead.\n"
         "Do NOT read files yourself. Do NOT use pd.read_csv, pd.read_excel, open, os, pathlib, subprocess, requests, socket, or shell commands.\n"
         "Do NOT search for files or directories.\n"
         "Work only with available variables:\n"
@@ -145,11 +185,6 @@ async def run_code_interpreter_agent(
         "- profile: dataset profile summary\n"
         "Allowed libraries are already imported by backend: pandas as pd, numpy as np, matplotlib.pyplot as plt, json, math, statistics, re, Counter/defaultdict, datetime.\n"
         "If you need a chart, save it only to output_dir.\n"
-        "Return ONLY one JSON object in message content. No markdown. No tool_calls. No function calling. No text before or after JSON.\n"
-        "For code execution use:\n"
-        "{\"action\":\"run_code\",\"code\":\"print(df.shape)\"}\n"
-        "For final answer use:\n"
-        "{\"action\":\"final_answer\",\"answer\":\"...\"}\n"
         "Rules:\n"
         "1. First do short df inspection.\n"
         "2. Do not invent facts without code execution.\n"
@@ -157,6 +192,7 @@ async def run_code_interpreter_agent(
         "4. Do not repeat forbidden operations.\n"
         "5. Final answer must be in Russian and mention what was computed.\n"
         "6. Keep one code step short, preferably <=40 lines.\n"
+        "For correlation/target queries: identify target candidates, justify target choice, use numeric columns, compute Pearson and Spearman correlations, and report top absolute correlations.\n"
         "First step for overview should be close to:\n"
         "{\"action\":\"run_code\",\"code\":\"print('shape:', df.shape)\\nprint('dtypes:')\\nprint(df.dtypes)\\nprint('missing:')\\nprint(df.isna().sum().sort_values(ascending=False).head(10))\\nprint('sample:')\\nprint(df.head(3).to_string())\"}\n"
         "If you use os, pd.read_csv, open or try to find files, code will be blocked. Use df directly."
@@ -183,11 +219,41 @@ async def run_code_interpreter_agent(
     blocked_count = 0
     last_block_reason = ""
     invalid_json_count = 0
+    successful_exec_count = 0
 
     step_index = 1
+    if bool(getattr(settings, "lab3_code_interpreter_auto_inspect", True)):
+        logger.info("LAB3_AUTO_INSPECT_START run_id=%s", run_id)
+        auto_code = _default_inspection_code()
+        auto_execution = execute_python_code(
+            code=auto_code,
+            dataset_name=dataset_name,
+            run_id=run_id,
+            column_mapping=column_mapping,
+            profile=profile,
+        )
+        if auto_execution.get("status") == "success":
+            successful_exec_count += 1
+        steps.append(
+            {
+                "step": 0,
+                "source": "backend_auto_inspection",
+                "action": "run_code",
+                "code": auto_code,
+                "execution": auto_execution,
+            }
+        )
+        messages.append(
+            {
+                "role": "user",
+                "content": f"Initial dataframe inspection already executed by backend: {json.dumps(auto_execution, ensure_ascii=False)}",
+            }
+        )
+        logger.info("LAB3_AUTO_INSPECT_DONE run_id=%s status=%s", run_id, auto_execution.get("status"))
+
     while True:
         if step_index > hard_max_steps:
-            warnings.append("Достигнут внутренний лимит шагов Code Interpreter. Возвращён частичный результат.")
+            warnings.append("Агент достиг внутреннего лимита защитных шагов. Показан частичный результат.")
             break
         elapsed_total = time.perf_counter() - started
         if elapsed_total > max_total_seconds:
@@ -257,25 +323,74 @@ async def run_code_interpreter_agent(
                 last_parse_error = exc
                 if repair_attempt >= 2:
                     break
+                logger.info("LAB3_JSON_REPAIR_START step=%s attempt=%s", step_index, repair_attempt + 1)
                 messages.append(
                     {
                         "role": "user",
-                        "content": "Your previous response was not valid JSON. Return ONLY valid JSON in message content.",
+                        "content": (
+                            "Your previous response was not valid JSON. "
+                            f"You wrote: {raw[:240]}. Return ONLY valid JSON. "
+                            "If you need to inspect the dataframe, return action=run_code using df."
+                        ),
                     }
                 )
                 warnings.append("Модель вернула невалидный JSON, запрошен повтор.")
                 try:
                     raw = await llm.chat(messages=messages, purpose="code_interpreter", model=model, temperature=0.1)
                     llm_calls += 1
+                    logger.info("LAB3_JSON_REPAIR_DONE step=%s attempt=%s", step_index, repair_attempt + 1)
                 except LLMClientError as llm_exc:
                     raise Lab2PipelineError(str(llm_exc), status_code=503) from llm_exc
 
         if action is None:
             fallback_answer = _as_fallback_final_answer(raw)
             if fallback_answer:
+                if _looks_like_inspection_request_text(fallback_answer):
+                    warnings.append("Модель вернула plain text про инспекцию df; запрошен run_code по JSON-протоколу.")
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                "Do not write plain text like 'Need to inspect df'. "
+                                "Return ONLY JSON with action='run_code' and code that inspects df."
+                            ),
+                        }
+                    )
+                    invalid_json_count += 1
+                    if invalid_json_count >= 3:
+                        break
+                    continue
                 if _looks_like_meta_json_instruction(fallback_answer):
                     invalid_json_count += 1
                     warnings.append("Модель вернула служебный текст вместо ответа. Выполнен дополнительный запрос final_answer.")
+                    if invalid_json_count == 1:
+                        execution = execute_python_code(
+                            code=_default_inspection_code(),
+                            dataset_name=dataset_name,
+                            run_id=run_id,
+                            column_mapping=column_mapping,
+                            profile=profile,
+                        )
+                        steps.append(
+                            {
+                                "step": step_index,
+                                "action": "run_code_auto_fallback",
+                                "code": _default_inspection_code(),
+                                "execution": execution,
+                            }
+                        )
+                        messages.append(
+                            {
+                                "role": "user",
+                                "content": (
+                                    "Model returned non-JSON meta text. "
+                                    "Backend executed safe inspection code on df. "
+                                    f"Execution result: {json.dumps(execution, ensure_ascii=False)}"
+                                ),
+                            }
+                        )
+                        step_index += 1
+                        continue
                     if invalid_json_count >= 3:
                         warnings.append("Code Interpreter: повторяющийся невалидный формат ответа от модели.")
                         break
@@ -292,6 +407,19 @@ async def run_code_interpreter_agent(
                 warnings.append(
                     "Модель вернула обычный текст вместо JSON action. Ответ принят как final_answer (fallback)."
                 )
+                if successful_exec_count == 0:
+                    warnings.append("Plain text до успешного выполнения кода не принят как final answer; запрошен run_code.")
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": "Your previous plain text cannot be accepted yet. Return JSON run_code using df first.",
+                        }
+                    )
+                    invalid_json_count += 1
+                    if invalid_json_count >= 3:
+                        warnings.append("Модель не соблюдала JSON-протокол, ответ принят как fallback. Код мог не выполниться.")
+                    else:
+                        continue
                 if last_parse_error is not None:
                     warnings.append(f"JSON parse warning: {last_parse_error}")
                 final_answer = fallback_answer
@@ -326,6 +454,8 @@ async def run_code_interpreter_agent(
                 len(execution.get("stderr", "") or ""),
             )
             steps.append({"step": step_index, "action": "run_code", "code": code, "execution": execution})
+            if execution.get("status") == "success":
+                successful_exec_count += 1
 
             for file_item in execution.get("files", []):
                 all_files[file_item["path"]] = file_item
@@ -414,6 +544,7 @@ async def run_code_interpreter_agent(
         "files": list(all_files.values()),
         "elapsed_seconds": round(time.perf_counter() - started, 3),
         "llm_calls_count": llm_calls,
+        "successful_executions_count": successful_exec_count,
         "warnings": warnings,
         "raw_previews": [],
     }
@@ -430,4 +561,5 @@ async def run_code_interpreter_agent(
         "lab3_result_json": result_json_path,
         "lab3_report_md": report_path,
     }
+    logger.info("LAB3_ASK_DONE run_id=%s elapsed=%.3f", run_id, result["elapsed_seconds"])
     return result
