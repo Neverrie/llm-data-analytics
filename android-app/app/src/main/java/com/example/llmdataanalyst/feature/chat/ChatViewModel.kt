@@ -105,6 +105,25 @@ class ChatViewModel(
         _uiState.update { it.copy(selectedDatasetId = null, selectedDatasetName = null) }
     }
 
+    fun openChat(chatId: String) {
+        if (chatId.isBlank()) return
+        viewModelScope.launch {
+            runCatching { chatRepository.getChat(chatId) }
+                .onSuccess { detail ->
+                    val mapped = detail.messages.map { msg ->
+                        val base = UiChatMessage(
+                            id = msg.id,
+                            role = msg.role,
+                            content = msg.content,
+                            isLoading = false
+                        )
+                        if (msg.role == "assistant") rebuildMessage(base) else base.copy(blocks = listOf(ChatContentBlock.TextBlock(msg.content)))
+                    }
+                    _uiState.update { it.copy(chatId = chatId, messages = mapped) }
+                }
+        }
+    }
+
     private fun loadDatasets() {
         viewModelScope.launch {
             when (val result = datasetRepository.listDatasets()) {

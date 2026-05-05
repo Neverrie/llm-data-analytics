@@ -1,4 +1,4 @@
-package com.example.llmdataanalyst.feature.dashboard
+﻿package com.example.llmdataanalyst.feature.dashboard
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -22,7 +22,11 @@ data class DashboardUiState(
     val chats: List<ChatItem> = emptyList(),
     val datasets: List<DatasetItem> = emptyList(),
     val artifacts: List<ArtifactItem> = emptyList()
-)
+) {
+    val chatsCount: Int get() = workspace?.counts?.chats ?: chats.size
+    val datasetsCount: Int get() = workspace?.counts?.datasets ?: datasets.size
+    val artifactsCount: Int get() = workspace?.counts?.artifacts ?: artifacts.size
+}
 
 class DashboardViewModel(
     private val workspaceRepository: WorkspaceRepository

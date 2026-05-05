@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -50,7 +51,6 @@ import com.example.llmdataanalyst.feature.artifacts.ArtifactsViewModelFactory
 import com.example.llmdataanalyst.feature.settings.SettingsScreen
 import com.example.llmdataanalyst.feature.settings.SettingsViewModel
 import com.example.llmdataanalyst.feature.settings.SettingsViewModelFactory
-import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.launch
 
 private data class DrawerItem(val label: String, val icon: ImageVector, val route: String)
@@ -68,6 +68,7 @@ fun AppNavHost(
         DrawerItem("Чат", Icons.Default.Chat, NavRoute.Chat.route),
         DrawerItem("Датасеты", Icons.Default.Storage, NavRoute.Datasets.route),
         DrawerItem("Артефакты", Icons.Default.Image, NavRoute.Artifacts.route),
+        DrawerItem("Lab2", Icons.Default.SpaceDashboard, NavRoute.Lab2.route),
         DrawerItem("Настройки", Icons.Default.Settings, NavRoute.Settings.route)
     )
 
@@ -122,12 +123,24 @@ fun AppNavHost(
                     DashboardScreen(
                         viewModel = vm,
                         onOpenChat = { navController.navigate(NavRoute.Chat.withDataset(null, null)) },
-                        onOpenSettings = { navController.navigate(NavRoute.Settings.route) }
+                        onOpenSettings = { navController.navigate(NavRoute.Settings.route) },
+                        onOpenDatasets = { navController.navigate(NavRoute.Datasets.route) },
+                        onOpenArtifacts = { navController.navigate(NavRoute.Artifacts.route) },
+                        onOpenLab2 = { navController.navigate(NavRoute.Lab2.route) },
+                        onOpenDatasetDetail = { datasetId -> navController.navigate("datasets/$datasetId") },
+                        onUseDatasetInChat = { dataset -> navController.navigate(NavRoute.Chat.withDataset(dataset.id, dataset.name)) },
+                        onOpenArtifactDetail = { artifactId -> navController.navigate("artifact/$artifactId") },
+                        onOpenChatDetail = { chatId -> navController.navigate(NavRoute.Chat.withDataset(null, null, chatId)) }
                     )
                 }
                 composable(
                     route = NavRoute.Chat.route,
                     arguments = listOf(
+                        navArgument("chatId") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                            nullable = true
+                        },
                         navArgument("datasetId") {
                             type = NavType.StringType
                             defaultValue = ""
@@ -147,9 +160,13 @@ fun AppNavHost(
                             appContainer.settingsRepository
                         )
                     )
+                    val chatId = backStackEntry.arguments?.getString("chatId")
                     val preselectedDatasetId = backStackEntry.arguments?.getString("datasetId")
                     val preselectedDataset = backStackEntry.arguments?.getString("datasetName")
-                    LaunchedEffect(preselectedDatasetId, preselectedDataset) {
+                    LaunchedEffect(chatId, preselectedDatasetId, preselectedDataset) {
+                        if (!chatId.isNullOrBlank()) {
+                            vm.openChat(chatId)
+                        }
                         if (!preselectedDatasetId.isNullOrBlank() || !preselectedDataset.isNullOrBlank()) {
                             vm.selectDataset(
                                 datasetId = preselectedDatasetId?.takeIf { it.isNotBlank() },
@@ -181,6 +198,9 @@ fun AppNavHost(
                         viewModel = vm,
                         onOpenArtifact = { artifactId -> navController.navigate("artifact/$artifactId") }
                     )
+                }
+                composable(NavRoute.Lab2.route) {
+                    Text("Lab2 экран")
                 }
                 composable(
                     route = NavRoute.DatasetDetail.route,
