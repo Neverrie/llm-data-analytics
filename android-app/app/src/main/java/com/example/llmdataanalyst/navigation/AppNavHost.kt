@@ -51,6 +51,9 @@ import com.example.llmdataanalyst.feature.artifacts.ArtifactsViewModelFactory
 import com.example.llmdataanalyst.feature.settings.SettingsScreen
 import com.example.llmdataanalyst.feature.settings.SettingsViewModel
 import com.example.llmdataanalyst.feature.settings.SettingsViewModelFactory
+import com.example.llmdataanalyst.feature.lab2.Lab2PipelineScreen
+import com.example.llmdataanalyst.feature.lab2.Lab2ViewModel
+import com.example.llmdataanalyst.feature.lab2.Lab2ViewModelFactory
 import kotlinx.coroutines.launch
 
 private data class DrawerItem(val label: String, val icon: ImageVector, val route: String)
@@ -200,7 +203,8 @@ fun AppNavHost(
                     )
                 }
                 composable(NavRoute.Lab2.route) {
-                    Text("Lab2 экран")
+                    val vm: Lab2ViewModel = viewModel(factory = Lab2ViewModelFactory(appContainer.lab2Repository))
+                    Lab2PipelineScreen(viewModel = vm, lab2Repository = appContainer.lab2Repository)
                 }
                 composable(
                     route = NavRoute.DatasetDetail.route,

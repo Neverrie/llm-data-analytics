@@ -14,8 +14,10 @@ import com.example.llmdataanalyst.core.model.DatasetItem
 import com.example.llmdataanalyst.core.model.DatasetPreviewResponse
 import com.example.llmdataanalyst.core.model.DatasetProfileResponse
 import com.example.llmdataanalyst.core.model.HealthResponse
+import com.example.llmdataanalyst.core.model.Lab2RunRequest
 import com.example.llmdataanalyst.core.model.UserPublic
 import com.example.llmdataanalyst.core.model.WorkspaceResponse
+import kotlinx.serialization.json.JsonElement
 import retrofit2.http.Path
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -88,4 +90,19 @@ interface ApiService {
 
     @GET("api/artifacts/{artifactId}/download")
     suspend fun downloadArtifact(@Path("artifactId") artifactId: String): Response<ResponseBody>
+
+    @GET("api/lab2/status")
+    suspend fun lab2Status(): JsonElement
+
+    @GET("api/lab2/sample-data")
+    suspend fun lab2SampleData(): JsonElement
+
+    @POST("api/lab2/run")
+    suspend fun lab2Run(@Body request: Lab2RunRequest = Lab2RunRequest()): JsonElement
+
+    @GET("api/lab2/result")
+    suspend fun lab2Result(): JsonElement
+
+    @GET("api/lab2/download")
+    suspend fun lab2Download(): Response<ResponseBody>
 }

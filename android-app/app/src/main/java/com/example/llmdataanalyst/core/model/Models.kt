@@ -3,6 +3,7 @@ package com.example.llmdataanalyst.core.model
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 
 @Serializable
 data class HealthResponse(
@@ -156,6 +157,11 @@ data class ChatMessageItem(
 data class ChatDetailResponse(
     val chat: ChatItem,
     val messages: List<ChatMessageItem> = emptyList()
+)
+
+@Serializable
+data class Lab2RunRequest(
+    val params: JsonObject? = null
 )
 
 @Serializable

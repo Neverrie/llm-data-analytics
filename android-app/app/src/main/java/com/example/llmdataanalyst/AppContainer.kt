@@ -12,6 +12,7 @@ import com.example.llmdataanalyst.core.repository.AuthRepository
 import com.example.llmdataanalyst.core.repository.ChatRepository
 import com.example.llmdataanalyst.core.repository.DatasetRepository
 import com.example.llmdataanalyst.core.repository.SettingsRepository
+import com.example.llmdataanalyst.core.repository.Lab2Repository
 import com.example.llmdataanalyst.core.repository.WorkspaceRepository
 
 class AppContainer(context: Context) {
@@ -34,4 +35,5 @@ class AppContainer(context: Context) {
     val datasetRepository = DatasetRepository(apiProvider)
     val chatRepository = ChatRepository(apiProvider, settingsRepository, streamClient)
     val artifactRepository = ArtifactRepository(apiProvider, settingsRepository)
+    val lab2Repository = Lab2Repository(apiProvider)
 }
