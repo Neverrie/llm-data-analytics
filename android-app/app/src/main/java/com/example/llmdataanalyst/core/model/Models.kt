@@ -91,9 +91,12 @@ data class ArtifactItem(
     val kind: String? = null,
     val title: String? = null,
     val filename: String? = null,
+    val path: String? = null,
     @SerialName("mime_type") val mimeType: String? = null,
     @SerialName("size_bytes") val sizeBytes: Long? = null,
     @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("preview_url") val previewUrl: String? = null,
+    @SerialName("download_url") val downloadUrl: String? = null,
     val metadata: JsonElement? = null
 )
 

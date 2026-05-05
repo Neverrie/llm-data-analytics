@@ -1,6 +1,7 @@
 package com.example.llmdataanalyst.core.network
 
 import com.example.llmdataanalyst.core.model.ArtifactsResponse
+import com.example.llmdataanalyst.core.model.ArtifactItem
 import com.example.llmdataanalyst.core.model.AuthLoginRequest
 import com.example.llmdataanalyst.core.model.AuthResponse
 import com.example.llmdataanalyst.core.model.ChatDetailResponse
@@ -16,6 +17,8 @@ import retrofit2.http.Path
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
+import okhttp3.ResponseBody
+import retrofit2.Response
 
 interface ApiService {
     @GET("api/health")
@@ -53,4 +56,10 @@ interface ApiService {
 
     @GET("api/artifacts")
     suspend fun artifacts(): ArtifactsResponse
+
+    @GET("api/artifacts/{artifactId}")
+    suspend fun getArtifact(@Path("artifactId") artifactId: String): ArtifactItem
+
+    @GET("api/artifacts/{artifactId}/preview")
+    suspend fun getArtifactPreview(@Path("artifactId") artifactId: String): Response<ResponseBody>
 }
