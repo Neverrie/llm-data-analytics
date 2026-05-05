@@ -42,6 +42,7 @@ data class ChatUiState(
     val token: String? = null,
     val selectedDatasetId: String? = null,
     val selectedDatasetName: String? = null,
+    val executionMode: ChatExecutionMode = ChatExecutionMode.GeneralChat,
     val datasets: List<DatasetItem> = emptyList(),
     val loading: Boolean = false,
     val input: String = "",
@@ -91,13 +92,14 @@ class ChatViewModel(
         _uiState.update {
             it.copy(
                 selectedDatasetId = datasetId,
-                selectedDatasetName = datasetName ?: resolveDatasetName(datasetId, it.datasets)
+                selectedDatasetName = datasetName ?: resolveDatasetName(datasetId, it.datasets),
+                executionMode = if (!datasetId.isNullOrBlank()) ChatExecutionMode.DatasetAgent else ChatExecutionMode.GeneralChat
             )
         }
     }
 
     fun clearSelectedDataset() {
-        _uiState.update { it.copy(selectedDatasetId = null, selectedDatasetName = null) }
+        _uiState.update { it.copy(selectedDatasetId = null, selectedDatasetName = null, executionMode = ChatExecutionMode.GeneralChat) }
     }
 
     fun executionMode(): ChatExecutionMode {

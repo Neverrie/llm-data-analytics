@@ -41,6 +41,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import okhttp3.Headers
 import com.example.llmdataanalyst.R
+import com.example.llmdataanalyst.core.repository.ChatExecutionMode
 
 @Composable
 fun ChatScreen(
@@ -62,7 +63,7 @@ fun ChatScreen(
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    if (!state.selectedDatasetId.isNullOrBlank()) "Режим: агент анализа данных" else "Режим: обычный чат",
+                    if (state.executionMode == ChatExecutionMode.DatasetAgent) "Режим: агент анализа данных" else "Режим: обычный чат",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary
                 )
