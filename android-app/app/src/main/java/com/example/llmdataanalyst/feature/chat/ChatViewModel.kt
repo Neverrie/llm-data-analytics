@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.put
 
 data class UiChatMessage(
@@ -37,6 +38,7 @@ data class ChatUiState(
     val chatId: String? = null,
     val baseUrl: String = "",
     val token: String? = null,
+    val selectedDatasetId: String? = null,
     val selectedDatasetName: String? = null,
     val datasets: List<DatasetItem> = emptyList(),
     val loading: Boolean = false,
@@ -90,17 +92,29 @@ class ChatViewModel(
         }
     }
 
-    fun selectDataset(datasetName: String) {
-        _uiState.update { it.copy(selectedDatasetName = datasetName) }
+    fun selectDataset(datasetId: String?, datasetName: String?) {
+        _uiState.update {
+            it.copy(
+                selectedDatasetId = datasetId,
+                selectedDatasetName = datasetName ?: resolveDatasetName(datasetId, it.datasets)
+            )
+        }
+    }
+
+    fun clearSelectedDataset() {
+        _uiState.update { it.copy(selectedDatasetId = null, selectedDatasetName = null) }
     }
 
     private fun loadDatasets() {
         viewModelScope.launch {
             when (val result = datasetRepository.listDatasets()) {
                 is AppResult.Success -> _uiState.update {
+                    val resolvedName = it.selectedDatasetName
+                        ?: resolveDatasetName(it.selectedDatasetId, result.data)
+                        ?: result.data.firstOrNull()?.name
                     it.copy(
                         datasets = result.data,
-                        selectedDatasetName = it.selectedDatasetName ?: result.data.firstOrNull()?.name
+                        selectedDatasetName = resolvedName
                     )
                 }
                 is AppResult.Error -> Unit
@@ -113,6 +127,7 @@ class ChatViewModel(
         if (text.isBlank() || uiState.value.loading) return
 
         streamJob = viewModelScope.launch {
+            val selectedDatasetLabel = buildSelectedDatasetLabel()
             val chatId = uiState.value.chatId ?: chatRepository.createChat(uiState.value.selectedDatasetName).id
             val userMsg = UiChatMessage(
                 id = "local-user-${System.currentTimeMillis()}",
@@ -139,9 +154,13 @@ class ChatViewModel(
 
             val request = ChatMessageCreateRequest(
                 role = "user",
-                content = text,
+                content = buildRequestContent(text, selectedDatasetLabel),
                 blocks = emptyList(),
-                metadata = mapOf("client" to buildJsonObject { put("platform", "android") })
+                metadata = buildMap {
+                    put("client", buildJsonObject { put("platform", "android") })
+                    uiState.value.selectedDatasetId?.let { put("dataset_id", JsonPrimitive(it)) }
+                    uiState.value.selectedDatasetName?.let { put("dataset_name", JsonPrimitive(it)) }
+                }
             )
             var usedFallback = false
             var gotDone = false
@@ -189,6 +208,27 @@ class ChatViewModel(
                 it.copy(loading = false, messages = updated)
             }
         }
+    }
+
+    private fun buildRequestContent(userText: String, datasetLabel: String?): String {
+        if (datasetLabel.isNullOrBlank()) return userText
+        return "Используй выбранный датасет: $datasetLabel.\nЗапрос пользователя: $userText"
+    }
+
+    private fun buildSelectedDatasetLabel(): String? {
+        val id = uiState.value.selectedDatasetId
+        val name = uiState.value.selectedDatasetName
+        return when {
+            !name.isNullOrBlank() && !id.isNullOrBlank() -> "ID=$id, name=$name"
+            !name.isNullOrBlank() -> "name=$name"
+            !id.isNullOrBlank() -> "ID=$id"
+            else -> null
+        }
+    }
+
+    private fun resolveDatasetName(datasetId: String?, datasets: List<DatasetItem>): String? {
+        if (datasetId.isNullOrBlank()) return null
+        return datasets.firstOrNull { it.id == datasetId }?.name
     }
 
     private fun hydrateArtifactBlock(

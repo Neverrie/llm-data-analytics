@@ -21,6 +21,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -42,6 +43,7 @@ import com.example.llmdataanalyst.R
 @Composable
 fun ChatScreen(
     viewModel: ChatViewModel,
+    onOpenDatasets: () -> Unit,
     onOpenArtifact: (String) -> Unit
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -55,19 +57,38 @@ fun ChatScreen(
 
     Column(modifier = Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SnackbarHost(hostState = snackbarHostState)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { datasetMenuOpen = true }) {
-                Text(state.selectedDatasetName ?: "Выбрать датасет")
-            }
-            DropdownMenu(expanded = datasetMenuOpen, onDismissRequest = { datasetMenuOpen = false }) {
-                state.datasets.forEach { ds ->
-                    DropdownMenuItem(
-                        text = { Text(ds.name) },
-                        onClick = {
-                            viewModel.selectDataset(ds.name)
-                            datasetMenuOpen = false
-                        }
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (!state.selectedDatasetName.isNullOrBlank() || !state.selectedDatasetId.isNullOrBlank()) {
+                    Text("Выбран датасет", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    Text(
+                        state.selectedDatasetName
+                            ?: "Датасет выбран: ${state.selectedDatasetId}",
+                        style = MaterialTheme.typography.bodyMedium
                     )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = onOpenDatasets) { Text("Сменить") }
+                        TextButton(onClick = viewModel::clearSelectedDataset) { Text("Убрать") }
+                        Button(onClick = { datasetMenuOpen = true }) { Text("Быстрый выбор") }
+                    }
+                    DropdownMenu(expanded = datasetMenuOpen, onDismissRequest = { datasetMenuOpen = false }) {
+                        state.datasets.forEach { ds ->
+                            DropdownMenuItem(
+                                text = { Text(ds.name) },
+                                onClick = {
+                                    viewModel.selectDataset(ds.id, ds.name)
+                                    datasetMenuOpen = false
+                                }
+                            )
+                        }
+                    }
+                } else {
+                    Text("Датасет не выбран", style = MaterialTheme.typography.labelLarge)
+                    Text(
+                        "Можно общаться без датасета или выбрать CSV/XLSX для анализа",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Button(onClick = onOpenDatasets) { Text("Выбрать датасет") }
                 }
             }
         }

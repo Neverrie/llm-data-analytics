@@ -116,13 +116,18 @@ fun AppNavHost(
                     val vm: DashboardViewModel = viewModel(factory = DashboardViewModelFactory(appContainer.workspaceRepository))
                     DashboardScreen(
                         viewModel = vm,
-                        onOpenChat = { navController.navigate(NavRoute.Chat.withDataset(null)) },
+                        onOpenChat = { navController.navigate(NavRoute.Chat.withDataset(null, null)) },
                         onOpenSettings = { navController.navigate(NavRoute.Settings.route) }
                     )
                 }
                 composable(
                     route = NavRoute.Chat.route,
                     arguments = listOf(
+                        navArgument("datasetId") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                            nullable = true
+                        },
                         navArgument("datasetName") {
                             type = NavType.StringType
                             defaultValue = ""
@@ -137,14 +142,19 @@ fun AppNavHost(
                             appContainer.settingsRepository
                         )
                     )
+                    val preselectedDatasetId = backStackEntry.arguments?.getString("datasetId")
                     val preselectedDataset = backStackEntry.arguments?.getString("datasetName")
-                    LaunchedEffect(preselectedDataset) {
-                        if (!preselectedDataset.isNullOrBlank()) {
-                            vm.selectDataset(preselectedDataset)
+                    LaunchedEffect(preselectedDatasetId, preselectedDataset) {
+                        if (!preselectedDatasetId.isNullOrBlank() || !preselectedDataset.isNullOrBlank()) {
+                            vm.selectDataset(
+                                datasetId = preselectedDatasetId?.takeIf { it.isNotBlank() },
+                                datasetName = preselectedDataset?.takeIf { it.isNotBlank() }
+                            )
                         }
                     }
                     ChatScreen(
                         viewModel = vm,
+                        onOpenDatasets = { navController.navigate(NavRoute.Datasets.route) },
                         onOpenArtifact = { artifactId ->
                             navController.navigate("artifact/$artifactId")
                         }
@@ -155,8 +165,8 @@ fun AppNavHost(
                     DatasetsScreen(
                         viewModel = vm,
                         onOpenDataset = { datasetId -> navController.navigate("datasets/$datasetId") },
-                        onUseInChat = { datasetName ->
-                            navController.navigate(NavRoute.Chat.withDataset(datasetName))
+                        onUseInChat = { dataset ->
+                            navController.navigate(NavRoute.Chat.withDataset(dataset.id, dataset.name))
                         }
                     )
                 }

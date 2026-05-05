@@ -1,4 +1,4 @@
-package com.example.llmdataanalyst.feature.datasets
+п»їpackage com.example.llmdataanalyst.feature.datasets
 
 import android.content.Context
 import android.net.Uri
@@ -22,13 +22,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.llmdataanalyst.core.model.DatasetItem
 import java.io.File
 
 @Composable
 fun DatasetsScreen(
     viewModel: DatasetsViewModel,
     onOpenDataset: (String) -> Unit,
-    onUseInChat: (String) -> Unit
+    onUseInChat: (DatasetItem) -> Unit
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -48,7 +49,7 @@ fun DatasetsScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text("Датасеты", style = MaterialTheme.typography.headlineSmall)
+        Text("Р”Р°С‚Р°СЃРµС‚С‹", style = MaterialTheme.typography.headlineSmall)
         Button(onClick = {
             picker.launch(
                 arrayOf(
@@ -59,7 +60,7 @@ fun DatasetsScreen(
                 )
             )
         }) {
-            Text("Загрузить CSV/XLSX")
+            Text("Р—Р°РіСЂСѓР·РёС‚СЊ CSV/XLSX")
         }
 
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -73,11 +74,11 @@ fun DatasetsScreen(
                     ) {
                         Text(ds.name)
                         Text(
-                            "${ds.rowsCount ?: "-"} строк, ${ds.columnsCount ?: "-"} колонок",
+                            "${ds.rowsCount ?: "-"} СЃС‚СЂРѕРє, ${ds.columnsCount ?: "-"} РєРѕР»РѕРЅРѕРє",
                             style = MaterialTheme.typography.bodySmall
                         )
-                        Button(onClick = { onOpenDataset(ds.id) }) { Text("Открыть") }
-                        Button(onClick = { onUseInChat(ds.name) }) { Text("Использовать в чате") }
+                        Button(onClick = { onOpenDataset(ds.id) }) { Text("РћС‚РєСЂС‹С‚СЊ") }
+                        Button(onClick = { onUseInChat(ds) }) { Text("РСЃРїРѕР»СЊР·РѕРІР°С‚СЊ РІ С‡Р°С‚Рµ") }
                     }
                 }
             }
