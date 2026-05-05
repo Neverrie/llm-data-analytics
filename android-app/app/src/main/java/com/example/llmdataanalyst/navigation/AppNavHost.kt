@@ -46,6 +46,7 @@ import com.example.llmdataanalyst.feature.datasets.DatasetsViewModelFactory
 import com.example.llmdataanalyst.feature.settings.SettingsScreen
 import com.example.llmdataanalyst.feature.settings.SettingsViewModel
 import com.example.llmdataanalyst.feature.settings.SettingsViewModelFactory
+import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.launch
 
 private data class DrawerItem(val label: String, val icon: ImageVector, val route: String)
@@ -115,11 +116,20 @@ fun AppNavHost(
                     val vm: DashboardViewModel = viewModel(factory = DashboardViewModelFactory(appContainer.workspaceRepository))
                     DashboardScreen(
                         viewModel = vm,
-                        onOpenChat = { navController.navigate(NavRoute.Chat.route) },
+                        onOpenChat = { navController.navigate(NavRoute.Chat.withDataset(null)) },
                         onOpenSettings = { navController.navigate(NavRoute.Settings.route) }
                     )
                 }
-                composable(NavRoute.Chat.route) {
+                composable(
+                    route = NavRoute.Chat.route,
+                    arguments = listOf(
+                        navArgument("datasetName") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                            nullable = true
+                        }
+                    )
+                ) { backStackEntry ->
                     val vm: ChatViewModel = viewModel(
                         factory = ChatViewModelFactory(
                             appContainer.chatRepository,
@@ -127,6 +137,12 @@ fun AppNavHost(
                             appContainer.settingsRepository
                         )
                     )
+                    val preselectedDataset = backStackEntry.arguments?.getString("datasetName")
+                    LaunchedEffect(preselectedDataset) {
+                        if (!preselectedDataset.isNullOrBlank()) {
+                            vm.selectDataset(preselectedDataset)
+                        }
+                    }
                     ChatScreen(
                         viewModel = vm,
                         onOpenArtifact = { artifactId ->
@@ -140,7 +156,7 @@ fun AppNavHost(
                         viewModel = vm,
                         onOpenDataset = { datasetId -> navController.navigate("datasets/$datasetId") },
                         onUseInChat = { datasetName ->
-                            navController.navigate(NavRoute.Chat.route)
+                            navController.navigate(NavRoute.Chat.withDataset(datasetName))
                         }
                     )
                 }

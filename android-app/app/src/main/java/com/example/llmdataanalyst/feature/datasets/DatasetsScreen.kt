@@ -32,6 +32,7 @@ fun DatasetsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
     LaunchedEffect(Unit) { viewModel.loadDatasets() }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -41,8 +42,13 @@ fun DatasetsScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Ð”Ð°Ñ‚Ð°ÑÐµÑ‚Ñ‹", style = MaterialTheme.typography.headlineSmall)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text("Äàòàñåòû", style = MaterialTheme.typography.headlineSmall)
         Button(onClick = {
             picker.launch(
                 arrayOf(
@@ -53,18 +59,25 @@ fun DatasetsScreen(
                 )
             )
         }) {
-            Text("Ð—Ð°Ð³Ñ€ÑƒÐ·Ð¸Ñ‚ÑŒ CSV/XLSX")
+            Text("Çàãðóçèòü CSV/XLSX")
         }
+
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(state.items, key = { it.id }) { ds ->
                 Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
                         Text(ds.name)
-                        Text("${ds.rowsCount ?: "-"} ÑÑ‚Ñ€Ð¾Ðº, ${ds.columnsCount ?: "-"} ÐºÐ¾Ð»Ð¾Ð½Ð¾Ðº", style = MaterialTheme.typography.bodySmall)
-                        Button(onClick = { onOpenDataset(ds.id) }) { Text("ÐžÑ‚ÐºÑ€Ñ‹Ñ‚ÑŒ") }
-                        Button(onClick = { onUseInChat(ds.name) }) { Text("Ð˜ÑÐ¿Ð¾Ð»ÑŒÐ·Ð¾Ð²Ð°Ñ‚ÑŒ Ð² Ñ‡Ð°Ñ‚Ðµ") }
+                        Text(
+                            "${ds.rowsCount ?: "-"} ñòðîê, ${ds.columnsCount ?: "-"} êîëîíîê",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Button(onClick = { onOpenDataset(ds.id) }) { Text("Îòêðûòü") }
+                        Button(onClick = { onUseInChat(ds.name) }) { Text("Èñïîëüçîâàòü â ÷àòå") }
                     }
                 }
             }
@@ -78,6 +91,7 @@ private fun copyToCacheFile(context: Context, uri: Uri): File? {
             val idx = c.getColumnIndex("_display_name")
             if (idx >= 0 && c.moveToFirst()) c.getString(idx) else "upload_file"
         } ?: "upload_file"
+
         val out = File(context.cacheDir, name)
         context.contentResolver.openInputStream(uri).use { input ->
             out.outputStream().use { output ->
