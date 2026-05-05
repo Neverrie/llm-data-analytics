@@ -13,6 +13,7 @@ sealed class NavRoute(val route: String) {
         }
     }
     data object Datasets : NavRoute("datasets")
+    data object DatasetPicker : NavRoute("dataset_picker")
     data object Artifacts : NavRoute("artifacts")
     data object Lab2 : NavRoute("lab2")
     data object DatasetDetail : NavRoute("datasets/{datasetId}")

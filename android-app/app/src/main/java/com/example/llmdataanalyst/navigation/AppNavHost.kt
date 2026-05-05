@@ -68,7 +68,7 @@ fun AppNavHost(
     val scope = rememberCoroutineScope()
     val drawerItems = listOf(
         DrawerItem("Главная", Icons.Default.SpaceDashboard, NavRoute.Dashboard.route),
-        DrawerItem("Чат", Icons.Default.Chat, NavRoute.Chat.route),
+        DrawerItem("Чат", Icons.Default.Chat, NavRoute.Chat.withDataset(null, null)),
         DrawerItem("Датасеты", Icons.Default.Storage, NavRoute.Datasets.route),
         DrawerItem("Артефакты", Icons.Default.Image, NavRoute.Artifacts.route),
         DrawerItem("Lab2 Pipeline", Icons.Default.SpaceDashboard, NavRoute.Lab2.route),
@@ -179,7 +179,7 @@ fun AppNavHost(
                     }
                     ChatScreen(
                         viewModel = vm,
-                        onOpenDatasets = { navController.navigate(NavRoute.Datasets.route) },
+                        onOpenDatasets = { navController.navigate(NavRoute.DatasetPicker.route) },
                         onOpenArtifact = { artifactId ->
                             navController.navigate("artifact/$artifactId")
                         }
@@ -192,7 +192,21 @@ fun AppNavHost(
                         onOpenDataset = { datasetId -> navController.navigate("datasets/$datasetId") },
                         onUseInChat = { dataset ->
                             navController.navigate(NavRoute.Chat.withDataset(dataset.id, dataset.name))
-                        }
+                        },
+                        selectMode = false
+                    )
+                }
+                composable(NavRoute.DatasetPicker.route) {
+                    val vm: DatasetsViewModel = viewModel(factory = DatasetsViewModelFactory(appContainer.datasetRepository))
+                    DatasetsScreen(
+                        viewModel = vm,
+                        onOpenDataset = { datasetId -> navController.navigate("datasets/$datasetId") },
+                        onUseInChat = { dataset ->
+                            navController.navigate(NavRoute.Chat.withDataset(dataset.id, dataset.name)) {
+                                popUpTo(NavRoute.DatasetPicker.route) { inclusive = true }
+                            }
+                        },
+                        selectMode = true
                     )
                 }
                 composable(NavRoute.Artifacts.route) {

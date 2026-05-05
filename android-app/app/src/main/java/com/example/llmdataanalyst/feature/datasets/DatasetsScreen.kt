@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,7 +30,8 @@ import java.io.File
 fun DatasetsScreen(
     viewModel: DatasetsViewModel,
     onOpenDataset: (String) -> Unit,
-    onUseInChat: (DatasetItem) -> Unit
+    onUseInChat: (DatasetItem) -> Unit,
+    selectMode: Boolean = false
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -49,7 +51,7 @@ fun DatasetsScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text("Датасеты", style = MaterialTheme.typography.headlineSmall)
+        Text(if (selectMode) "Выберите датасет" else "Датасеты", style = MaterialTheme.typography.headlineSmall)
         Button(onClick = {
             picker.launch(
                 arrayOf(
@@ -67,7 +69,13 @@ fun DatasetsScreen(
 
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(state.items, key = { it.id }) { ds ->
-                Card(modifier = Modifier.fillMaxWidth()) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            if (selectMode) onUseInChat(ds) else onOpenDataset(ds.id)
+                        }
+                ) {
                     Column(
                         modifier = Modifier.padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -77,8 +85,12 @@ fun DatasetsScreen(
                             "${ds.rowsCount ?: "-"} строк, ${ds.columnsCount ?: "-"} колонок",
                             style = MaterialTheme.typography.bodySmall
                         )
-                        Button(onClick = { onOpenDataset(ds.id) }) { Text("Открыть") }
-                        Button(onClick = { onUseInChat(ds) }) { Text("Использовать в чате") }
+                        if (!selectMode) {
+                            Button(onClick = { onOpenDataset(ds.id) }) { Text("Открыть") }
+                            Button(onClick = { onUseInChat(ds) }) { Text("Использовать в чате") }
+                        } else {
+                            Button(onClick = { onUseInChat(ds) }) { Text("Выбрать") }
+                        }
                     }
                 }
             }
