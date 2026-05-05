@@ -24,6 +24,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import androidx.navigation.compose.composable
 import com.example.llmdataanalyst.AppContainer
 import com.example.llmdataanalyst.feature.auth.AuthViewModel
@@ -32,6 +34,7 @@ import com.example.llmdataanalyst.feature.auth.LoginScreen
 import com.example.llmdataanalyst.feature.chat.ChatScreen
 import com.example.llmdataanalyst.feature.chat.ChatViewModel
 import com.example.llmdataanalyst.feature.chat.ChatViewModelFactory
+import com.example.llmdataanalyst.feature.chat.ArtifactDetailScreen
 import com.example.llmdataanalyst.feature.dashboard.DashboardScreen
 import com.example.llmdataanalyst.feature.dashboard.DashboardViewModel
 import com.example.llmdataanalyst.feature.dashboard.DashboardViewModelFactory
@@ -114,7 +117,19 @@ fun AppNavHost(
                     val vm: ChatViewModel = viewModel(
                         factory = ChatViewModelFactory(appContainer.chatRepository, appContainer.settingsRepository)
                     )
-                    ChatScreen(viewModel = vm)
+                    ChatScreen(
+                        viewModel = vm,
+                        onOpenArtifact = { artifactId ->
+                            navController.navigate("artifact/$artifactId")
+                        }
+                    )
+                }
+                composable(
+                    route = NavRoute.ArtifactDetail.route,
+                    arguments = listOf(navArgument("artifactId") { type = NavType.StringType })
+                ) { backStackEntry ->
+                    val artifactId = backStackEntry.arguments?.getString("artifactId").orEmpty()
+                    ArtifactDetailScreen(artifactId = artifactId, chatRepository = appContainer.chatRepository)
                 }
                 composable(NavRoute.Settings.route) {
                     val vm: SettingsViewModel = viewModel(
