@@ -265,6 +265,9 @@ class ChatViewModel(
     private suspend fun refreshArtifactsAfterAgent(assistantMessageId: String, beforeIds: Set<String>) {
         val now = chatRepository.listArtifacts()
         val newItems = now.filter { it.id !in beforeIds }.takeLast(6)
+        if (newItems.isNotEmpty()) {
+            _events.emit("Найдено новых артефактов: ${newItems.size}")
+        }
         newItems.forEach { art ->
             hydrateArtifactBlock(
                 assistantMessageId = assistantMessageId,
