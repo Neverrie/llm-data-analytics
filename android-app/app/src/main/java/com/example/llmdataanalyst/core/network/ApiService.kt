@@ -10,15 +10,22 @@ import com.example.llmdataanalyst.core.model.ChatMessageCreateRequest
 import com.example.llmdataanalyst.core.model.ChatMessageItem
 import com.example.llmdataanalyst.core.model.CreateChatRequest
 import com.example.llmdataanalyst.core.model.DatasetsResponse
+import com.example.llmdataanalyst.core.model.DatasetItem
+import com.example.llmdataanalyst.core.model.DatasetPreviewResponse
+import com.example.llmdataanalyst.core.model.DatasetProfileResponse
 import com.example.llmdataanalyst.core.model.HealthResponse
 import com.example.llmdataanalyst.core.model.UserPublic
 import com.example.llmdataanalyst.core.model.WorkspaceResponse
 import retrofit2.http.Path
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.Multipart
 import retrofit2.http.POST
 import okhttp3.ResponseBody
+import okhttp3.MultipartBody
 import retrofit2.Response
+import retrofit2.http.Part
+import retrofit2.http.Query
 
 interface ApiService {
     @GET("api/health")
@@ -53,6 +60,19 @@ interface ApiService {
 
     @GET("api/datasets")
     suspend fun datasets(): DatasetsResponse
+
+    @Multipart
+    @POST("api/datasets/upload")
+    suspend fun uploadDataset(@Part file: MultipartBody.Part): DatasetItem
+
+    @GET("api/datasets/{datasetId}/preview")
+    suspend fun datasetPreview(
+        @Path("datasetId") datasetId: String,
+        @Query("limit") limit: Int = 20
+    ): DatasetPreviewResponse
+
+    @GET("api/datasets/{datasetId}/profile")
+    suspend fun datasetProfile(@Path("datasetId") datasetId: String): DatasetProfileResponse
 
     @GET("api/artifacts")
     suspend fun artifacts(): ArtifactsResponse

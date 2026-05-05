@@ -9,6 +9,7 @@ import com.example.llmdataanalyst.core.network.UnauthorizedEventBus
 import com.example.llmdataanalyst.core.repository.ApiProvider
 import com.example.llmdataanalyst.core.repository.AuthRepository
 import com.example.llmdataanalyst.core.repository.ChatRepository
+import com.example.llmdataanalyst.core.repository.DatasetRepository
 import com.example.llmdataanalyst.core.repository.SettingsRepository
 import com.example.llmdataanalyst.core.repository.WorkspaceRepository
 
@@ -29,5 +30,6 @@ class AppContainer(context: Context) {
         onSetStreamingEnabled = appPreferences::setStreamingEnabled
     )
     val workspaceRepository = WorkspaceRepository(apiProvider)
+    val datasetRepository = DatasetRepository(apiProvider)
     val chatRepository = ChatRepository(apiProvider, settingsRepository, streamClient)
 }

@@ -5,8 +5,11 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.llmdataanalyst.core.model.ChatMessageCreateRequest
 import com.example.llmdataanalyst.core.model.ChatSendResult
+import com.example.llmdataanalyst.core.model.DatasetItem
 import com.example.llmdataanalyst.core.repository.ChatRepository
+import com.example.llmdataanalyst.core.repository.DatasetRepository
 import com.example.llmdataanalyst.core.repository.SettingsRepository
+import com.example.llmdataanalyst.core.util.AppResult
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +37,8 @@ data class ChatUiState(
     val chatId: String? = null,
     val baseUrl: String = "",
     val token: String? = null,
+    val selectedDatasetName: String? = null,
+    val datasets: List<DatasetItem> = emptyList(),
     val loading: Boolean = false,
     val input: String = "",
     val messages: List<UiChatMessage> = emptyList()
@@ -41,6 +46,7 @@ data class ChatUiState(
 
 class ChatViewModel(
     private val chatRepository: ChatRepository,
+    private val datasetRepository: DatasetRepository,
     private val settingsRepository: SettingsRepository
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ChatUiState())
@@ -62,6 +68,7 @@ class ChatViewModel(
                 _uiState.update { it.copy(token = token) }
             }
         }
+        loadDatasets()
     }
 
     fun updateInput(value: String) = _uiState.update { it.copy(input = value) }
@@ -83,12 +90,30 @@ class ChatViewModel(
         }
     }
 
+    fun selectDataset(datasetName: String) {
+        _uiState.update { it.copy(selectedDatasetName = datasetName) }
+    }
+
+    private fun loadDatasets() {
+        viewModelScope.launch {
+            when (val result = datasetRepository.listDatasets()) {
+                is AppResult.Success -> _uiState.update {
+                    it.copy(
+                        datasets = result.data,
+                        selectedDatasetName = it.selectedDatasetName ?: result.data.firstOrNull()?.name
+                    )
+                }
+                is AppResult.Error -> Unit
+            }
+        }
+    }
+
     fun sendMessage() {
         val text = uiState.value.input.trim()
         if (text.isBlank() || uiState.value.loading) return
 
         streamJob = viewModelScope.launch {
-            val chatId = uiState.value.chatId ?: chatRepository.createChat().id
+            val chatId = uiState.value.chatId ?: chatRepository.createChat(uiState.value.selectedDatasetName).id
             val userMsg = UiChatMessage(
                 id = "local-user-${System.currentTimeMillis()}",
                 role = "user",
@@ -294,10 +319,11 @@ class ChatViewModel(
 
 class ChatViewModelFactory(
     private val chatRepository: ChatRepository,
+    private val datasetRepository: DatasetRepository,
     private val settingsRepository: SettingsRepository
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         @Suppress("UNCHECKED_CAST")
-        return ChatViewModel(chatRepository, settingsRepository) as T
+        return ChatViewModel(chatRepository, datasetRepository, settingsRepository) as T
     }
 }

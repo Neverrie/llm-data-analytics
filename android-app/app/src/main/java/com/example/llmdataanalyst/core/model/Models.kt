@@ -86,6 +86,27 @@ data class DatasetsResponse(
 )
 
 @Serializable
+data class DatasetPreviewResponse(
+    val columns: List<String> = emptyList(),
+    val rows: List<JsonElement> = emptyList()
+)
+
+@Serializable
+data class DatasetProfileColumn(
+    val name: String,
+    val dtype: String,
+    @SerialName("missing_count") val missingCount: Int? = null,
+    @SerialName("unique_count") val uniqueCount: Int? = null
+)
+
+@Serializable
+data class DatasetProfileResponse(
+    @SerialName("rows_count") val rowsCount: Int? = null,
+    @SerialName("columns_count") val columnsCount: Int? = null,
+    val columns: List<DatasetProfileColumn> = emptyList()
+)
+
+@Serializable
 data class ArtifactItem(
     val id: String,
     val kind: String? = null,
