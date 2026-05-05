@@ -74,7 +74,14 @@ fun DashboardScreen(
         }
 
         item {
-            if (state.loading) CircularProgressIndicator()
+            if (state.loading) {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        CircularProgressIndicator()
+                        Text("Загружаю данные workspace...")
+                    }
+                }
+            }
             if (state.error != null) {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
