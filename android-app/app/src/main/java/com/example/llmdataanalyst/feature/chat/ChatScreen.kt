@@ -1,6 +1,7 @@
 ﻿package com.example.llmdataanalyst.feature.chat
 
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
@@ -59,6 +59,11 @@ fun ChatScreen(
         SnackbarHost(hostState = snackbarHostState)
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    if (!state.selectedDatasetId.isNullOrBlank()) "Режим: агент анализа данных" else "Режим: обычный чат",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
                 if (!state.selectedDatasetName.isNullOrBlank() || !state.selectedDatasetId.isNullOrBlank()) {
                     Text("Выбран датасет", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                     Text(
@@ -107,7 +112,21 @@ fun ChatScreen(
                                     if (block.text.isNotBlank()) Text(block.text)
                                 }
                                 is ChatContentBlock.MarkdownBlock -> {
-                                    Text(block.text)
+                                    if (block.text.contains("```")) {
+                                        val hs = rememberScrollState()
+                                        Card(modifier = Modifier.fillMaxWidth()) {
+                                            Text(
+                                                block.text,
+                                                modifier = Modifier
+                                                    .padding(8.dp)
+                                                    .horizontalScroll(hs),
+                                                fontFamily = FontFamily.Monospace,
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                        }
+                                    } else {
+                                        Text(block.text)
+                                    }
                                 }
                                 is ChatContentBlock.ImageArtifactBlock -> {
                                     Text(block.title ?: stringResource(R.string.chat_image), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
@@ -201,6 +220,11 @@ fun ChatScreen(
             Button(onClick = viewModel::sendMessage, enabled = !state.loading) { Text(stringResource(R.string.chat_send)) }
             Button(onClick = viewModel::stopStreaming, enabled = state.loading) { Text(stringResource(R.string.chat_stop)) }
             if (state.loading) CircularProgressIndicator(modifier = Modifier.padding(start = 8.dp))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Button(onClick = { viewModel.sendPreset("Сделай обзор датасета: строки, колонки, типы данных, пропуски и 3 главных наблюдения.") }, enabled = !state.loading) { Text("Обзор") }
+            Button(onClick = { viewModel.sendPreset("Построй графики распределения для числовых признаков и сохрани их как артефакты.") }, enabled = !state.loading) { Text("Графики") }
+            Button(onClick = { viewModel.sendPreset("Построй простую регрессионную модель на подходящей целевой переменной, выполни её на backend и покажи метрики.") }, enabled = !state.loading) { Text("Регрессия") }
         }
     }
 }
