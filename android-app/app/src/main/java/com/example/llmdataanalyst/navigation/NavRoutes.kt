@@ -12,6 +12,7 @@ sealed class NavRoute(val route: String) {
         }
     }
     data object Datasets : NavRoute("datasets")
+    data object Artifacts : NavRoute("artifacts")
     data object DatasetDetail : NavRoute("datasets/{datasetId}")
     data object ArtifactDetail : NavRoute("artifact/{artifactId}")
     data object Settings : NavRoute("settings")

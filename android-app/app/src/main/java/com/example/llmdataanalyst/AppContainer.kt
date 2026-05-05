@@ -7,6 +7,7 @@ import com.example.llmdataanalyst.core.network.AuthStateHolder
 import com.example.llmdataanalyst.core.network.ChatStreamClient
 import com.example.llmdataanalyst.core.network.UnauthorizedEventBus
 import com.example.llmdataanalyst.core.repository.ApiProvider
+import com.example.llmdataanalyst.core.repository.ArtifactRepository
 import com.example.llmdataanalyst.core.repository.AuthRepository
 import com.example.llmdataanalyst.core.repository.ChatRepository
 import com.example.llmdataanalyst.core.repository.DatasetRepository
@@ -32,4 +33,5 @@ class AppContainer(context: Context) {
     val workspaceRepository = WorkspaceRepository(apiProvider)
     val datasetRepository = DatasetRepository(apiProvider)
     val chatRepository = ChatRepository(apiProvider, settingsRepository, streamClient)
+    val artifactRepository = ArtifactRepository(apiProvider, settingsRepository)
 }

@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SpaceDashboard
@@ -43,6 +44,9 @@ import com.example.llmdataanalyst.feature.datasets.DatasetDetailScreen
 import com.example.llmdataanalyst.feature.datasets.DatasetsScreen
 import com.example.llmdataanalyst.feature.datasets.DatasetsViewModel
 import com.example.llmdataanalyst.feature.datasets.DatasetsViewModelFactory
+import com.example.llmdataanalyst.feature.artifacts.ArtifactsScreen
+import com.example.llmdataanalyst.feature.artifacts.ArtifactsViewModel
+import com.example.llmdataanalyst.feature.artifacts.ArtifactsViewModelFactory
 import com.example.llmdataanalyst.feature.settings.SettingsScreen
 import com.example.llmdataanalyst.feature.settings.SettingsViewModel
 import com.example.llmdataanalyst.feature.settings.SettingsViewModelFactory
@@ -63,6 +67,7 @@ fun AppNavHost(
         DrawerItem("Dashboard", Icons.Default.SpaceDashboard, NavRoute.Dashboard.route),
         DrawerItem("Чат", Icons.Default.Chat, NavRoute.Chat.route),
         DrawerItem("Датасеты", Icons.Default.Storage, NavRoute.Datasets.route),
+        DrawerItem("Артефакты", Icons.Default.Image, NavRoute.Artifacts.route),
         DrawerItem("Настройки", Icons.Default.Settings, NavRoute.Settings.route)
     )
 
@@ -170,6 +175,13 @@ fun AppNavHost(
                         }
                     )
                 }
+                composable(NavRoute.Artifacts.route) {
+                    val vm: ArtifactsViewModel = viewModel(factory = ArtifactsViewModelFactory(appContainer.artifactRepository))
+                    ArtifactsScreen(
+                        viewModel = vm,
+                        onOpenArtifact = { artifactId -> navController.navigate("artifact/$artifactId") }
+                    )
+                }
                 composable(
                     route = NavRoute.DatasetDetail.route,
                     arguments = listOf(navArgument("datasetId") { type = NavType.StringType })
@@ -183,7 +195,7 @@ fun AppNavHost(
                     arguments = listOf(navArgument("artifactId") { type = NavType.StringType })
                 ) { backStackEntry ->
                     val artifactId = backStackEntry.arguments?.getString("artifactId").orEmpty()
-                    ArtifactDetailScreen(artifactId = artifactId, chatRepository = appContainer.chatRepository)
+                    ArtifactDetailScreen(artifactId = artifactId, artifactRepository = appContainer.artifactRepository)
                 }
                 composable(NavRoute.Settings.route) {
                     val vm: SettingsViewModel = viewModel(
