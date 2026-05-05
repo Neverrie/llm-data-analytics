@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.llmdataanalyst.core.model.ChatMessageCreateRequest
 import com.example.llmdataanalyst.core.model.ChatSendResult
 import com.example.llmdataanalyst.core.model.DatasetItem
+import com.example.llmdataanalyst.core.repository.ChatExecutionMode
 import com.example.llmdataanalyst.core.repository.ChatRepository
 import com.example.llmdataanalyst.core.repository.DatasetRepository
 import com.example.llmdataanalyst.core.repository.SettingsRepository
@@ -19,8 +20,9 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 
 data class UiChatMessage(
@@ -61,14 +63,10 @@ class ChatViewModel(
 
     init {
         viewModelScope.launch {
-            settingsRepository.baseUrlFlow.collect { url ->
-                _uiState.update { it.copy(baseUrl = url) }
-            }
+            settingsRepository.baseUrlFlow.collect { url -> _uiState.update { it.copy(baseUrl = url) } }
         }
         viewModelScope.launch {
-            settingsRepository.tokenFlow.collect { token ->
-                _uiState.update { it.copy(token = token) }
-            }
+            settingsRepository.tokenFlow.collect { token -> _uiState.update { it.copy(token = token) } }
         }
         loadDatasets()
     }
@@ -82,10 +80,7 @@ class ChatViewModel(
             val idx = updated.indexOfLast { msg -> msg.role == "assistant" && msg.isLoading }
             if (idx >= 0) {
                 updated[idx] = rebuildMessage(
-                    updated[idx].copy(
-                        isLoading = false,
-                        toolProgress = updated[idx].toolProgress + "Остановлено пользователем"
-                    )
+                    updated[idx].copy(isLoading = false, toolProgress = updated[idx].toolProgress + "Остановлено пользователем")
                 )
             }
             it.copy(loading = false, messages = updated)
@@ -105,19 +100,19 @@ class ChatViewModel(
         _uiState.update { it.copy(selectedDatasetId = null, selectedDatasetName = null) }
     }
 
+    fun executionMode(): ChatExecutionMode {
+        return if (!uiState.value.selectedDatasetId.isNullOrBlank()) ChatExecutionMode.DatasetAgent else ChatExecutionMode.GeneralChat
+    }
+
     fun openChat(chatId: String) {
         if (chatId.isBlank()) return
         viewModelScope.launch {
             runCatching { chatRepository.getChat(chatId) }
                 .onSuccess { detail ->
                     val mapped = detail.messages.map { msg ->
-                        val base = UiChatMessage(
-                            id = msg.id,
-                            role = msg.role,
-                            content = msg.content,
-                            isLoading = false
-                        )
-                        if (msg.role == "assistant") rebuildMessage(base) else base.copy(blocks = listOf(ChatContentBlock.TextBlock(msg.content)))
+                        val normalizedContent = if (msg.role == "user") chatRepository.stripDatasetTechnicalPrefix(msg.content) else msg.content
+                        val base = UiChatMessage(id = msg.id, role = msg.role, content = normalizedContent, isLoading = false)
+                        if (msg.role == "assistant") rebuildMessage(base) else base.copy(blocks = listOf(ChatContentBlock.TextBlock(normalizedContent)))
                     }
                     _uiState.update { it.copy(chatId = chatId, messages = mapped) }
                 }
@@ -128,13 +123,8 @@ class ChatViewModel(
         viewModelScope.launch {
             when (val result = datasetRepository.listDatasets()) {
                 is AppResult.Success -> _uiState.update {
-                    val resolvedName = it.selectedDatasetName
-                        ?: resolveDatasetName(it.selectedDatasetId, result.data)
-                        ?: result.data.firstOrNull()?.name
-                    it.copy(
-                        datasets = result.data,
-                        selectedDatasetName = resolvedName
-                    )
+                    val resolvedName = it.selectedDatasetName ?: resolveDatasetName(it.selectedDatasetId, result.data)
+                    it.copy(datasets = result.data, selectedDatasetName = resolvedName)
                 }
                 is AppResult.Error -> Unit
             }
@@ -142,12 +132,23 @@ class ChatViewModel(
     }
 
     fun sendMessage() {
-        val text = uiState.value.input.trim()
-        if (text.isBlank() || uiState.value.loading) return
+        sendMessageWithText(uiState.value.input.trim(), clearInput = true)
+    }
 
+    fun sendPreset(prompt: String) {
+        sendMessageWithText(prompt.trim(), clearInput = false)
+    }
+
+    private fun sendMessageWithText(text: String, clearInput: Boolean) {
+        if (text.isBlank() || uiState.value.loading) return
         streamJob = viewModelScope.launch {
-            val selectedDatasetLabel = buildSelectedDatasetLabel()
-            val chatId = uiState.value.chatId ?: chatRepository.createChat(uiState.value.selectedDatasetName).id
+            val mode = executionMode()
+            val chatId = if (mode == ChatExecutionMode.GeneralChat) {
+                uiState.value.chatId ?: chatRepository.createChat(uiState.value.selectedDatasetName).id
+            } else {
+                uiState.value.chatId ?: chatRepository.createChat(uiState.value.selectedDatasetName).id
+            }
+
             val userMsg = UiChatMessage(
                 id = "local-user-${System.currentTimeMillis()}",
                 role = "user",
@@ -162,53 +163,72 @@ class ChatViewModel(
                 isLoading = true,
                 blocks = listOf(ChatContentBlock.TextBlock(""))
             )
+
             _uiState.update {
                 it.copy(
                     chatId = chatId,
                     loading = true,
-                    input = "",
+                    input = if (clearInput) "" else it.input,
                     messages = it.messages + listOf(userMsg, assistant)
                 )
             }
 
             val request = ChatMessageCreateRequest(
                 role = "user",
-                content = buildRequestContent(text, selectedDatasetLabel),
+                content = buildRequestContentForMode(text, mode),
                 blocks = emptyList(),
                 metadata = buildMap {
                     put("client", buildJsonObject { put("platform", "android") })
                     uiState.value.selectedDatasetId?.let { put("dataset_id", JsonPrimitive(it)) }
                     uiState.value.selectedDatasetName?.let { put("dataset_name", JsonPrimitive(it)) }
-                    selectedDatasetLabel?.let { put("dataset_context", JsonPrimitive(it)) }
                 }
             )
+
             var usedFallback = false
             var gotDone = false
+            val artifactsBefore = if (mode == ChatExecutionMode.DatasetAgent) chatRepository.listArtifacts().map { it.id }.toSet() else emptySet()
 
-            chatRepository.sendMessage(chatId, request, settingsRepository.streamingEnabledFlow.first()).collect { result ->
+            chatRepository.sendMessage(
+                mode = mode,
+                chatId = chatId,
+                request = request,
+                streamingEnabled = settingsRepository.streamingEnabledFlow.first(),
+                datasetName = uiState.value.selectedDatasetName
+            ).collect { result ->
                 when (result) {
                     is ChatSendResult.AssistantDelta -> appendAssistantDelta(result.content)
                     is ChatSendResult.ToolProgress -> appendToolLog(result.message)
                     is ChatSendResult.ArtifactCreated -> {
                         if (result.artifactId.isNotBlank()) {
-                            hydrateArtifactBlock(
-                                assistantMessageId = assistantId,
-                                artifactId = result.artifactId,
-                                title = result.title,
-                                mimeType = result.mimeType
-                            )
+                            hydrateArtifactBlock(assistantMessageId = assistantId, artifactId = result.artifactId, title = result.title, mimeType = result.mimeType)
                         }
                     }
                     is ChatSendResult.FallbackUsed -> {
                         usedFallback = true
                         _events.emit("Стриминг недоступен, использую обычный режим")
-                        val jsonMsg = chatRepository.sendMessageJson(chatId, request)
-                        setAssistantFinal(jsonMsg.content)
+                        if (mode == ChatExecutionMode.DatasetAgent) {
+                            val response = chatRepository.sendLab3Json(uiState.value.selectedDatasetName.orEmpty(), text)
+                            val finalAnswer = extractLab3FinalAnswer(response)
+                            setAssistantFinal(finalAnswer)
+                            refreshArtifactsAfterAgent(assistantId, artifactsBefore)
+                        } else {
+                            val jsonMsg = chatRepository.sendMessageJson(chatId, request)
+                            setAssistantFinal(chatRepository.stripDatasetTechnicalPrefix(jsonMsg.content))
+                        }
                     }
                     is ChatSendResult.Completed -> {
                         gotDone = true
-                        result.messageId?.let { replaceTemporaryAssistantId(assistantId, it) }
-                        syncChat(chatId)
+                        if (mode == ChatExecutionMode.DatasetAgent) {
+                            runCatching {
+                                val lab3 = chatRepository.getLab3Result()
+                                val finalText = extractLab3FinalAnswer(lab3)
+                                if (finalText.isNotBlank()) setAssistantFinal(finalText)
+                            }
+                            refreshArtifactsAfterAgent(assistantId, artifactsBefore)
+                        } else {
+                            result.messageId?.let { replaceTemporaryAssistantId(assistantId, it) }
+                            syncChat(chatId)
+                        }
                     }
                     is ChatSendResult.Failed -> {
                         appendError(result.message)
@@ -218,9 +238,7 @@ class ChatViewModel(
                 }
             }
 
-            if (!gotDone && !usedFallback) {
-                _events.emit("Ответ завершён")
-            }
+            if (!gotDone && !usedFallback) _events.emit("Ответ завершён")
             _uiState.update {
                 val updated = it.messages.toMutableList()
                 val idx = updated.indexOfLast { msg -> msg.role == "assistant" && msg.isLoading }
@@ -230,19 +248,30 @@ class ChatViewModel(
         }
     }
 
-    private fun buildRequestContent(userText: String, datasetLabel: String?): String {
-        if (datasetLabel.isNullOrBlank()) return userText
-        return "Используй выбранный датасет: $datasetLabel.\nЗапрос пользователя: $userText"
+    private fun buildRequestContentForMode(userText: String, mode: ChatExecutionMode): String {
+        return if (mode == ChatExecutionMode.DatasetAgent) {
+            "$userText\n\nНе возвращай только код. Выполни анализ через backend-инструменты и верни результаты, таблицы, графики и артефакты."
+        } else {
+            userText
+        }
     }
 
-    private fun buildSelectedDatasetLabel(): String? {
-        val id = uiState.value.selectedDatasetId
-        val name = uiState.value.selectedDatasetName
-        return when {
-            !name.isNullOrBlank() && !id.isNullOrBlank() -> "ID=$id, name=$name"
-            !name.isNullOrBlank() -> "name=$name"
-            !id.isNullOrBlank() -> "ID=$id"
-            else -> null
+    private fun extractLab3FinalAnswer(payload: kotlinx.serialization.json.JsonElement): String {
+        return runCatching {
+            payload.jsonObject["final_answer"]?.toString()?.trim('"')
+        }.getOrNull().orEmpty()
+    }
+
+    private suspend fun refreshArtifactsAfterAgent(assistantMessageId: String, beforeIds: Set<String>) {
+        val now = chatRepository.listArtifacts()
+        val newItems = now.filter { it.id !in beforeIds }.takeLast(6)
+        newItems.forEach { art ->
+            hydrateArtifactBlock(
+                assistantMessageId = assistantMessageId,
+                artifactId = art.id,
+                title = art.title ?: art.filename,
+                mimeType = art.mimeType
+            )
         }
     }
 
@@ -251,23 +280,12 @@ class ChatViewModel(
         return datasets.firstOrNull { it.id == datasetId }?.name
     }
 
-    private fun hydrateArtifactBlock(
-        assistantMessageId: String,
-        artifactId: String,
-        title: String?,
-        mimeType: String?
-    ) {
-        // placeholder while preview loading
+    private fun hydrateArtifactBlock(assistantMessageId: String, artifactId: String, title: String?, mimeType: String?) {
         addVisualBlock(
             assistantMessageId,
-            ChatContentBlock.UnsupportedArtifactBlock(
-                artifactId = artifactId,
-                title = "Загружаю предпросмотр...",
-                mimeType = mimeType
-            ),
+            ChatContentBlock.UnsupportedArtifactBlock(artifactId = artifactId, title = "Загружаю предпросмотр...", mimeType = mimeType),
             replaceSameArtifact = true
         )
-
         viewModelScope.launch {
             val block = chatRepository.buildVisualBlockFromArtifact(artifactId, title, mimeType)
             addVisualBlock(assistantMessageId, block, replaceSameArtifact = true)
@@ -275,24 +293,12 @@ class ChatViewModel(
     }
 
     private suspend fun syncChat(chatId: String) {
-        val currentVisual = uiState.value.messages
-            .lastOrNull { it.role == "assistant" }
-            ?.visualBlocks
-            .orEmpty()
-
+        val currentVisual = uiState.value.messages.lastOrNull { it.role == "assistant" }?.visualBlocks.orEmpty()
         val detail = chatRepository.getChat(chatId)
         val mapped = detail.messages.map {
-            val base = UiChatMessage(
-                id = it.id,
-                role = it.role,
-                content = it.content,
-                isLoading = false
-            )
-            if (it.role == "assistant") {
-                rebuildMessage(base.copy(visualBlocks = currentVisual))
-            } else {
-                base.copy(blocks = listOf(ChatContentBlock.TextBlock(it.content)))
-            }
+            val normalizedContent = if (it.role == "user") chatRepository.stripDatasetTechnicalPrefix(it.content) else it.content
+            val base = UiChatMessage(id = it.id, role = it.role, content = normalizedContent, isLoading = false)
+            if (it.role == "assistant") rebuildMessage(base.copy(visualBlocks = currentVisual)) else base.copy(blocks = listOf(ChatContentBlock.TextBlock(normalizedContent)))
         }
         _uiState.update { it.copy(messages = mapped) }
     }
@@ -301,9 +307,7 @@ class ChatViewModel(
         _uiState.update {
             val updated = it.messages.toMutableList()
             val idx = updated.indexOfLast { msg -> msg.role == "assistant" && msg.isLoading }
-            if (idx >= 0) {
-                updated[idx] = rebuildMessage(updated[idx].copy(content = updated[idx].content + delta))
-            }
+            if (idx >= 0) updated[idx] = rebuildMessage(updated[idx].copy(content = updated[idx].content + delta))
             it.copy(messages = updated)
         }
     }
@@ -336,16 +340,10 @@ class ChatViewModel(
     }
 
     private fun replaceTemporaryAssistantId(tempId: String, serverId: String) {
-        _uiState.update {
-            it.copy(messages = it.messages.map { msg -> if (msg.id == tempId) msg.copy(id = serverId) else msg })
-        }
+        _uiState.update { it.copy(messages = it.messages.map { msg -> if (msg.id == tempId) msg.copy(id = serverId) else msg }) }
     }
 
-    private fun addVisualBlock(
-        assistantMessageId: String,
-        block: ChatContentBlock,
-        replaceSameArtifact: Boolean = false
-    ) {
+    private fun addVisualBlock(assistantMessageId: String, block: ChatContentBlock, replaceSameArtifact: Boolean = false) {
         _uiState.update {
             val updated = it.messages.toMutableList()
             val idx = updated.indexOfLast { msg -> msg.id == assistantMessageId || (msg.role == "assistant" && msg.isLoading) }
@@ -368,12 +366,9 @@ class ChatViewModel(
     }
 
     private fun rebuildMessage(message: UiChatMessage): UiChatMessage {
-        if (message.role != "assistant") {
-            return message.copy(blocks = listOf(ChatContentBlock.TextBlock(message.content)))
-        }
+        if (message.role != "assistant") return message.copy(blocks = listOf(ChatContentBlock.TextBlock(message.content)))
         val textBlocks = MarkdownTableParser.parseToBlocks(message.content)
-        val merged = textBlocks + message.visualBlocks
-        return message.copy(blocks = merged)
+        return message.copy(blocks = textBlocks + message.visualBlocks)
     }
 }
 
