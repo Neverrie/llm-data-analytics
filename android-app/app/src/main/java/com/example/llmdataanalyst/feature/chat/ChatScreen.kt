@@ -28,10 +28,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import okhttp3.Headers
+import com.example.llmdataanalyst.R
 
 @Composable
 fun ChatScreen(
@@ -52,7 +54,10 @@ fun ChatScreen(
             items(state.messages, key = { it.id }) { msg ->
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(if (msg.role == "user") "Вы" else "Ассистент", style = MaterialTheme.typography.labelMedium)
+                        Text(
+                            if (msg.role == "user") stringResource(R.string.chat_you) else stringResource(R.string.chat_assistant),
+                            style = MaterialTheme.typography.labelMedium
+                        )
                         val blocks = if (msg.blocks.isEmpty()) listOf(ChatContentBlock.TextBlock(msg.content)) else msg.blocks
                         blocks.forEach { block ->
                             when (block) {
@@ -63,7 +68,7 @@ fun ChatScreen(
                                     Text(block.text)
                                 }
                                 is ChatContentBlock.ImageArtifactBlock -> {
-                                    Text(block.title ?: "Изображение", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                    Text(block.title ?: stringResource(R.string.chat_image), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                                     val request = ImageRequest.Builder(context)
                                         .data(block.previewUrl)
                                         .apply {
@@ -79,7 +84,7 @@ fun ChatScreen(
                                         contentDescription = block.title,
                                         modifier = Modifier.fillMaxWidth().height(220.dp)
                                     )
-                                    Button(onClick = { onOpenArtifact(block.artifactId) }) { Text("Открыть артефакт") }
+                                    Button(onClick = { onOpenArtifact(block.artifactId) }) { Text(stringResource(R.string.chat_open_artifact)) }
                                 }
                                 is ChatContentBlock.TableBlock -> {
                                     if (!block.title.isNullOrBlank()) {
@@ -99,33 +104,42 @@ fun ChatScreen(
                                         block.rows.take(20).forEach { row ->
                                             Row {
                                                 row.forEach { cell ->
-                                                    Text(text = cell.ifBlank { "—" }, modifier = Modifier.padding(6.dp))
+                                                    Text(text = cell.ifBlank { stringResource(R.string.chat_dash) }, modifier = Modifier.padding(6.dp))
                                                 }
                                             }
                                         }
                                     }
                                     if (block.truncated) {
-                                        Text("Показаны первые 20 строк", style = MaterialTheme.typography.bodySmall)
+                                        Text(stringResource(R.string.chat_first_rows), style = MaterialTheme.typography.bodySmall)
                                     }
                                     block.sourceArtifactId?.let { artifactId ->
-                                        Button(onClick = { onOpenArtifact(artifactId) }) { Text("Открыть артефакт") }
+                                        Button(onClick = { onOpenArtifact(artifactId) }) { Text(stringResource(R.string.chat_open_artifact)) }
                                     }
                                 }
                                 is ChatContentBlock.JsonBlock -> {
                                     Text(block.text, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
                                     block.sourceArtifactId?.let { artifactId ->
-                                        Button(onClick = { onOpenArtifact(artifactId) }) { Text("Открыть артефакт") }
+                                        Button(onClick = { onOpenArtifact(artifactId) }) { Text(stringResource(R.string.chat_open_artifact)) }
                                     }
                                 }
                                 is ChatContentBlock.UnsupportedArtifactBlock -> {
-                                    Text(block.title ?: "Артефакт", style = MaterialTheme.typography.bodySmall)
-                                    Button(onClick = { onOpenArtifact(block.artifactId) }) { Text("Открыть") }
+                                    Text(block.title ?: stringResource(R.string.chat_artifact), style = MaterialTheme.typography.bodySmall)
+                                    Button(onClick = { onOpenArtifact(block.artifactId) }) { Text(stringResource(R.string.chat_open)) }
                                 }
                             }
                         }
 
                         msg.toolProgress.takeLast(8).forEach {
-                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            val isActive = it.startsWith("▶")
+                            val isDone = it.startsWith("✓")
+                            val isError = it.contains("error", ignoreCase = true) || it.contains("ошиб", ignoreCase = true)
+                            val prefix = when {
+                                isActive -> "⏳ "
+                                isDone -> "✅ "
+                                isError -> "⚠ "
+                                else -> "• "
+                            }
+                            Text("$prefix$it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         msg.error?.let {
                             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
@@ -138,12 +152,12 @@ fun ChatScreen(
             modifier = Modifier.fillMaxWidth(),
             value = state.input,
             onValueChange = viewModel::updateInput,
-            label = { Text("Сообщение") },
+            label = { Text(stringResource(R.string.chat_message)) },
             enabled = !state.loading
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = viewModel::sendMessage, enabled = !state.loading) { Text("Отправить") }
-            Button(onClick = viewModel::stopStreaming, enabled = state.loading) { Text("Остановить") }
+            Button(onClick = viewModel::sendMessage, enabled = !state.loading) { Text(stringResource(R.string.chat_send)) }
+            Button(onClick = viewModel::stopStreaming, enabled = state.loading) { Text(stringResource(R.string.chat_stop)) }
             if (state.loading) CircularProgressIndicator(modifier = Modifier.padding(start = 8.dp))
         }
     }
