@@ -85,4 +85,7 @@ interface ApiService {
 
     @GET("api/artifacts/{artifactId}/preview")
     suspend fun getArtifactPreview(@Path("artifactId") artifactId: String): Response<ResponseBody>
+
+    @GET("api/artifacts/{artifactId}/download")
+    suspend fun downloadArtifact(@Path("artifactId") artifactId: String): Response<ResponseBody>
 }
