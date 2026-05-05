@@ -160,6 +160,7 @@ class ChatViewModel(
                     put("client", buildJsonObject { put("platform", "android") })
                     uiState.value.selectedDatasetId?.let { put("dataset_id", JsonPrimitive(it)) }
                     uiState.value.selectedDatasetName?.let { put("dataset_name", JsonPrimitive(it)) }
+                    selectedDatasetLabel?.let { put("dataset_context", JsonPrimitive(it)) }
                 }
             )
             var usedFallback = false
