@@ -67,11 +67,11 @@ fun AppNavHost(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val drawerItems = listOf(
-        DrawerItem("Dashboard", Icons.Default.SpaceDashboard, NavRoute.Dashboard.route),
+        DrawerItem("Главная", Icons.Default.SpaceDashboard, NavRoute.Dashboard.route),
         DrawerItem("Чат", Icons.Default.Chat, NavRoute.Chat.route),
         DrawerItem("Датасеты", Icons.Default.Storage, NavRoute.Datasets.route),
         DrawerItem("Артефакты", Icons.Default.Image, NavRoute.Artifacts.route),
-        DrawerItem("Lab2", Icons.Default.SpaceDashboard, NavRoute.Lab2.route),
+        DrawerItem("Lab2 Pipeline", Icons.Default.SpaceDashboard, NavRoute.Lab2.route),
         DrawerItem("Настройки", Icons.Default.Settings, NavRoute.Settings.route)
     )
 

@@ -1,4 +1,4 @@
-<resources>
+﻿<resources>
     <string name="app_name">LLM Data Analyst</string>
     <string name="chat_you">Вы</string>
     <string name="chat_assistant">Ассистент</string>
