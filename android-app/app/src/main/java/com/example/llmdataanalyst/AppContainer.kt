@@ -24,6 +24,7 @@ class AppContainer(context: Context) {
     val settingsRepository = SettingsRepository(
         apiProvider = apiProvider,
         baseUrlFlow = appPreferences.baseUrlFlow,
+        tokenFlow = appPreferences.tokenFlow,
         streamingEnabledFlow = appPreferences.streamingEnabledFlow,
         onSetStreamingEnabled = appPreferences::setStreamingEnabled
     )

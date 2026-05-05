@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.Flow
 class SettingsRepository(
     private val apiProvider: ApiProvider,
     val baseUrlFlow: Flow<String>,
+    val tokenFlow: Flow<String?>,
     val streamingEnabledFlow: Flow<Boolean>,
     private val onSetStreamingEnabled: suspend (Boolean) -> Unit
 ) {

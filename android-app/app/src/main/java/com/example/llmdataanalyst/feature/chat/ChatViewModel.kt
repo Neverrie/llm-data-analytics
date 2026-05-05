@@ -19,25 +19,21 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
-data class UiArtifact(
-    val id: String,
-    val title: String?,
-    val mimeType: String?
-)
-
 data class UiChatMessage(
     val id: String,
     val role: String,
     val content: String,
     val isLoading: Boolean = false,
     val toolProgress: List<String> = emptyList(),
-    val artifacts: List<UiArtifact> = emptyList(),
-    val error: String? = null
+    val error: String? = null,
+    val visualBlocks: List<ChatContentBlock> = emptyList(),
+    val blocks: List<ChatContentBlock> = emptyList()
 )
 
 data class ChatUiState(
     val chatId: String? = null,
     val baseUrl: String = "",
+    val token: String? = null,
     val loading: Boolean = false,
     val input: String = "",
     val messages: List<UiChatMessage> = emptyList()
@@ -61,6 +57,11 @@ class ChatViewModel(
                 _uiState.update { it.copy(baseUrl = url) }
             }
         }
+        viewModelScope.launch {
+            settingsRepository.tokenFlow.collect { token ->
+                _uiState.update { it.copy(token = token) }
+            }
+        }
     }
 
     fun updateInput(value: String) = _uiState.update { it.copy(input = value) }
@@ -71,9 +72,11 @@ class ChatViewModel(
             val updated = it.messages.toMutableList()
             val idx = updated.indexOfLast { msg -> msg.role == "assistant" && msg.isLoading }
             if (idx >= 0) {
-                updated[idx] = updated[idx].copy(
-                    isLoading = false,
-                    toolProgress = updated[idx].toolProgress + "Остановлено пользователем"
+                updated[idx] = rebuildMessage(
+                    updated[idx].copy(
+                        isLoading = false,
+                        toolProgress = updated[idx].toolProgress + "Остановлено пользователем"
+                    )
                 )
             }
             it.copy(loading = false, messages = updated)
@@ -86,9 +89,20 @@ class ChatViewModel(
 
         streamJob = viewModelScope.launch {
             val chatId = uiState.value.chatId ?: chatRepository.createChat().id
-            val userMsg = UiChatMessage(id = "local-user-${System.currentTimeMillis()}", role = "user", content = text)
+            val userMsg = UiChatMessage(
+                id = "local-user-${System.currentTimeMillis()}",
+                role = "user",
+                content = text,
+                blocks = listOf(ChatContentBlock.TextBlock(text))
+            )
             val assistantId = "local-assistant-${System.currentTimeMillis()}"
-            val assistant = UiChatMessage(id = assistantId, role = "assistant", content = "", isLoading = true)
+            val assistant = UiChatMessage(
+                id = assistantId,
+                role = "assistant",
+                content = "",
+                isLoading = true,
+                blocks = listOf(ChatContentBlock.TextBlock(""))
+            )
             _uiState.update {
                 it.copy(
                     chatId = chatId,
@@ -111,7 +125,16 @@ class ChatViewModel(
                 when (result) {
                     is ChatSendResult.AssistantDelta -> appendAssistantDelta(result.content)
                     is ChatSendResult.ToolProgress -> appendToolLog(result.message)
-                    is ChatSendResult.ArtifactCreated -> appendArtifact(result.artifactId, result.title, result.mimeType)
+                    is ChatSendResult.ArtifactCreated -> {
+                        if (result.artifactId.isNotBlank()) {
+                            hydrateArtifactBlock(
+                                assistantMessageId = assistantId,
+                                artifactId = result.artifactId,
+                                title = result.title,
+                                mimeType = result.mimeType
+                            )
+                        }
+                    }
                     is ChatSendResult.FallbackUsed -> {
                         usedFallback = true
                         _events.emit("Стриминг недоступен, использую обычный режим")
@@ -120,6 +143,7 @@ class ChatViewModel(
                     }
                     is ChatSendResult.Completed -> {
                         gotDone = true
+                        result.messageId?.let { replaceTemporaryAssistantId(assistantId, it) }
                         syncChat(chatId)
                     }
                     is ChatSendResult.Failed -> {
@@ -136,21 +160,54 @@ class ChatViewModel(
             _uiState.update {
                 val updated = it.messages.toMutableList()
                 val idx = updated.indexOfLast { msg -> msg.role == "assistant" && msg.isLoading }
-                if (idx >= 0) updated[idx] = updated[idx].copy(isLoading = false)
+                if (idx >= 0) updated[idx] = rebuildMessage(updated[idx].copy(isLoading = false))
                 it.copy(loading = false, messages = updated)
             }
         }
     }
 
+    private fun hydrateArtifactBlock(
+        assistantMessageId: String,
+        artifactId: String,
+        title: String?,
+        mimeType: String?
+    ) {
+        // placeholder while preview loading
+        addVisualBlock(
+            assistantMessageId,
+            ChatContentBlock.UnsupportedArtifactBlock(
+                artifactId = artifactId,
+                title = "Загружаю предпросмотр...",
+                mimeType = mimeType
+            ),
+            replaceSameArtifact = true
+        )
+
+        viewModelScope.launch {
+            val block = chatRepository.buildVisualBlockFromArtifact(artifactId, title, mimeType)
+            addVisualBlock(assistantMessageId, block, replaceSameArtifact = true)
+        }
+    }
+
     private suspend fun syncChat(chatId: String) {
+        val currentVisual = uiState.value.messages
+            .lastOrNull { it.role == "assistant" }
+            ?.visualBlocks
+            .orEmpty()
+
         val detail = chatRepository.getChat(chatId)
         val mapped = detail.messages.map {
-            UiChatMessage(
+            val base = UiChatMessage(
                 id = it.id,
                 role = it.role,
                 content = it.content,
                 isLoading = false
             )
+            if (it.role == "assistant") {
+                rebuildMessage(base.copy(visualBlocks = currentVisual))
+            } else {
+                base.copy(blocks = listOf(ChatContentBlock.TextBlock(it.content)))
+            }
         }
         _uiState.update { it.copy(messages = mapped) }
     }
@@ -159,7 +216,9 @@ class ChatViewModel(
         _uiState.update {
             val updated = it.messages.toMutableList()
             val idx = updated.indexOfLast { msg -> msg.role == "assistant" && msg.isLoading }
-            if (idx >= 0) updated[idx] = updated[idx].copy(content = updated[idx].content + delta)
+            if (idx >= 0) {
+                updated[idx] = rebuildMessage(updated[idx].copy(content = updated[idx].content + delta))
+            }
             it.copy(messages = updated)
         }
     }
@@ -168,19 +227,7 @@ class ChatViewModel(
         _uiState.update {
             val updated = it.messages.toMutableList()
             val idx = updated.indexOfLast { msg -> msg.role == "assistant" && msg.isLoading }
-            if (idx >= 0) updated[idx] = updated[idx].copy(toolProgress = updated[idx].toolProgress + line)
-            it.copy(messages = updated)
-        }
-    }
-
-    private fun appendArtifact(id: String, title: String?, mimeType: String?) {
-        _uiState.update {
-            val updated = it.messages.toMutableList()
-            val idx = updated.indexOfLast { msg -> msg.role == "assistant" && msg.isLoading }
-            if (idx >= 0) {
-                val exists = updated[idx].artifacts.any { a -> a.id == id }
-                if (!exists) updated[idx] = updated[idx].copy(artifacts = updated[idx].artifacts + UiArtifact(id, title, mimeType))
-            }
+            if (idx >= 0) updated[idx] = rebuildMessage(updated[idx].copy(toolProgress = updated[idx].toolProgress + line))
             it.copy(messages = updated)
         }
     }
@@ -189,7 +236,7 @@ class ChatViewModel(
         _uiState.update {
             val updated = it.messages.toMutableList()
             val idx = updated.indexOfLast { msg -> msg.role == "assistant" && msg.isLoading }
-            if (idx >= 0) updated[idx] = updated[idx].copy(error = message, isLoading = false)
+            if (idx >= 0) updated[idx] = rebuildMessage(updated[idx].copy(error = message, isLoading = false))
             it.copy(messages = updated, loading = false)
         }
     }
@@ -198,9 +245,50 @@ class ChatViewModel(
         _uiState.update {
             val updated = it.messages.toMutableList()
             val idx = updated.indexOfLast { msg -> msg.role == "assistant" && msg.isLoading }
-            if (idx >= 0) updated[idx] = updated[idx].copy(content = content, isLoading = false)
+            if (idx >= 0) updated[idx] = rebuildMessage(updated[idx].copy(content = content, isLoading = false))
             it.copy(messages = updated, loading = false)
         }
+    }
+
+    private fun replaceTemporaryAssistantId(tempId: String, serverId: String) {
+        _uiState.update {
+            it.copy(messages = it.messages.map { msg -> if (msg.id == tempId) msg.copy(id = serverId) else msg })
+        }
+    }
+
+    private fun addVisualBlock(
+        assistantMessageId: String,
+        block: ChatContentBlock,
+        replaceSameArtifact: Boolean = false
+    ) {
+        _uiState.update {
+            val updated = it.messages.toMutableList()
+            val idx = updated.indexOfLast { msg -> msg.id == assistantMessageId || (msg.role == "assistant" && msg.isLoading) }
+            if (idx >= 0) {
+                val current = updated[idx]
+                val nextVisual = if (replaceSameArtifact) {
+                    current.visualBlocks.filterNot { old ->
+                        old is ChatContentBlock.UnsupportedArtifactBlock && block is ChatContentBlock.UnsupportedArtifactBlock && old.artifactId == block.artifactId ||
+                            old is ChatContentBlock.ImageArtifactBlock && block is ChatContentBlock.ImageArtifactBlock && old.artifactId == block.artifactId ||
+                            old is ChatContentBlock.TableBlock && block is ChatContentBlock.TableBlock && old.sourceArtifactId != null && old.sourceArtifactId == block.sourceArtifactId ||
+                            old is ChatContentBlock.JsonBlock && block is ChatContentBlock.JsonBlock && old.sourceArtifactId != null && old.sourceArtifactId == block.sourceArtifactId
+                    } + block
+                } else {
+                    current.visualBlocks + block
+                }
+                updated[idx] = rebuildMessage(current.copy(visualBlocks = nextVisual))
+            }
+            it.copy(messages = updated)
+        }
+    }
+
+    private fun rebuildMessage(message: UiChatMessage): UiChatMessage {
+        if (message.role != "assistant") {
+            return message.copy(blocks = listOf(ChatContentBlock.TextBlock(message.content)))
+        }
+        val textBlocks = MarkdownTableParser.parseToBlocks(message.content)
+        val merged = textBlocks + message.visualBlocks
+        return message.copy(blocks = merged)
     }
 }
 
