@@ -2,12 +2,14 @@
 
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -114,12 +116,15 @@ fun ChatScreen(
                                 is ChatContentBlock.MarkdownBlock -> {
                                     if (block.text.contains("```")) {
                                         val hs = rememberScrollState()
+                                        val vs = rememberScrollState()
                                         Card(modifier = Modifier.fillMaxWidth()) {
                                             Text(
                                                 block.text,
                                                 modifier = Modifier
                                                     .padding(8.dp)
-                                                    .horizontalScroll(hs),
+                                                    .heightIn(max = 180.dp)
+                                                    .horizontalScroll(hs)
+                                                    .verticalScroll(vs),
                                                 fontFamily = FontFamily.Monospace,
                                                 style = MaterialTheme.typography.bodySmall
                                             )
