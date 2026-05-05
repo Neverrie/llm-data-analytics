@@ -27,6 +27,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+
     LaunchedEffect(Unit) {
         viewModel.loadMe()
     }
@@ -38,7 +39,8 @@ fun SettingsScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("РќР°СЃС‚СЂРѕР№РєРё", style = MaterialTheme.typography.headlineSmall)
+        Text("Настройки", style = MaterialTheme.typography.headlineSmall)
+
         Card {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -48,34 +50,41 @@ fun SettingsScreen(
                     value = state.baseUrl,
                     onValueChange = viewModel::updateBaseUrl,
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Backend baseUrl") }
+                    label = { Text("Backend baseUrl") },
+                    supportingText = { Text("По умолчанию: http://82.162.61.44:8003") }
                 )
                 Button(
                     onClick = viewModel::saveBaseUrl,
                     modifier = Modifier.fillMaxWidth(),
                     contentPadding = PaddingValues(vertical = 12.dp)
                 ) {
-                    Text("РЎРѕС…СЂР°РЅРёС‚СЊ URL")
+                    Text("Сохранить URL")
                 }
                 Button(
                     onClick = viewModel::checkHealth,
                     modifier = Modifier.fillMaxWidth(),
                     contentPadding = PaddingValues(vertical = 12.dp)
                 ) {
-                    if (state.loading) CircularProgressIndicator() else Text("РџСЂРѕРІРµСЂРёС‚СЊ /api/health")
+                    if (state.loading) CircularProgressIndicator() else Text("Проверить /api/health")
                 }
-                if (state.health != null) Text("Health: ${state.health?.status} (${state.health?.service})")
-                if (state.error != null) Text(state.error ?: "", color = MaterialTheme.colorScheme.error)
+
+                if (state.health != null) {
+                    Text("Health: ${state.health?.status} (${state.health?.service})")
+                }
+                if (state.error != null) {
+                    Text(state.error ?: "", color = MaterialTheme.colorScheme.error)
+                }
             }
         }
+
         Card {
             Column(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("РЎС‚СЂРёРјРёРЅРі РѕС‚РІРµС‚РѕРІ", style = MaterialTheme.typography.titleMedium)
+                Text("Стриминг ответов", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "РџРѕРєР°Р·С‹РІР°С‚СЊ РѕС‚РІРµС‚ Рё РїСЂРѕРіСЂРµСЃСЃ Р°РЅР°Р»РёР·Р° РїРѕ РјРµСЂРµ РіРµРЅРµСЂР°С†РёРё",
+                    "Показывать ответ и прогресс анализа по мере генерации",
                     style = MaterialTheme.typography.bodySmall
                 )
                 Switch(
@@ -84,18 +93,19 @@ fun SettingsScreen(
                 )
             }
         }
+
         Card {
             Column(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ", style = MaterialTheme.typography.titleMedium)
-                Text(state.currentUser?.email ?: "РќРµ Р°РІС‚РѕСЂРёР·РѕРІР°РЅ")
+                Text("Пользователь", style = MaterialTheme.typography.titleMedium)
+                Text(state.currentUser?.email ?: "Не авторизован")
                 Button(onClick = viewModel::demoLogin, modifier = Modifier.fillMaxWidth()) {
                     Text("Demo login")
                 }
                 Button(onClick = viewModel::logout, modifier = Modifier.fillMaxWidth()) {
-                    Text("Р’С‹Р№С‚Рё")
+                    Text("Выйти")
                 }
             }
         }

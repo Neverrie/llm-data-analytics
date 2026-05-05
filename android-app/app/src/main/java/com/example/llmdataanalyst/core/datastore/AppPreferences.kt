@@ -13,7 +13,7 @@ private val Context.dataStore by preferencesDataStore(name = "app_prefs")
 
 class AppPreferences(private val context: Context) {
     companion object {
-        const val DEFAULT_BASE_URL = "http://82.162.61.44"
+        const val DEFAULT_BASE_URL = "http://82.162.61.44:8003"
     }
 
     private object Keys {
