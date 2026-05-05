@@ -15,6 +15,7 @@ import com.example.llmdataanalyst.core.model.DatasetPreviewResponse
 import com.example.llmdataanalyst.core.model.DatasetProfileResponse
 import com.example.llmdataanalyst.core.model.HealthResponse
 import com.example.llmdataanalyst.core.model.Lab2RunRequest
+import com.example.llmdataanalyst.core.model.Lab3AskRequest
 import com.example.llmdataanalyst.core.model.UserPublic
 import com.example.llmdataanalyst.core.model.WorkspaceResponse
 import kotlinx.serialization.json.JsonElement
@@ -105,4 +106,10 @@ interface ApiService {
 
     @GET("api/lab2/download")
     suspend fun lab2Download(): Response<ResponseBody>
+
+    @POST("api/lab3/ask")
+    suspend fun lab3Ask(@Body request: Lab3AskRequest): JsonElement
+
+    @GET("api/lab3/result")
+    suspend fun lab3Result(): JsonElement
 }

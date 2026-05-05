@@ -165,6 +165,15 @@ data class Lab2RunRequest(
 )
 
 @Serializable
+data class Lab3AskRequest(
+    @SerialName("dataset_name") val datasetName: String,
+    val question: String,
+    @SerialName("analysis_mode") val analysisMode: String = "code_interpreter",
+    @SerialName("include_history") val includeHistory: Boolean = true,
+    @SerialName("max_tool_calls") val maxToolCalls: Int = 6
+)
+
+@Serializable
 data class ArtifactCreatedPayload(
     @SerialName("artifact_id") val artifactId: String = "",
     val title: String? = null,

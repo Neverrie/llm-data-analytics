@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import okhttp3.Call
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -39,10 +40,28 @@ class ChatStreamClient(
         baseUrl: String,
         chatId: String,
         request: ChatMessageCreateRequest
+    ): Flow<ChatStreamEvent> = streamJsonBody(
+        baseUrl = baseUrl,
+        apiPath = "/api/chats/$chatId/messages/stream",
+        bodyJson = json.encodeToString(ChatMessageCreateRequest.serializer(), request)
+    )
+
+    fun sendLab3AskStream(
+        baseUrl: String,
+        body: JsonElement
+    ): Flow<ChatStreamEvent> = streamJsonBody(
+        baseUrl = baseUrl,
+        apiPath = "/api/lab3/ask/stream",
+        bodyJson = json.encodeToString(JsonElement.serializer(), body)
+    )
+
+    private fun streamJsonBody(
+        baseUrl: String,
+        apiPath: String,
+        bodyJson: String
     ): Flow<ChatStreamEvent> = callbackFlow {
-        val url = "${baseUrl.trimEnd('/')}/api/chats/$chatId/messages/stream"
-        val body = json.encodeToString(ChatMessageCreateRequest.serializer(), request)
-            .toRequestBody("application/json".toMediaType())
+        val url = "${baseUrl.trimEnd('/')}$apiPath"
+        val body = bodyJson.toRequestBody("application/json".toMediaType())
         val httpRequest = Request.Builder()
             .url(url)
             .post(body)
