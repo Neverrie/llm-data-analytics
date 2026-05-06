@@ -135,6 +135,13 @@ data class CreateChatRequest(
 )
 
 @Serializable
+data class UpdateChatRequest(
+    val title: String? = null,
+    @SerialName("dataset_name") val datasetName: String? = null,
+    val archived: Boolean? = null
+)
+
+@Serializable
 data class ChatMessageCreateRequest(
     val role: String,
     val content: String,

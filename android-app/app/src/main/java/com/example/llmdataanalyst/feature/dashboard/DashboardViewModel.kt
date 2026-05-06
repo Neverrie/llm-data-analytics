@@ -6,12 +6,15 @@ import androidx.lifecycle.viewModelScope
 import com.example.llmdataanalyst.core.model.ArtifactItem
 import com.example.llmdataanalyst.core.model.ChatItem
 import com.example.llmdataanalyst.core.model.DatasetItem
+import com.example.llmdataanalyst.core.model.UpdateChatRequest
 import com.example.llmdataanalyst.core.model.WorkspaceResponse
 import com.example.llmdataanalyst.core.repository.WorkspaceRepository
 import com.example.llmdataanalyst.core.util.AppResult
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -33,6 +36,8 @@ class DashboardViewModel(
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState
+    private val _events = MutableSharedFlow<String>()
+    val events = _events.asSharedFlow()
 
     fun load() {
         viewModelScope.launch {
@@ -61,6 +66,33 @@ class DashboardViewModel(
                     datasets = (datasets as? AppResult.Success)?.data?.items.orEmpty(),
                     artifacts = (artifacts as? AppResult.Success)?.data?.items.orEmpty()
                 )
+            }
+        }
+    }
+
+    fun renameChat(chatId: String, title: String) {
+        if (title.isBlank()) return
+        viewModelScope.launch {
+            when (val result = workspaceRepository.updateChat(chatId, UpdateChatRequest(title = title.trim()))) {
+                is AppResult.Success -> {
+                    _uiState.update { state ->
+                        state.copy(chats = state.chats.map { if (it.id == chatId) result.data else it })
+                    }
+                    _events.emit("Чат переименован")
+                }
+                is AppResult.Error -> _events.emit(result.message)
+            }
+        }
+    }
+
+    fun deleteChat(chatId: String) {
+        viewModelScope.launch {
+            when (val result = workspaceRepository.deleteChat(chatId)) {
+                is AppResult.Success -> {
+                    _uiState.update { state -> state.copy(chats = state.chats.filterNot { it.id == chatId }) }
+                    _events.emit("Чат удалён")
+                }
+                is AppResult.Error -> _events.emit(result.message)
             }
         }
     }

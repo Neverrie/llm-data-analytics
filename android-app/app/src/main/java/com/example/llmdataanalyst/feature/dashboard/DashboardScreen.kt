@@ -14,10 +14,15 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -25,6 +30,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.llmdataanalyst.core.model.ArtifactItem
 import com.example.llmdataanalyst.core.model.ChatItem
 import com.example.llmdataanalyst.core.model.DatasetItem
+import kotlinx.coroutines.flow.collect
 
 @Composable
 fun DashboardScreen(
@@ -40,7 +46,12 @@ fun DashboardScreen(
     onOpenChatDetail: (String) -> Unit
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
     LaunchedEffect(Unit) { viewModel.load() }
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { snackbarHostState.showSnackbar(it) }
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -48,6 +59,7 @@ fun DashboardScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        item { SnackbarHost(hostState = snackbarHostState) }
         item {
             Card(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -112,7 +124,20 @@ fun DashboardScreen(
         item { Text("Последние чаты", style = MaterialTheme.typography.titleMedium) }
         if (state.chats.isEmpty()) item { Text("Пока нет чатов") }
         items(state.chats.take(5), key = { it.id }) { chat ->
-            ChatRow(chat = chat, onOpen = { onOpenChatDetail(chat.id) })
+            ChatRow(
+                chat = chat,
+                onOpen = { onOpenChatDetail(chat.id) },
+                onRename = {
+                    val next = android.app.AlertDialog.Builder(context)
+                    next.setTitle("Переименовать чат")
+                    val input = android.widget.EditText(context).apply { setText(chat.title) }
+                    next.setView(input)
+                    next.setPositiveButton("Сохранить") { _, _ -> viewModel.renameChat(chat.id, input.text.toString()) }
+                    next.setNegativeButton("Отмена", null)
+                    next.show()
+                },
+                onDelete = { viewModel.deleteChat(chat.id) }
+            )
         }
 
         item { Text("Последние датасеты", style = MaterialTheme.typography.titleMedium) }
@@ -134,11 +159,16 @@ fun DashboardScreen(
 }
 
 @Composable
-private fun ChatRow(chat: ChatItem, onOpen: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen)) {
-        Column(modifier = Modifier.padding(12.dp)) {
+private fun ChatRow(chat: ChatItem, onOpen: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(chat.title)
             Text(chat.kind, style = MaterialTheme.typography.bodySmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onOpen) { Text("Открыть") }
+                OutlinedButton(onClick = onRename) { Text("Переименовать") }
+                OutlinedButton(onClick = onDelete) { Text("Удалить") }
+            }
         }
     }
 }

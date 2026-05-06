@@ -16,6 +16,7 @@ import com.example.llmdataanalyst.core.model.DatasetProfileResponse
 import com.example.llmdataanalyst.core.model.HealthResponse
 import com.example.llmdataanalyst.core.model.Lab2RunRequest
 import com.example.llmdataanalyst.core.model.Lab3AskRequest
+import com.example.llmdataanalyst.core.model.UpdateChatRequest
 import com.example.llmdataanalyst.core.model.UserPublic
 import com.example.llmdataanalyst.core.model.WorkspaceResponse
 import kotlinx.serialization.json.JsonElement
@@ -29,6 +30,8 @@ import okhttp3.MultipartBody
 import retrofit2.Response
 import retrofit2.http.Part
 import retrofit2.http.Query
+import retrofit2.http.PATCH
+import retrofit2.http.DELETE
 
 interface ApiService {
     @GET("api/health")
@@ -57,6 +60,12 @@ interface ApiService {
 
     @GET("api/chats/{chatId}")
     suspend fun getChat(@Path("chatId") chatId: String): ChatDetailResponse
+
+    @PATCH("api/chats/{chatId}")
+    suspend fun updateChat(@Path("chatId") chatId: String, @Body request: UpdateChatRequest): com.example.llmdataanalyst.core.model.ChatItem
+
+    @DELETE("api/chats/{chatId}")
+    suspend fun deleteChat(@Path("chatId") chatId: String): com.example.llmdataanalyst.core.model.ChatItem
 
     @POST("api/chats/{chatId}/messages")
     suspend fun sendChatMessage(
