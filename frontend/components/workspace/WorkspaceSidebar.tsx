@@ -14,6 +14,8 @@ type SidebarProps = {
   selectedChatId?: string;
   onSelectChat: (id: string) => void;
   onCreateChat: () => void;
+  onRenameChat: (id: string, title: string) => void;
+  onDeleteChat: (id: string) => void;
   onOpenPipeline: () => void;
   datasets: DatasetItem[];
   selectedDatasetId?: string;
@@ -34,6 +36,8 @@ export function WorkspaceSidebar(props: SidebarProps) {
     selectedChatId,
     onSelectChat,
     onCreateChat,
+    onRenameChat,
+    onDeleteChat,
     onOpenPipeline,
     datasets,
     selectedDatasetId,
@@ -76,7 +80,14 @@ export function WorkspaceSidebar(props: SidebarProps) {
         </div>
         <div className="mini-list">
           {filteredChats.slice(0, 10).map((chat) => (
-            <ChatListItem key={chat.id} chat={chat} active={selectedChatId === chat.id} onSelect={onSelectChat} />
+            <ChatListItem
+              key={chat.id}
+              chat={chat}
+              active={selectedChatId === chat.id}
+              onSelect={onSelectChat}
+              onRename={onRenameChat}
+              onDelete={onDeleteChat}
+            />
           ))}
           {!filteredChats.length ? <div className="empty-mini">Нет проектов</div> : null}
         </div>
@@ -119,11 +130,44 @@ export function WorkspaceSidebar(props: SidebarProps) {
   );
 }
 
-const ChatListItem = memo(function ChatListItem({ chat, active, onSelect }: { chat: Chat; active: boolean; onSelect: (id: string) => void }) {
+const ChatListItem = memo(function ChatListItem({
+  chat,
+  active,
+  onSelect,
+  onRename,
+  onDelete
+}: {
+  chat: Chat;
+  active: boolean;
+  onSelect: (id: string) => void;
+  onRename: (id: string, title: string) => void;
+  onDelete: (id: string) => void;
+}) {
   return (
     <button className={`mini-item ${active ? "active" : ""}`} onClick={() => onSelect(chat.id)}>
       <strong>{chat.title}</strong>
       <span>{chat.dataset_name || "без датасета"} · {new Date(chat.updated_at).toLocaleDateString()}</span>
+      <div className="row-actions">
+        <button
+          className="link-btn"
+          onClick={(e) => {
+            e.stopPropagation();
+            const next = window.prompt("Новое название чата", chat.title)?.trim();
+            if (next && next !== chat.title) onRename(chat.id, next);
+          }}
+        >
+          Переименовать
+        </button>
+        <button
+          className="link-btn danger"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (window.confirm(`Удалить чат "${chat.title}"?`)) onDelete(chat.id);
+          }}
+        >
+          Удалить
+        </button>
+      </div>
     </button>
   );
 });

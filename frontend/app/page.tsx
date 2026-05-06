@@ -18,6 +18,18 @@ import { ActiveSection } from "@/components/workspace/types";
 import { WorkspaceSidebar } from "@/components/workspace/WorkspaceSidebar";
 
 export default function HomePage() {
+  function sanitizeAssistantText(text: string) {
+    return String(text || "")
+      .replace(/<\s*FINAL\s*>/gi, "")
+      .replace(/<\s*\/\s*FINAL\s*>/gi, "")
+      .trim();
+  }
+
+  function extractArtifactPathsFromText(text: string): string[] {
+    const matches = String(text || "").match(/\/outputs\/lab3\/[^\s)]+/g) || [];
+    return Array.from(new Set(matches));
+  }
+
   const [user, setUser] = useState<User | null>(null);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [authForm, setAuthForm] = useState({ email: "", password: "", displayName: "" });
@@ -125,6 +137,37 @@ export default function HomePage() {
     }
   }
 
+  async function renameChat(chatId: string, title: string) {
+    try {
+      await api.updateChat(chatId, { title });
+      await refreshChats();
+      if (selectedChatId === chatId) {
+        const detail = await api.getChat(chatId);
+        setMessages(detail.messages || []);
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  async function deleteChat(chatId: string) {
+    try {
+      await api.deleteChat(chatId);
+      const updated = await refreshChats();
+      if (selectedChatId === chatId) {
+        const next = updated.find((c) => c.kind === "lab3_chat");
+        if (next) {
+          await selectChat(next.id);
+        } else {
+          setSelectedChatId("");
+          setMessages([]);
+        }
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
   async function getOrCreatePipelineChat() {
     const existing = pipelineChats[0];
     if (existing) return existing;
@@ -173,30 +216,182 @@ export default function HomePage() {
       metadata: {},
       created_at: new Date().toISOString()
     };
+    const optimisticAssistantId = `tmp-assistant-${Date.now()}`;
+    const optimisticAssistant: ChatMessage = {
+      id: optimisticAssistantId,
+      chat_id: chatId,
+      role: "assistant",
+      content: "",
+      blocks: [{ type: "markdown", content: "" }],
+      metadata: { streaming: true },
+      created_at: new Date().toISOString()
+    };
 
-    setMessages((prev) => [...prev, optimistic]);
+    setMessages((prev) => [...prev, optimistic, optimisticAssistant]);
     setAgentLoading(true);
-    setLab3Response(null);
+    setLab3Response({ streaming: true, logs: [] as string[], artifacts: [] as any[] });
 
     try {
       await api.addMessage(chatId, { role: "user", content: text, blocks: optimistic.blocks, metadata: {} });
-      const answer = await api.askLab3Agent({
+      let streamedText = "";
+      const streamLogs: string[] = [];
+      const streamedArtifacts: any[] = [];
+      let streamStatus = "ok";
+
+      const correlationRequest = /корреляц|correl/i.test(text);
+      const enhancedQuestion = correlationRequest
+        ? `${text}\n\nДоп. требования: построй матрицу корреляции как heatmap-картинку (PNG), сохрани файл и укажи его в ответе; также выведи топ корреляций в корректной markdown-таблице (одна строка = одна строка таблицы).`
+        : `${text}\n\nПиши таблицы строго в корректном markdown-формате (каждая строка таблицы на новой строке).`;
+
+      await api.askLab3AgentStream({
         dataset_name: selectedDataset?.name || datasets[0]?.name || "customers_reviews.csv",
-        question: text,
+        question: enhancedQuestion,
         analysis_mode: "code_interpreter",
         include_history: true,
         max_tool_calls: 6
+      }, (evt) => {
+        if (evt.event === "message_delta") {
+          const delta = String(evt.data?.content || "");
+          if (!delta) return;
+          streamedText += delta;
+          const cleaned = sanitizeAssistantText(streamedText);
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === optimisticAssistantId
+                ? { ...m, content: cleaned, blocks: [{ type: "markdown", content: cleaned }] }
+                : m
+            )
+          );
+          return;
+        }
+        if (evt.event === "tool_log") {
+          const logLine = String(evt.data?.content || "").trim();
+          if (logLine) streamLogs.push(logLine);
+          setLab3Response((prev: any) => ({ ...(prev || {}), logs: [...streamLogs] }));
+          return;
+        }
+        if (evt.event === "tool_start") {
+          const name = String(evt.data?.name || "agent");
+          streamLogs.push(`Запущен инструмент: ${name}`);
+          setLab3Response((prev: any) => ({ ...(prev || {}), logs: [...streamLogs] }));
+          return;
+        }
+        if (evt.event === "tool_end") {
+          const name = String(evt.data?.name || "agent");
+          const status = String(evt.data?.status || "ok");
+          streamLogs.push(`Инструмент завершён: ${name} (${status})`);
+          setLab3Response((prev: any) => ({ ...(prev || {}), logs: [...streamLogs] }));
+          return;
+        }
+        if (evt.event === "artifact_created") {
+          const item = evt.data || {};
+          streamedArtifacts.push(item);
+          const path = String(item?.path || "");
+          if (path.includes("/outputs/lab3/")) {
+            const low = path.toLowerCase();
+            const kind = low.endsWith(".png") || low.endsWith(".jpg") || low.endsWith(".jpeg") || low.endsWith(".webp")
+              ? "chart"
+              : low.endsWith(".json")
+                ? "json"
+                : low.endsWith(".md")
+                  ? "report"
+                  : "other";
+            api.registerArtifact({
+              kind,
+              title: item?.name || item?.title || path.split("/").pop() || "artifact",
+              path,
+              chat_id: chatId,
+              metadata: { source: "lab3_stream_event" }
+            }).catch(() => undefined);
+          }
+          setLab3Response((prev: any) => ({ ...(prev || {}), artifacts: [...streamedArtifacts] }));
+          return;
+        }
+        if (evt.event === "error") {
+          streamStatus = "error";
+          const msg = String(evt.data?.message || "Ошибка стриминга");
+          setLab3Response((prev: any) => ({ ...(prev || {}), error: msg }));
+          return;
+        }
+        if (evt.event === "done") {
+          streamStatus = String(evt.data?.status || "ok");
+        }
       });
+
+      const assistantText = sanitizeAssistantText(streamedText || "") || "Ответ получен";
+      let answer: any = {
+        final_answer: assistantText,
+        warnings: streamStatus === "error" ? ["stream_error"] : [],
+        provider: "stream",
+        model: "stream",
+        elapsed_seconds: undefined,
+        stream_logs: streamLogs,
+        stream_artifacts: streamedArtifacts
+      };
+      try {
+        const full = await api.getLab3Result();
+        if (full && typeof full === "object") {
+          answer = {
+            ...full,
+            final_answer: sanitizeAssistantText(String(full.final_answer || assistantText || "")),
+            stream_logs: streamLogs,
+            stream_artifacts: streamedArtifacts
+          };
+        }
+      } catch {
+        // keep stream-only answer as fallback
+      }
       setLab3Response(answer);
 
-      const assistantText = String(answer?.final_answer || "Ответ получен");
-      const blocks = normalizeLab3ResponseToBlocks(answer);
+      const blocks = normalizeLab3ResponseToBlocks(answer as any);
       await api.addMessage(chatId, {
         role: "assistant",
         content: assistantText,
         blocks,
-        metadata: { provider: answer?.provider, model: answer?.model, elapsed_seconds: answer?.elapsed_seconds }
+        metadata: { provider: answer?.provider, model: answer?.model, elapsed_seconds: answer?.elapsed_seconds, stream: true }
       });
+
+      const registerPaths = new Set<string>();
+      const outputFiles = answer?.output_files && typeof answer.output_files === "object" ? Object.values(answer.output_files) : [];
+      outputFiles.forEach((p: any) => {
+        if (typeof p === "string" && p.includes("/outputs/lab3/")) registerPaths.add(p);
+      });
+      const generatedFiles = Array.isArray(answer?.generated_files) ? answer.generated_files : [];
+      generatedFiles.forEach((f: any) => {
+        const p = String(f?.path || "");
+        if (p.includes("/outputs/lab3/")) registerPaths.add(p);
+      });
+      const streamArtifacts = Array.isArray(answer?.stream_artifacts) ? answer.stream_artifacts : [];
+      streamArtifacts.forEach((f: any) => {
+        const p = String(f?.path || "");
+        if (p.includes("/outputs/lab3/")) registerPaths.add(p);
+      });
+      const codeTrace = String(answer?.code_interpreter_trace || "");
+      if (codeTrace.includes("/outputs/lab3/")) registerPaths.add(codeTrace);
+      extractArtifactPathsFromText(assistantText).forEach((p) => registerPaths.add(p));
+
+      for (const p of registerPaths) {
+        const low = p.toLowerCase();
+        const kind = low.endsWith(".png") || low.endsWith(".jpg") || low.endsWith(".jpeg") || low.endsWith(".webp")
+          ? "chart"
+          : low.endsWith(".json")
+            ? "json"
+            : low.endsWith(".md")
+              ? "report"
+              : "other";
+        try {
+          await api.registerArtifact({
+            kind,
+            title: p.split("/").pop() || "artifact",
+            path: p,
+            chat_id: chatId,
+            metadata: { source: "lab3_stream" }
+          });
+        } catch {
+          // Ignore duplicate/invalid paths to avoid breaking chat UX.
+        }
+      }
+
       const refreshed = await api.getChat(chatId);
       setMessages(refreshed.messages || []);
       await refreshSharedData();
@@ -358,6 +553,8 @@ export default function HomePage() {
             selectedChatId={selectedChatId}
             onSelectChat={selectChat}
             onCreateChat={createChat}
+            onRenameChat={renameChat}
+            onDeleteChat={deleteChat}
             onOpenPipeline={() => setActiveSection("pipeline")}
             datasets={datasets}
             selectedDatasetId={selectedDatasetId}

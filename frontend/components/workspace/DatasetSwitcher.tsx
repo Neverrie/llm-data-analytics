@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useMemo, useState } from "react";
+import { ChevronDown, Plus } from "lucide-react";
 import { DatasetItem } from "@/lib/api";
 
 export function DatasetSwitcher({
@@ -21,19 +22,16 @@ export function DatasetSwitcher({
     const q = query.toLowerCase().trim();
     return datasets.filter((d) => !q || d.name.toLowerCase().includes(q) || d.source.toLowerCase().includes(q));
   }, [datasets, query]);
+  const compactName = useMemo(() => {
+    const name = selectedDataset?.name || "Датасет не выбран";
+    return name.length > 28 ? `${name.slice(0, 28)}...` : name;
+  }, [selectedDataset]);
 
   return (
     <div className="dataset-switcher">
-      <span className="dataset-current">Dataset: {selectedDataset?.name || "не выбран"}</span>
-      <button className="btn-ghost" onClick={() => setOpen((v) => !v)}>Сменить</button>
-      <button
-        className="btn-ghost"
-        onClick={(e) => {
-          e.stopPropagation();
-          if (selectedDatasetId) onPreview(selectedDatasetId);
-        }}
-      >
-        Превью
+      <button className="dataset-chip-btn" onClick={() => setOpen((v) => !v)} title={selectedDataset?.name || "Датасет не выбран"}>
+        <span className="dataset-current">{compactName}</span>
+        <ChevronDown size={14} />
       </button>
       {open ? (
         <div className="dataset-switcher-popover">
@@ -58,6 +56,14 @@ export function DatasetSwitcher({
               </button>
             ))}
             {!filtered.length ? <div className="empty-mini">Нет совпадений</div> : null}
+          </div>
+          <div className="dataset-popover-actions">
+            <button className="btn-ghost" onClick={() => selectedDatasetId && onPreview(selectedDatasetId)}>
+              Превью выбранного
+            </button>
+            <button className="btn-primary" type="button">
+              <Plus size={14} /> Добавить
+            </button>
           </div>
         </div>
       ) : null}
