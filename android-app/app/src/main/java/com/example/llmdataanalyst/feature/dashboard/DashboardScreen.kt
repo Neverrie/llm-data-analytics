@@ -18,6 +18,9 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.CardDefaults
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,6 +29,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.llmdataanalyst.core.model.ArtifactItem
 import com.example.llmdataanalyst.core.model.ChatItem
@@ -167,7 +173,16 @@ private fun ChatRow(chat: ChatItem, onOpen: () -> Unit, onRename: () -> Unit, on
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onOpen) { Text("Открыть") }
                 OutlinedButton(onClick = onRename) { Text("Переименовать") }
-                OutlinedButton(onClick = onDelete) { Text("Удалить") }
+                IconButton(onClick = onDelete) {
+                    Card(shape = CircleShape, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.error)) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Удалить чат",
+                            tint = MaterialTheme.colorScheme.onError,
+                            modifier = Modifier.padding(8.dp)
+                        )
+                    }
+                }
             }
         }
     }
