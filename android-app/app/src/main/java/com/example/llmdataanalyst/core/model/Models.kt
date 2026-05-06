@@ -109,7 +109,7 @@ data class DatasetProfileResponse(
 
 @Serializable
 data class ArtifactItem(
-    val id: String,
+    val id: String = "",
     val kind: String? = null,
     val title: String? = null,
     val filename: String? = null,

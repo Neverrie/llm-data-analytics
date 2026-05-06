@@ -233,7 +233,10 @@ class ChatViewModel(
                             runCatching {
                                 val lab3 = chatRepository.getLab3Result()
                                 val finalText = extractLab3FinalAnswer(lab3)
-                                if (finalText.isNotBlank()) setAssistantFinal(finalText)
+                                if (finalText.isNotBlank()) {
+                                    setAssistantFinal(finalText)
+                                    hydrateArtifactsMentionedInText(assistantId, finalText)
+                                }
                             }
                             refreshArtifactsAfterAgent(assistantId, artifactsBefore)
                         } else {
@@ -287,6 +290,31 @@ class ChatViewModel(
                 mimeType = art.mimeType
             )
         }
+    }
+
+    private suspend fun hydrateArtifactsMentionedInText(assistantMessageId: String, text: String) {
+        val names = Regex("""([A-Za-z0-9_\-]+\.(png|jpg|jpeg|webp))""", RegexOption.IGNORE_CASE)
+            .findAll(text)
+            .map { it.groupValues[1].lowercase() }
+            .toSet()
+        if (names.isEmpty()) return
+        val artifacts = chatRepository.listArtifacts()
+        artifacts
+            .filter { art ->
+                val title = (art.title ?: art.filename).orEmpty().lowercase()
+                names.any { n -> title.endsWith(n) || title.contains(n) }
+            }
+            .take(6)
+            .forEach { art ->
+                if (!art.id.isNullOrBlank()) {
+                    hydrateArtifactBlock(
+                        assistantMessageId = assistantMessageId,
+                        artifactId = art.id,
+                        title = art.title ?: art.filename,
+                        mimeType = art.mimeType
+                    )
+                }
+            }
     }
 
     private fun resolveDatasetName(datasetId: String?, datasets: List<DatasetItem>): String? {
