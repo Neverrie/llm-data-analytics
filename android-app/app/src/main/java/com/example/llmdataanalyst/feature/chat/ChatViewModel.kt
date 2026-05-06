@@ -109,15 +109,24 @@ class ChatViewModel(
     fun openChat(chatId: String) {
         if (chatId.isBlank()) return
         viewModelScope.launch {
-            runCatching { chatRepository.getChat(chatId) }
-                .onSuccess { detail ->
-                    val mapped = detail.messages.map { msg ->
-                        val normalizedContent = if (msg.role == "user") chatRepository.stripDatasetTechnicalPrefix(msg.content) else msg.content
-                        val base = UiChatMessage(id = msg.id, role = msg.role, content = normalizedContent, isLoading = false)
-                        if (msg.role == "assistant") rebuildMessage(base) else base.copy(blocks = listOf(ChatContentBlock.TextBlock(normalizedContent)))
-                    }
-                    _uiState.update { it.copy(chatId = chatId, messages = mapped) }
+            runCatching {
+                val detail = chatRepository.getChat(chatId)
+                val mapped = detail.messages.map { msg ->
+                    val normalizedContent = if (msg.role == "user") chatRepository.stripDatasetTechnicalPrefix(msg.content) else msg.content
+                    val parsedBlocks = chatRepository.parseServerBlocks(msg)
+                    val assistantVisual = parsedBlocks.filterNot { it is ChatContentBlock.TextBlock || it is ChatContentBlock.MarkdownBlock }
+                    val base = UiChatMessage(
+                        id = msg.id,
+                        role = msg.role,
+                        content = normalizedContent,
+                        isLoading = false,
+                        visualBlocks = if (msg.role == "assistant") assistantVisual else emptyList(),
+                        blocks = parsedBlocks
+                    )
+                    if (msg.role == "assistant") rebuildMessage(base) else base.copy(blocks = listOf(ChatContentBlock.TextBlock(normalizedContent)))
                 }
+                _uiState.update { it.copy(chatId = chatId, messages = mapped) }
+            }
         }
     }
 
@@ -298,12 +307,20 @@ class ChatViewModel(
     }
 
     private suspend fun syncChat(chatId: String) {
-        val currentVisual = uiState.value.messages.lastOrNull { it.role == "assistant" }?.visualBlocks.orEmpty()
         val detail = chatRepository.getChat(chatId)
-        val mapped = detail.messages.map {
-            val normalizedContent = if (it.role == "user") chatRepository.stripDatasetTechnicalPrefix(it.content) else it.content
-            val base = UiChatMessage(id = it.id, role = it.role, content = normalizedContent, isLoading = false)
-            if (it.role == "assistant") rebuildMessage(base.copy(visualBlocks = currentVisual)) else base.copy(blocks = listOf(ChatContentBlock.TextBlock(normalizedContent)))
+        val mapped = detail.messages.map { msg ->
+            val normalizedContent = if (msg.role == "user") chatRepository.stripDatasetTechnicalPrefix(msg.content) else msg.content
+            val parsedBlocks = chatRepository.parseServerBlocks(msg)
+            val assistantVisual = parsedBlocks.filterNot { it is ChatContentBlock.TextBlock || it is ChatContentBlock.MarkdownBlock }
+            val base = UiChatMessage(
+                id = msg.id,
+                role = msg.role,
+                content = normalizedContent,
+                isLoading = false,
+                visualBlocks = if (msg.role == "assistant") assistantVisual else emptyList(),
+                blocks = parsedBlocks
+            )
+            if (msg.role == "assistant") rebuildMessage(base) else base.copy(blocks = listOf(ChatContentBlock.TextBlock(normalizedContent)))
         }
         _uiState.update { it.copy(messages = mapped) }
     }

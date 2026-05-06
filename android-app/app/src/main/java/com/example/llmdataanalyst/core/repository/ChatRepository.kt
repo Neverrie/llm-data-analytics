@@ -21,7 +21,11 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
@@ -137,6 +141,75 @@ class ChatRepository(
         return text
     }
 
+    suspend fun parseServerBlocks(message: ChatMessageItem): List<ChatContentBlock> {
+        if (message.role != "assistant") {
+            return listOf(ChatContentBlock.TextBlock(stripDatasetTechnicalPrefix(message.content)))
+        }
+        if (message.blocks.isEmpty()) {
+            return listOf(ChatContentBlock.MarkdownBlock(message.content))
+        }
+
+        val resolved = mutableListOf<ChatContentBlock>()
+        message.blocks.forEach { block ->
+            val obj = block as? JsonObject ?: return@forEach
+            when (obj["type"]?.jsonPrimitive?.contentOrNull?.lowercase()) {
+                "markdown", "text" -> {
+                    val text = obj["content"]?.jsonPrimitive?.contentOrNull ?: message.content
+                    if (text.isNotBlank()) resolved += ChatContentBlock.MarkdownBlock(text)
+                }
+                "table" -> {
+                    val columns = obj["columns"]?.let { toStringList(it) }.orEmpty()
+                    val rows = obj["rows"]?.let { toRows(it, columns) }.orEmpty()
+                    if (columns.isNotEmpty() && rows.isNotEmpty()) {
+                        resolved += ChatContentBlock.TableBlock(
+                            title = obj["title"]?.jsonPrimitive?.contentOrNull,
+                            columns = columns,
+                            rows = rows
+                        )
+                    }
+                }
+                "chart" -> {
+                    val url = obj["url"]?.jsonPrimitive?.contentOrNull
+                    val title = obj["title"]?.jsonPrimitive?.contentOrNull
+                    if (!url.isNullOrBlank()) {
+                        resolved += ChatContentBlock.ImageArtifactBlock(
+                            artifactId = extractArtifactIdFromUrl(url).orEmpty(),
+                            title = title,
+                            mimeType = "image/png",
+                            previewUrl = absolutizeUrl(url)
+                        )
+                    }
+                }
+                "file" -> {
+                    val path = obj["path"]?.jsonPrimitive?.contentOrNull
+                    val downloadUrl = obj["download_url"]?.jsonPrimitive?.contentOrNull
+                    val title = obj["title"]?.jsonPrimitive?.contentOrNull ?: obj["filename"]?.jsonPrimitive?.contentOrNull
+                    val artifactId = extractArtifactIdFromUrl(downloadUrl ?: path)
+                    if (!artifactId.isNullOrBlank()) {
+                        resolved += buildVisualBlockFromArtifact(artifactId, title, null)
+                    } else if (!downloadUrl.isNullOrBlank()) {
+                        resolved += ChatContentBlock.UnsupportedArtifactBlock(
+                            artifactId = downloadUrl,
+                            title = title,
+                            mimeType = null
+                        )
+                    }
+                }
+                "raw" -> {
+                    val payload = obj["payload"]
+                    if (payload != null) {
+                        resolved += ChatContentBlock.JsonBlock(payload.toString())
+                    }
+                }
+            }
+        }
+
+        if (resolved.isEmpty()) {
+            resolved += ChatContentBlock.MarkdownBlock(message.content)
+        }
+        return resolved
+    }
+
     suspend fun buildPreviewUrl(artifactId: String): String {
         val baseUrl = settingsRepository.baseUrlFlow.first().trimEnd('/')
         return "$baseUrl/api/artifacts/$artifactId/preview"
@@ -203,5 +276,38 @@ class ChatRepository(
     private fun looksLikeJson(raw: String): Boolean {
         val t = raw.trim()
         return t.startsWith("{") || t.startsWith("[")
+    }
+
+    private suspend fun absolutizeUrl(url: String): String {
+        if (url.startsWith("http://") || url.startsWith("https://")) return url
+        val baseUrl = settingsRepository.baseUrlFlow.first().trimEnd('/')
+        return if (url.startsWith("/")) "$baseUrl$url" else "$baseUrl/$url"
+    }
+
+    private fun extractArtifactIdFromUrl(urlOrPath: String?): String? {
+        val value = urlOrPath.orEmpty()
+        val m = Regex("""/api/artifacts/([^/]+)/""").find(value)
+        return m?.groupValues?.getOrNull(1)
+    }
+
+    private fun toStringList(element: JsonElement): List<String> {
+        return (element as? JsonArray)?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
+    }
+
+    private fun toRows(element: JsonElement, columns: List<String>): List<List<String>> {
+        val arr = element as? JsonArray ?: return emptyList()
+        if (arr.isEmpty()) return emptyList()
+        val first = arr.first()
+        return if (first is JsonObject) {
+            arr.map { item ->
+                val rowObj = item.jsonObject
+                columns.map { col -> rowObj[col]?.jsonPrimitive?.contentOrNull ?: "—" }
+            }
+        } else {
+            arr.map { item ->
+                val row = (item as? JsonArray)?.map { it.jsonPrimitive.contentOrNull ?: "—" }.orEmpty()
+                if (columns.isEmpty()) row else row + List((columns.size - row.size).coerceAtLeast(0)) { "—" }
+            }
+        }
     }
 }
