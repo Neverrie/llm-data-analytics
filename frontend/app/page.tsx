@@ -164,7 +164,21 @@ export default function HomePage() {
         }
       }
     } catch (e) {
-      setError((e as Error).message);
+      try {
+        await api.updateChat(chatId, { archived: true });
+        const updated = await refreshChats();
+        if (selectedChatId === chatId) {
+          const next = updated.find((c) => c.kind === "lab3_chat");
+          if (next) {
+            await selectChat(next.id);
+          } else {
+            setSelectedChatId("");
+            setMessages([]);
+          }
+        }
+      } catch {
+        setError((e as Error).message);
+      }
     }
   }
 

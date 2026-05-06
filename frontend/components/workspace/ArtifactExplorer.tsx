@@ -77,7 +77,6 @@ export function ArtifactExplorer({
   const kinds = useMemo(() => ["all", ...Array.from(new Set(items.map((i) => i.kind)))], [items]);
   const selectedId = selected?.id;
   const selectedDownload = selected ? api.artifactDownloadUrl(selected.id) : "#";
-  const related = useMemo(() => filtered.filter((x) => x.id !== selectedId).slice(0, 20), [filtered, selectedId]);
 
   return (
     <section className="main-panel workspace-screen">
@@ -97,20 +96,6 @@ export function ArtifactExplorer({
               <span>{item.kind} · {item.filename}</span>
             </button>
           ))}
-        </div>
-      </div>
-      <div className="artifact-related-wrap">
-        <div className="explorer-toolbar">
-          <h3>Связанные</h3>
-        </div>
-        <div className="artifact-list">
-          {related.map((item) => (
-            <button key={item.id} className="artifact-item" onClick={() => onSelect(item.id)}>
-              <strong>{item.title}</strong>
-              <span>{item.kind} · {item.filename}</span>
-            </button>
-          ))}
-          {!related.length ? <div className="empty-mini">Нет дополнительных артефактов</div> : null}
         </div>
       </div>
       <div className="artifact-preview">
