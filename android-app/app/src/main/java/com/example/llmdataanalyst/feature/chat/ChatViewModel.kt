@@ -252,7 +252,7 @@ class ChatViewModel(
 
     private fun buildRequestContentForMode(userText: String, mode: ChatExecutionMode): String {
         return if (mode == ChatExecutionMode.DatasetAgent) {
-            "$userText\n\nНе возвращай только код. Выполни анализ через backend-инструменты и верни результаты, таблицы, графики и артефакты."
+            "$userText\n\nНе возвращай только код. Выполни анализ через backend-инструменты. Построй графики и таблицы при необходимости, сохрани визуализации как артефакты и верни итоговые выводы."
         } else {
             userText
         }
@@ -383,7 +383,15 @@ class ChatViewModel(
         return text
             .replace(Regex("""<\s*/?\s*FINAL\s*>""", RegexOption.IGNORE_CASE), "")
             .replace(Regex("""^\s*FINAL\s*:?\s*""", RegexOption.IGNORE_CASE), "")
+            .replace("\\n", "\n")
+            .replace("\\t", "\t")
             .trim()
+    }
+
+    fun renderMarkdownLikeText(text: String): String {
+        return sanitizeAssistantText(text)
+            .replace("**", "")
+            .replace(Regex("""`{1,3}"""), "")
     }
 }
 

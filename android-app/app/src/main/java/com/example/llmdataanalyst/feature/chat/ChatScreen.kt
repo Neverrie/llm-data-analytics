@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -43,6 +44,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import okhttp3.Headers
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.shape.CircleShape
 import com.example.llmdataanalyst.R
 import com.example.llmdataanalyst.core.repository.ChatExecutionMode
 
@@ -63,61 +69,56 @@ fun ChatScreen(
 
     Column(modifier = Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SnackbarHost(hostState = snackbarHostState)
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { datasetMenuOpen = true }) {
                 Text(
-                    if (state.executionMode == ChatExecutionMode.DatasetAgent) "Режим: агент анализа данных" else "Режим: обычный чат",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
+                    text = (state.selectedDatasetName ?: "Датасет не выбран"),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-                if (!state.selectedDatasetName.isNullOrBlank() || !state.selectedDatasetId.isNullOrBlank()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Button(onClick = { datasetMenuOpen = true }) {
-                            Text(
-                                text = state.selectedDatasetName ?: "Датасет: ${state.selectedDatasetId}",
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(" ▼")
-                        }
-                        TextButton(onClick = onOpenDatasets) { Text("Сменить") }
-                        TextButton(onClick = viewModel::clearSelectedDataset) { Text("Убрать") }
-                    }
-                    DropdownMenu(expanded = datasetMenuOpen, onDismissRequest = { datasetMenuOpen = false }) {
-                        state.datasets.forEach { ds ->
-                            DropdownMenuItem(
-                                text = { Text(ds.name) },
-                                onClick = {
-                                    viewModel.selectDataset(ds.id, ds.name)
-                                    datasetMenuOpen = false
-                                }
-                            )
-                        }
-                        DropdownMenuItem(
-                            text = { Text("Добавить датасет") },
-                            onClick = {
-                                datasetMenuOpen = false
-                                onOpenDatasets()
-                            }
-                        )
-                    }
-                } else {
-                    Text("Датасет не выбран", style = MaterialTheme.typography.labelLarge)
-                    Text(
-                        "Можно общаться без датасета или выбрать CSV/XLSX для анализа",
-                        style = MaterialTheme.typography.bodySmall
+                Text(" ▼", fontWeight = FontWeight.Bold)
+            }
+            TextButton(onClick = onOpenDatasets) { Text("Сменить") }
+            IconButton(
+                onClick = viewModel::clearSelectedDataset,
+                modifier = Modifier.padding(2.dp)
+            ) {
+                Card(shape = CircleShape, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.error)) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Удалить выбор датасета",
+                        tint = MaterialTheme.colorScheme.onError,
+                        modifier = Modifier.padding(8.dp)
                     )
-                    Button(onClick = onOpenDatasets) { Text("Выбрать датасет") }
                 }
+            }
+            DropdownMenu(expanded = datasetMenuOpen, onDismissRequest = { datasetMenuOpen = false }) {
+                state.datasets.forEach { ds ->
+                    DropdownMenuItem(
+                        text = { Text(ds.name) },
+                        onClick = {
+                            viewModel.selectDataset(ds.id, ds.name)
+                            datasetMenuOpen = false
+                        }
+                    )
+                }
+                DropdownMenuItem(
+                    text = { Text("Добавить датасет") },
+                    onClick = {
+                        datasetMenuOpen = false
+                        onOpenDatasets()
+                    }
+                )
             }
         }
         LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(state.messages, key = { it.id }) { msg ->
-                Card(modifier = Modifier.fillMaxWidth()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (msg.role == "user") MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
+                    )
+                ) {
                     Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
                             if (msg.role == "user") stringResource(R.string.chat_you) else stringResource(R.string.chat_assistant),
@@ -146,7 +147,7 @@ fun ChatScreen(
                                             )
                                         }
                                     } else {
-                                        Text(block.text)
+                                        Text(viewModel.renderMarkdownLikeText(block.text))
                                     }
                                 }
                                 is ChatContentBlock.ImageArtifactBlock -> {
@@ -238,18 +239,13 @@ fun ChatScreen(
             enabled = !state.loading,
             trailingIcon = {
                 IconButton(onClick = viewModel::sendMessage, enabled = !state.loading && state.input.isNotBlank()) {
-                    Text("→", style = MaterialTheme.typography.titleMedium)
+                    Icon(Icons.Default.ArrowForward, contentDescription = "Отправить")
                 }
             }
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             Button(onClick = viewModel::stopStreaming, enabled = state.loading) { Text(stringResource(R.string.chat_stop)) }
             if (state.loading) CircularProgressIndicator(modifier = Modifier.padding(start = 8.dp))
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Button(onClick = { viewModel.sendPreset("Сделай обзор датасета: строки, колонки, типы данных, пропуски и 3 главных наблюдения.") }, enabled = !state.loading) { Text("Обзор") }
-            Button(onClick = { viewModel.sendPreset("Построй графики распределения для числовых признаков и сохрани их как артефакты.") }, enabled = !state.loading) { Text("Графики") }
-            Button(onClick = { viewModel.sendPreset("Построй простую регрессионную модель на подходящей целевой переменной, выполни её на backend и покажи метрики.") }, enabled = !state.loading) { Text("Регрессия") }
         }
     }
 }
