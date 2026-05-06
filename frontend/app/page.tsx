@@ -70,7 +70,7 @@ export default function HomePage() {
   }
 
   async function refreshChats() {
-    const listedChats = await api.listChats();
+    const listedChats = await api.listChats({ archived: false });
     setAllChats(listedChats.items || []);
     return listedChats.items || [];
   }

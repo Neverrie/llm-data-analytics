@@ -168,7 +168,7 @@ const ChatListItem = memo(function ChatListItem({
   onDelete: (id: string) => void;
 }) {
   return (
-    <div className={`mini-item ${active ? "active" : ""}`} role="button" tabIndex={0}>
+    <div className={`mini-item ${active ? "active" : ""}`} role="button" tabIndex={0} onClick={() => onSelect(chat.id)}>
       <strong>{chat.title}</strong>
       <span>{chat.dataset_name || "без датасета"} · {new Date(chat.updated_at).toLocaleDateString()}</span>
       <div className="row-actions">
@@ -178,6 +178,7 @@ const ChatListItem = memo(function ChatListItem({
         <button
           className="link-btn"
           onClick={(e) => {
+            e.stopPropagation();
             const next = window.prompt("Новое название чата", chat.title)?.trim();
             if (next && next !== chat.title) onRename(chat.id, next);
           }}
@@ -187,6 +188,7 @@ const ChatListItem = memo(function ChatListItem({
         <button
           className="link-btn danger"
           onClick={(e) => {
+            e.stopPropagation();
             if (window.confirm(`Удалить чат "${chat.title}"?`)) onDelete(chat.id);
           }}
         >

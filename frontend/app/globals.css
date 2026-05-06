@@ -317,6 +317,7 @@ body {
 }
 
 .artifacts-grid { display: grid; grid-template-columns: minmax(280px, 360px) minmax(0, 1fr); gap: 12px; min-height: 0; overflow: hidden; }
+.artifacts-grid.with-side-preview { grid-template-columns: minmax(250px, 320px) minmax(250px, 320px) minmax(0, 1fr); }
 .artifact-list { display: flex; flex-direction: column; gap: 7px; min-height: 0; max-height: 56vh; overflow-y: auto; overscroll-behavior: contain; }
 .artifact-item { text-align: left; border: 1px solid var(--border); border-radius: 12px; background: rgba(255,255,255,.7); padding: 8px; display: flex; flex-direction: column; gap: 3px; }
 .artifact-item.active { border-color: rgba(72,110,121,.4); background: var(--accent-soft); }
@@ -324,11 +325,16 @@ body {
 .artifact-preview { display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 0; overflow-y: auto; }
 .artifact-preview img { width: 100%; max-height: 420px; object-fit: contain; border-radius: 12px; border: 1px solid var(--border); }
 .artifact-related-wrap { display: none; }
+.artifact-side-selected { border-left: 1px solid var(--border-soft); padding-left: 8px; }
 .resizable-widget {
   resize: vertical;
   overflow: auto;
   min-height: 120px;
   max-height: 48vh;
+}
+.resizable-widget .mini-list {
+  max-height: none;
+  height: 100%;
 }
 .markdown-block table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 13px; }
 .markdown-block th, .markdown-block td { border: 1px solid var(--border-soft); padding: 6px 8px; text-align: left; vertical-align: top; }
@@ -490,6 +496,13 @@ body {
   flex-direction: column;
   overflow: hidden;
   gap: 10px;
+}
+.pipeline-page .workspace-scroll-canvas {
+  display: block;
+  overflow-y: auto;
+}
+.pipeline-page .workspace-section {
+  flex-shrink: 0;
 }
 
 .workspace-page-header { flex: 0 0 auto; }

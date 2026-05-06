@@ -75,8 +75,21 @@ export function PipelinePanel({
     }
   }, [hasResult]);
 
+  function downloadRawJson() {
+    if (!rawJsonText) return;
+    const blob = new Blob([rawJsonText], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `lab2_raw_${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
   return (
-    <section className="workspace-page">
+    <section className="workspace-page pipeline-page">
       <header className="topbar workspace-page-header">
         <div>
           <strong>Lab 2 Pipeline</strong>
@@ -182,15 +195,3 @@ export function PipelinePanel({
     </section>
   );
 }
-  function downloadRawJson() {
-    if (!rawJsonText) return;
-    const blob = new Blob([rawJsonText], { type: "application/json;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `lab2_raw_${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  }

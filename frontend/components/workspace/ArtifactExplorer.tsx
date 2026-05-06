@@ -77,10 +77,17 @@ export function ArtifactExplorer({
   const kinds = useMemo(() => ["all", ...Array.from(new Set(items.map((i) => i.kind)))], [items]);
   const selectedId = selected?.id;
   const selectedDownload = selected ? api.artifactDownloadUrl(selected.id) : "#";
+  const selectedIndex = useMemo(() => filtered.findIndex((x) => x.id === selectedId), [filtered, selectedId]);
+  const sideSelection = useMemo(() => {
+    if (!selectedId) return [];
+    if (selectedIndex < 0) return filtered.slice(0, 12);
+    const start = Math.max(0, selectedIndex - 5);
+    return filtered.slice(start, start + 12);
+  }, [filtered, selectedId, selectedIndex]);
 
   return (
     <section className="main-panel workspace-screen">
-      <div className="artifacts-grid workspace-screen-scroll">
+      <div className={`artifacts-grid workspace-screen-scroll ${selected ? "with-side-preview" : ""}`}>
       <div className="artifact-list-wrap">
         <div className="explorer-toolbar">
           <h3>Артефакты</h3>
@@ -98,6 +105,21 @@ export function ArtifactExplorer({
           ))}
         </div>
       </div>
+      {selected ? (
+        <div className="artifact-list-wrap artifact-side-selected">
+          <div className="explorer-toolbar">
+            <h3>Выбранный набор</h3>
+          </div>
+          <div className="artifact-list">
+            {sideSelection.map((item) => (
+              <button key={item.id} className={`artifact-item ${selectedId === item.id ? "active" : ""}`} onClick={() => onSelect(item.id)}>
+                <strong>{item.title}</strong>
+                <span>{item.kind} · {item.filename}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <div className="artifact-preview">
         {!selected ? <div className="empty-state"><h3>Выберите артефакт</h3><p>Откройте файл из списка слева, чтобы увидеть превью.</p></div> : null}
         {selected ? <h3>{selected.filename}</h3> : null}
