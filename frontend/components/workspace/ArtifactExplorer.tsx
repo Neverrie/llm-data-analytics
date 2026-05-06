@@ -77,6 +77,7 @@ export function ArtifactExplorer({
   const kinds = useMemo(() => ["all", ...Array.from(new Set(items.map((i) => i.kind)))], [items]);
   const selectedId = selected?.id;
   const selectedDownload = selected ? api.artifactDownloadUrl(selected.id) : "#";
+  const related = useMemo(() => filtered.filter((x) => x.id !== selectedId).slice(0, 20), [filtered, selectedId]);
 
   return (
     <section className="main-panel workspace-screen">
@@ -98,6 +99,20 @@ export function ArtifactExplorer({
           ))}
         </div>
       </div>
+      <div className="artifact-related-wrap">
+        <div className="explorer-toolbar">
+          <h3>Связанные</h3>
+        </div>
+        <div className="artifact-list">
+          {related.map((item) => (
+            <button key={item.id} className="artifact-item" onClick={() => onSelect(item.id)}>
+              <strong>{item.title}</strong>
+              <span>{item.kind} · {item.filename}</span>
+            </button>
+          ))}
+          {!related.length ? <div className="empty-mini">Нет дополнительных артефактов</div> : null}
+        </div>
+      </div>
       <div className="artifact-preview">
         {!selected ? <div className="empty-state"><h3>Выберите артефакт</h3><p>Откройте файл из списка слева, чтобы увидеть превью.</p></div> : null}
         {selected ? <h3>{selected.filename}</h3> : null}
@@ -108,7 +123,7 @@ export function ArtifactExplorer({
         {selected ? (
           <div className="panel-row">
             <button className="btn-secondary" onClick={() => onSelect(selected.id)}>Открыть</button>
-            <a className="btn-secondary" href={selectedDownload}>Скачать</a>
+            <a className="btn-secondary" href={selectedDownload} download>Скачать</a>
             <button className="btn-ghost" onClick={() => navigator.clipboard.writeText(selected.path)}>Копировать путь</button>
           </div>
         ) : null}

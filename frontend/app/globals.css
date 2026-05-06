@@ -110,6 +110,7 @@ body {
 .sidebar-bottom { min-height: 0; flex: 1; }
 .group-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .group-head h4 { margin: 0; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+.group-controls { display: inline-flex; gap: 6px; align-items: center; }
 
 .btn-primary, .btn-secondary, .btn-ghost {
   border-radius: 11px;
@@ -122,6 +123,7 @@ body {
 .btn-primary { background: var(--accent); color: #fff; }
 .btn-secondary { background: rgba(255,255,255,0.8); border-color: var(--border); color: var(--text); }
 .btn-ghost { background: transparent; border-color: var(--border-soft); color: var(--muted); }
+.btn-ghost.danger { color: var(--danger); }
 .mode-chip { border: 1px solid var(--border); border-radius: 999px; background: rgba(255,255,255,0.7); padding: 6px 10px; font-size: 12px; display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
 .mode-chip.active { border-color: rgba(72,110,121,.42); background: var(--accent-soft); color: #284852; }
 .upload-label { display: inline-flex; }
@@ -314,13 +316,14 @@ body {
   word-break: break-word;
 }
 
-.artifacts-grid { display: grid; grid-template-columns: minmax(260px, 320px) minmax(0, 1fr); gap: 12px; min-height: 0; overflow: hidden; }
+.artifacts-grid { display: grid; grid-template-columns: minmax(220px, 280px) minmax(220px, 280px) minmax(0, 1fr); gap: 12px; min-height: 0; overflow: hidden; }
 .artifact-list { display: flex; flex-direction: column; gap: 7px; min-height: 0; max-height: 56vh; overflow-y: auto; overscroll-behavior: contain; }
 .artifact-item { text-align: left; border: 1px solid var(--border); border-radius: 12px; background: rgba(255,255,255,.7); padding: 8px; display: flex; flex-direction: column; gap: 3px; }
 .artifact-item.active { border-color: rgba(72,110,121,.4); background: var(--accent-soft); }
 .artifact-item span { font-size: 11px; color: var(--muted); }
 .artifact-preview { display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 0; overflow-y: auto; }
 .artifact-preview img { width: 100%; max-height: 420px; object-fit: contain; border-radius: 12px; border: 1px solid var(--border); }
+.artifact-related-wrap { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
 .markdown-block table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 13px; }
 .markdown-block th, .markdown-block td { border: 1px solid var(--border-soft); padding: 6px 8px; text-align: left; vertical-align: top; }
 .markdown-block th { background: rgba(241,241,237,.85); font-weight: 700; }

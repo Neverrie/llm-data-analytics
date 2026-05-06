@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { Archive, Database, Search, Workflow } from "lucide-react";
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState } from "react";
 import { ArtifactItem, Chat, DatasetItem } from "@/lib/api";
 import { ActiveSection } from "./types";
 
@@ -49,6 +49,12 @@ export function WorkspaceSidebar(props: SidebarProps) {
   } = props;
 
   const q = search.trim().toLowerCase();
+  const [showProjects, setShowProjects] = useState(true);
+  const [showDatasets, setShowDatasets] = useState(true);
+  const [showArtifacts, setShowArtifacts] = useState(true);
+  const [collapseProjects, setCollapseProjects] = useState(false);
+  const [collapseDatasets, setCollapseDatasets] = useState(false);
+  const [collapseArtifacts, setCollapseArtifacts] = useState(false);
 
   const filteredChats = useMemo(
     () => chats.filter((c) => c.title.toLowerCase().includes(q) || (c.dataset_name || "").toLowerCase().includes(q)),
@@ -73,12 +79,16 @@ export function WorkspaceSidebar(props: SidebarProps) {
         <input value={search} onChange={(e) => onSearch(e.target.value)} placeholder="Поиск" />
       </div>
 
-      <section className="sidebar-group">
+      {showProjects ? <section className="sidebar-group">
         <div className="group-head">
           <h4>Проекты</h4>
-          <button className="btn-ghost" onClick={onCreateChat}>Новый</button>
+          <div className="group-controls">
+            <button className="btn-ghost" onClick={() => setCollapseProjects((v) => !v)}>{collapseProjects ? "Развернуть" : "Свернуть"}</button>
+            <button className="btn-ghost danger" onClick={() => setShowProjects(false)}>Убрать</button>
+            <button className="btn-ghost" onClick={onCreateChat}>Новый</button>
+          </div>
         </div>
-        <div className="mini-list">
+        {!collapseProjects ? <div className="mini-list">
           {filteredChats.slice(0, 10).map((chat) => (
             <ChatListItem
               key={chat.id}
@@ -90,8 +100,8 @@ export function WorkspaceSidebar(props: SidebarProps) {
             />
           ))}
           {!filteredChats.length ? <div className="empty-mini">Нет проектов</div> : null}
-        </div>
-      </section>
+        </div> : null}
+      </section> : null}
 
       <section className="sidebar-group pipeline-card">
         <button className={`mini-item ${section === "pipeline" ? "active" : ""}`} onClick={onOpenPipeline}>
@@ -100,32 +110,46 @@ export function WorkspaceSidebar(props: SidebarProps) {
         </button>
       </section>
 
-      <section className="sidebar-group">
+      {showDatasets ? <section className="sidebar-group">
         <div className="group-head">
           <h4><Database size={14} /> Датасеты</h4>
-          <label className="btn-ghost upload-label">Загрузить
+          <div className="group-controls">
+            <button className="btn-ghost" onClick={() => setCollapseDatasets((v) => !v)}>{collapseDatasets ? "Развернуть" : "Свернуть"}</button>
+            <button className="btn-ghost danger" onClick={() => setShowDatasets(false)}>Убрать</button>
+            <label className="btn-ghost upload-label">Загрузить
             <input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => e.target.files?.[0] && onUploadDataset(e.target.files[0])} hidden />
-          </label>
+            </label>
+          </div>
         </div>
-        <div className="mini-list">
+        {!collapseDatasets ? <div className="mini-list">
           {filteredDatasets.slice(0, 10).map((dataset) => (
             <DatasetListItem key={dataset.id} dataset={dataset} active={selectedDatasetId === dataset.id} onUseDataset={onUseDataset} onPreviewDataset={onPreviewDataset} />
           ))}
           {!filteredDatasets.length ? <div className="empty-mini">Нет датасетов</div> : null}
-        </div>
-      </section>
+        </div> : null}
+      </section> : null}
 
-      <section className="sidebar-group sidebar-bottom">
+      {showArtifacts ? <section className="sidebar-group sidebar-bottom">
         <div className="group-head">
           <h4><Archive size={14} /> Артефакты</h4>
+          <div className="group-controls">
+            <button className="btn-ghost" onClick={() => setCollapseArtifacts((v) => !v)}>{collapseArtifacts ? "Развернуть" : "Свернуть"}</button>
+            <button className="btn-ghost danger" onClick={() => setShowArtifacts(false)}>Убрать</button>
+          </div>
         </div>
-        <div className="mini-list">
+        {!collapseArtifacts ? <div className="mini-list">
           {filteredArtifacts.slice(0, 8).map((artifact) => (
             <ArtifactListItem key={artifact.id} artifact={artifact} onSelectArtifact={onSelectArtifact} />
           ))}
           {!filteredArtifacts.length ? <div className="empty-mini">Нет артефактов</div> : null}
-        </div>
-      </section>
+        </div> : null}
+      </section> : null}
+
+      {(!showProjects || !showDatasets || !showArtifacts) ? (
+        <button className="btn-secondary" onClick={() => { setShowProjects(true); setShowDatasets(true); setShowArtifacts(true); }}>
+          Восстановить виджеты
+        </button>
+      ) : null}
     </aside>
   );
 }
@@ -144,7 +168,7 @@ const ChatListItem = memo(function ChatListItem({
   onDelete: (id: string) => void;
 }) {
   return (
-    <button className={`mini-item ${active ? "active" : ""}`} onClick={() => onSelect(chat.id)}>
+    <div className={`mini-item ${active ? "active" : ""}`} onClick={() => onSelect(chat.id)} role="button" tabIndex={0}>
       <strong>{chat.title}</strong>
       <span>{chat.dataset_name || "без датасета"} · {new Date(chat.updated_at).toLocaleDateString()}</span>
       <div className="row-actions">
@@ -168,7 +192,7 @@ const ChatListItem = memo(function ChatListItem({
           Удалить
         </button>
       </div>
-    </button>
+    </div>
   );
 });
 

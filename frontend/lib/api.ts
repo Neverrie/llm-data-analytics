@@ -55,10 +55,15 @@ export type ArtifactItem = {
   metadata?: Record<string, unknown>;
 };
 
+export type SseEvent = {
+  event: string;
+  data: any;
+};
+
 const TOKEN_KEY = "workspace_access_token";
 
 export function getApiBaseUrl() {
-  return process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") || "/api";
+  return process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") || "http://82.162.61.44:8003/api";
 }
 
 export function setAuthToken(token: string | null) {
@@ -114,6 +119,69 @@ async function requestRaw(path: string, init: RequestInit = {}): Promise<Respons
   });
 }
 
+async function streamSse(
+  path: string,
+  init: RequestInit,
+  onEvent: (event: SseEvent) => void | Promise<void>
+): Promise<void> {
+  const token = getAuthToken();
+  const headers = new Headers(init.headers || {});
+  headers.set("Accept", "text/event-stream");
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  if (!(init.body instanceof FormData) && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+    ...init,
+    headers,
+    cache: "no-store"
+  });
+
+  if (!response.ok || !response.body) {
+    const text = await response.text();
+    throw new Error(text || `API error ${response.status}`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+
+    let splitIndex = buffer.indexOf("\n\n");
+    while (splitIndex !== -1) {
+      const rawEvent = buffer.slice(0, splitIndex).trim();
+      buffer = buffer.slice(splitIndex + 2);
+
+      if (rawEvent) {
+        const lines = rawEvent.split("\n");
+        let eventType = "message";
+        const dataParts: string[] = [];
+        for (const line of lines) {
+          if (line.startsWith("event:")) eventType = line.slice(6).trim();
+          if (line.startsWith("data:")) dataParts.push(line.slice(5).trim());
+        }
+        const rawData = dataParts.join("\n");
+        let parsed: any = rawData;
+        if (rawData) {
+          try {
+            parsed = JSON.parse(rawData);
+          } catch {
+            parsed = { raw: rawData };
+          }
+        }
+        await onEvent({ event: eventType, data: parsed });
+      }
+
+      splitIndex = buffer.indexOf("\n\n");
+    }
+  }
+}
+
 export const api = {
   getHealth: <T = { status: string; service: string }>() => request<T>("/health"),
 
@@ -165,6 +233,8 @@ export const api = {
     return request<{ items: ArtifactItem[] }>(`/artifacts${qs}`);
   },
   getArtifact: (id: string) => request<ArtifactItem>(`/artifacts/${id}`),
+  registerArtifact: (body: { kind: string; title: string; path: string; chat_id?: string | null; message_id?: string | null; metadata?: Record<string, unknown> }) =>
+    request<any>("/artifacts/register", { method: "POST", body: JSON.stringify(body) }),
   artifactPreviewUrl: (id: string) => `${getApiBaseUrl()}/artifacts/${id}/preview`,
   artifactDownloadUrl: (id: string) => `${getApiBaseUrl()}/artifacts/${id}/download`,
   fetchArtifactPreview: (id: string) => requestRaw(`/artifacts/${id}/preview`),
@@ -181,6 +251,11 @@ export const api = {
   },
   askLab3Agent: (body: { dataset_name: string; question: string; analysis_mode?: "code_interpreter" | "fast" | "balanced" | "full"; include_history?: boolean; max_code_steps?: number; max_tool_calls?: number; use_critic?: boolean; column_overrides?: Record<string, string | null> }) =>
     request<any>("/lab3/ask", { method: "POST", body: JSON.stringify(body) }),
+  askLab3AgentStream: (
+    body: { dataset_name: string; question: string; analysis_mode?: "code_interpreter" | "fast" | "balanced" | "full"; include_history?: boolean; max_code_steps?: number; max_tool_calls?: number; use_critic?: boolean; column_overrides?: Record<string, string | null> },
+    onEvent: (event: SseEvent) => void | Promise<void>
+  ) => streamSse("/lab3/ask/stream", { method: "POST", body: JSON.stringify(body) }, onEvent),
+  getLab3Result: () => request<any>("/lab3/result"),
   getLab3Status: () => request<any>("/lab3/status")
 };
 
