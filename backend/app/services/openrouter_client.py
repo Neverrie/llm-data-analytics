@@ -223,3 +223,61 @@ class OpenRouterClient:
             raise OpenRouterClientError("OpenRouter JSON response must be an object.")
 
         return parsed
+
+    async def stream_chat_completion(
+        self,
+        messages: list[dict[str, str]],
+        model: str | None = None,
+        temperature: float = 0.1,
+    ):
+        api_key = self._require_key()
+        used_model = model or self.default_model
+        payload: dict[str, Any] = {
+            "model": used_model,
+            "messages": messages,
+            "temperature": temperature,
+            "stream": True,
+        }
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "Accept": "text/event-stream",
+            "X-Title": "LLM Data Analyst Lab",
+        }
+        url = f"{self.base_url}/chat/completions"
+        try:
+            async with httpx.AsyncClient(timeout=None) as client:
+                async with client.stream("POST", url, headers=headers, json=payload) as response:
+                    if response.status_code == 401:
+                        raise OpenRouterClientError("OpenRouter authentication failed. Check OPENROUTER_API_KEY.")
+                    if response.status_code == 429:
+                        raise OpenRouterClientError("OpenRouter rate limit reached. Try again later.")
+                    if response.status_code == 503:
+                        raise OpenRouterClientError("OpenRouter is at capacity. Try again later.")
+                    if response.status_code >= 400:
+                        preview = (await response.aread())[:500].decode("utf-8", errors="ignore")
+                        raise OpenRouterClientError(
+                            f"OpenRouter streaming request failed with status {response.status_code}: {preview}"
+                        )
+                    async for line in response.aiter_lines():
+                        if not line:
+                            continue
+                        if not line.startswith("data:"):
+                            continue
+                        raw = line.removeprefix("data:").strip()
+                        if raw == "[DONE]":
+                            break
+                        try:
+                            payload_json = json.loads(raw)
+                        except json.JSONDecodeError:
+                            continue
+                        choices = payload_json.get("choices")
+                        if not isinstance(choices, list) or not choices:
+                            continue
+                        choice0 = choices[0] if isinstance(choices[0], dict) else {}
+                        delta = choice0.get("delta") if isinstance(choice0.get("delta"), dict) else {}
+                        content = delta.get("content")
+                        if isinstance(content, str) and content:
+                            yield content
+        except httpx.RequestError as exc:
+            raise OpenRouterClientError(f"OpenRouter request failed: {exc}") from exc

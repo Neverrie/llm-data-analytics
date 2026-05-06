@@ -1,9 +1,8 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 
 import { ChatMessage } from "@/lib/api";
-import { AgentRunProgress } from "./AgentRunProgress";
 import { ChatComposer } from "./ChatComposer";
 import { ChatThread } from "./ChatThread";
 import { EmptyChatState } from "./EmptyChatState";
@@ -24,32 +23,22 @@ export function ChatPanel({
   datasetNotice?: string;
 }) {
   const [draft, setDraft] = useState("");
+  const streamLogs = Array.isArray(lab3Response?.logs) ? lab3Response.logs : Array.isArray(lab3Response?.stream_logs) ? lab3Response.stream_logs : [];
+  const statusLine = streamLogs.length ? String(streamLogs[streamLogs.length - 1]) : "Обрабатываю запрос...";
 
   return (
-    <section className="main-panel chat-panel workspace-screen">
+    <section className="workspace-page agent-chat-page">
       {datasetNotice ? <div className="dataset-notice">{datasetNotice}</div> : null}
-      <div className="chat-thread-wrap">
+      <div className="agent-chat-feed workspace-screen-scroll">
         {!messages.length ? <EmptyChatState datasetName={datasetName} onPrompt={setDraft} /> : <ChatThread messages={messages} />}
+        {loading ? <div className="agent-status-line muted">{statusLine}</div> : null}
+        {lab3Response?.error ? <article className="workspace-section"><strong>Ошибка</strong><pre className="code-pre error">{String(lab3Response.error)}</pre></article> : null}
       </div>
-      <div className="chat-status-wrap">
-        <AgentRunProgress
-          active={loading}
-          stats={
-            lab3Response
-              ? {
-                  provider: lab3Response.provider,
-                  model: lab3Response.model,
-                  llm_calls_count: lab3Response.llm_calls_count,
-                  successful_executions_count: lab3Response.successful_executions_count,
-                  elapsed_seconds: lab3Response.elapsed_seconds
-                }
-              : null
-          }
-        />
-        {lab3Response?.error ? <article className="block-card"><strong>Ошибка</strong><pre className="code-pre error">{String(lab3Response.error)}</pre></article> : null}
+      <div className="agent-chat-composer">
+        <article className="workspace-section">
+          <ChatComposer onSend={onSend} loading={loading} draft={draft} onDraftChange={setDraft} />
+        </article>
       </div>
-      <ChatComposer onSend={onSend} loading={loading} draft={draft} onDraftChange={setDraft} />
     </section>
   );
 }
-

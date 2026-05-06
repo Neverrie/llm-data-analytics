@@ -205,9 +205,23 @@ def get_report_path() -> Path:
 
 
 def get_generated_file_path(path: str) -> Path:
-    requested = Path(path).resolve()
+    raw = (path or "").strip()
+    if not raw:
+        raise Lab2PipelineError("Generated file path is empty.", status_code=400)
+
+    base_root = (Path(settings.outputs_dir) / "lab3").resolve()
+    requested = Path(raw)
+    if not requested.is_absolute():
+        # Allow short filename references (e.g. "plot.png") from LLM output.
+        # We resolve them against outputs/lab3 recursively.
+        matches = [p for p in base_root.rglob(requested.name) if p.is_file()]
+        if not matches:
+            raise Lab2PipelineError("Generated file not found.", status_code=404)
+        matches.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        requested = matches[0]
+    requested = requested.resolve()
     allowed_roots = [
-        (Path(settings.outputs_dir) / "lab3").resolve(),
+        base_root,
     ]
     if not any(root == requested or root in requested.parents for root in allowed_roots):
         raise Lab2PipelineError("Invalid generated file path.", status_code=400)

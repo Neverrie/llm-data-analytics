@@ -24,6 +24,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
+import java.util.Locale
 
 data class UiChatMessage(
     val id: String,
@@ -103,7 +104,12 @@ class ChatViewModel(
     }
 
     fun executionMode(): ChatExecutionMode {
-        return if (!uiState.value.selectedDatasetId.isNullOrBlank()) ChatExecutionMode.DatasetAgent else ChatExecutionMode.GeneralChat
+        val state = uiState.value
+        return if (!state.selectedDatasetId.isNullOrBlank() || !state.selectedDatasetName.isNullOrBlank()) {
+            ChatExecutionMode.DatasetAgent
+        } else {
+            ChatExecutionMode.GeneralChat
+        }
     }
 
     fun openChat(chatId: String) {
@@ -196,6 +202,7 @@ class ChatViewModel(
             )
 
             var usedFallback = false
+            var failedFallbackTried = false
             var gotDone = false
             val artifactsBefore = if (mode == ChatExecutionMode.DatasetAgent) chatRepository.listArtifacts().map { it.id }.toSet() else emptySet()
 
@@ -211,7 +218,13 @@ class ChatViewModel(
                     is ChatSendResult.ToolProgress -> appendToolLog(result.message)
                     is ChatSendResult.ArtifactCreated -> {
                         if (result.artifactId.isNotBlank()) {
-                            hydrateArtifactBlock(assistantMessageId = assistantId, artifactId = result.artifactId, title = result.title, mimeType = result.mimeType)
+                            hydrateArtifactBlock(
+                                assistantMessageId = assistantId,
+                                artifactId = result.artifactId,
+                                title = result.title,
+                                mimeType = result.mimeType,
+                                previewUrl = result.previewUrl
+                            )
                         }
                     }
                     is ChatSendResult.FallbackUsed -> {
@@ -245,8 +258,23 @@ class ChatViewModel(
                         }
                     }
                     is ChatSendResult.Failed -> {
-                        appendError(result.message)
-                        _events.emit(result.message)
+                        if (mode == ChatExecutionMode.DatasetAgent && !usedFallback && !failedFallbackTried) {
+                            failedFallbackTried = true
+                            usedFallback = true
+                            _events.emit("Стриминг завершился ошибкой, использую обычный режим")
+                            runCatching {
+                                val response = chatRepository.sendLab3Json(uiState.value.selectedDatasetName.orEmpty(), text)
+                                val finalAnswer = extractLab3FinalAnswer(response)
+                                setAssistantFinal(finalAnswer)
+                                refreshArtifactsAfterAgent(assistantId, artifactsBefore)
+                            }.onFailure {
+                                appendError(result.message)
+                                _events.emit(result.message)
+                            }
+                        } else {
+                            appendError(result.message)
+                            _events.emit(result.message)
+                        }
                     }
                     else -> Unit
                 }
@@ -278,7 +306,10 @@ class ChatViewModel(
 
     private suspend fun refreshArtifactsAfterAgent(assistantMessageId: String, beforeIds: Set<String>) {
         val now = chatRepository.listArtifacts()
-        val newItems = now.filter { it.id !in beforeIds }.takeLast(6)
+        val newItems = now
+            .filter { it.id !in beforeIds }
+            .filterNot { isTechnicalArtifact(it.title ?: it.filename ?: "", it.mimeType ?: "", it.kind ?: "") }
+            .filter { isRenderableArtifact(it.title ?: it.filename ?: "", it.mimeType ?: "", it.kind ?: "") }
         if (newItems.isNotEmpty()) {
             _events.emit("Найдено новых артефактов: ${newItems.size}")
         }
@@ -304,7 +335,6 @@ class ChatViewModel(
                 val title = (art.title ?: art.filename).orEmpty().lowercase()
                 names.any { n -> title.endsWith(n) || title.contains(n) }
             }
-            .take(6)
             .forEach { art ->
                 if (!art.id.isNullOrBlank()) {
                     hydrateArtifactBlock(
@@ -322,16 +352,61 @@ class ChatViewModel(
         return datasets.firstOrNull { it.id == datasetId }?.name
     }
 
-    private fun hydrateArtifactBlock(assistantMessageId: String, artifactId: String, title: String?, mimeType: String?) {
-        addVisualBlock(
-            assistantMessageId,
-            ChatContentBlock.UnsupportedArtifactBlock(artifactId = artifactId, title = "Загружаю предпросмотр...", mimeType = mimeType),
-            replaceSameArtifact = true
-        )
+    private fun hydrateArtifactBlock(
+        assistantMessageId: String,
+        artifactId: String,
+        title: String?,
+        mimeType: String?,
+        previewUrl: String? = null
+    ) {
+        if (!isRenderableArtifact(title ?: "", mimeType ?: "", "")) return
+        if (!previewUrl.isNullOrBlank() && mimeType.orEmpty().startsWith("image/")) {
+            val normalized = if (previewUrl.startsWith("http://") || previewUrl.startsWith("https://")) {
+                previewUrl
+            } else {
+                "${_uiState.value.baseUrl.trimEnd('/')}${if (previewUrl.startsWith("/")) "" else "/"}$previewUrl"
+            }
+            addVisualBlock(
+                assistantMessageId,
+                ChatContentBlock.ImageArtifactBlock(
+                    artifactId = artifactId,
+                    title = title,
+                    mimeType = mimeType,
+                    previewUrl = normalized
+                ),
+                replaceSameArtifact = true
+            )
+            return
+        }
         viewModelScope.launch {
             val block = chatRepository.buildVisualBlockFromArtifact(artifactId, title, mimeType)
-            addVisualBlock(assistantMessageId, block, replaceSameArtifact = true)
+            if (block !is ChatContentBlock.UnsupportedArtifactBlock) {
+                addVisualBlock(assistantMessageId, block, replaceSameArtifact = true)
+            }
         }
+    }
+
+    private fun isTechnicalArtifact(title: String, mimeType: String, kind: String): Boolean {
+        val t = title.lowercase(Locale.ROOT)
+        val m = mimeType.lowercase(Locale.ROOT)
+        val k = kind.lowercase(Locale.ROOT)
+        return t.contains("trace") ||
+            t.contains("result_json") ||
+            t.contains("agent_trace") ||
+            t.contains("code_interpreter_trace") ||
+            t.endsWith(".md") ||
+            (k == "json" && !t.endsWith(".png")) ||
+            m.contains("application/json")
+    }
+
+    private fun isRenderableArtifact(title: String, mimeType: String, kind: String): Boolean {
+        val t = title.lowercase(Locale.ROOT)
+        val m = mimeType.lowercase(Locale.ROOT)
+        val k = kind.lowercase(Locale.ROOT)
+        val isImage = m.startsWith("image/") ||
+            t.endsWith(".png") || t.endsWith(".jpg") || t.endsWith(".jpeg") || t.endsWith(".webp")
+        val isTable = k == "table" || t.endsWith(".csv")
+        return isImage || isTable
     }
 
     private suspend fun syncChat(chatId: String) {
@@ -421,7 +496,14 @@ class ChatViewModel(
     private fun rebuildMessage(message: UiChatMessage): UiChatMessage {
         if (message.role != "assistant") return message.copy(blocks = listOf(ChatContentBlock.TextBlock(message.content)))
         val textBlocks = MarkdownTableParser.parseToBlocks(sanitizeAssistantText(message.content))
-        return message.copy(blocks = textBlocks + message.visualBlocks)
+        val visualTables = message.visualBlocks.filterIsInstance<ChatContentBlock.TableBlock>()
+        val dedupedTextBlocks = textBlocks.filterNot { block ->
+            val textTable = block as? ChatContentBlock.TableBlock ?: return@filterNot false
+            visualTables.any { visual ->
+                visual.columns == textTable.columns && visual.rows == textTable.rows
+            }
+        }
+        return message.copy(blocks = dedupedTextBlocks + message.visualBlocks)
     }
 
     private fun sanitizeAssistantText(text: String): String {

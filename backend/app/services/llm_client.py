@@ -7,6 +7,7 @@ from typing import Any
 from app.config import get_default_model_for_provider, get_lab3_model, settings
 from app.ollama_client import OllamaClient, OllamaClientError
 from app.services.openrouter_client import OpenRouterClient, OpenRouterClientError
+from app.stream_events import chunk_text_for_streaming
 
 
 class LLMClientError(RuntimeError):
@@ -152,4 +153,49 @@ class LLMClient:
                 raise LLMClientError("LLM JSON response must be an object.")
             return parsed
         except (OpenRouterClientError, OllamaClientError, json.JSONDecodeError) as exc:
+            raise LLMClientError(str(exc)) from exc
+
+    async def stream_chat(
+        self,
+        messages: list[dict[str, str]],
+        purpose: str = "general",
+        model: str | None = None,
+        temperature: float = 0.1,
+    ):
+        resolved_model = self.resolve_model(model, purpose)
+        if self.provider == "openrouter":
+            models = [resolved_model, *[m for m in self._fallback_models() if m != resolved_model]]
+            last_error: Exception | None = None
+            for index, current_model in enumerate(models):
+                client = OpenRouterClient(
+                    api_key=settings.openrouter_api_key,
+                    base_url=settings.openrouter_base_url,
+                    default_model=settings.openrouter_model,
+                )
+                try:
+                    yielded = False
+                    async for chunk in client.stream_chat_completion(
+                        messages=messages,
+                        model=current_model,
+                        temperature=temperature,
+                    ):
+                        yielded = True
+                        yield chunk
+                    if yielded:
+                        return
+                except OpenRouterClientError as exc:
+                    last_error = exc
+                    if "authentication failed" in str(exc).lower():
+                        raise LLMClientError(str(exc)) from exc
+                    if index < len(models) - 1 and self._is_retryable_openrouter_error(str(exc)):
+                        continue
+                    break
+            raise LLMClientError(str(last_error) if last_error else "OpenRouter stream failed.")
+
+        try:
+            prompt = "\n\n".join(f"{m.get('role', 'user')}: {m.get('content', '')}" for m in messages)
+            resp = await OllamaClient(settings.ollama_base_url).generate_text(resolved_model, prompt)
+            for chunk in chunk_text_for_streaming(resp.response):
+                yield chunk
+        except OllamaClientError as exc:
             raise LLMClientError(str(exc)) from exc

@@ -184,7 +184,8 @@ data class Lab3AskRequest(
 data class ArtifactCreatedPayload(
     @SerialName("artifact_id") val artifactId: String = "",
     val title: String? = null,
-    @SerialName("mime_type") val mimeType: String? = null
+    @SerialName("mime_type") val mimeType: String? = null,
+    @SerialName("preview_url") val previewUrl: String? = null
 )
 
 sealed interface ChatStreamEvent {
@@ -196,7 +197,8 @@ sealed interface ChatStreamEvent {
     data class ArtifactCreated(
         val artifactId: String,
         val title: String? = null,
-        val mimeType: String? = null
+        val mimeType: String? = null,
+        val previewUrl: String? = null
     ) : ChatStreamEvent
     data class Error(val message: String) : ChatStreamEvent
     data class Done(val status: String? = null, val messageId: String? = null) : ChatStreamEvent
@@ -208,7 +210,7 @@ sealed interface ChatSendResult {
     data object AssistantMessageStarted : ChatSendResult
     data class AssistantDelta(val content: String) : ChatSendResult
     data class ToolProgress(val message: String) : ChatSendResult
-    data class ArtifactCreated(val artifactId: String, val title: String?, val mimeType: String?) : ChatSendResult
+    data class ArtifactCreated(val artifactId: String, val title: String?, val mimeType: String?, val previewUrl: String?) : ChatSendResult
     data class Completed(val messageId: String?) : ChatSendResult
     data class Failed(val message: String) : ChatSendResult
     data object FallbackUsed : ChatSendResult

@@ -17,17 +17,25 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import okhttp3.Headers
 import com.example.llmdataanalyst.core.model.ArtifactItem
+import com.example.llmdataanalyst.core.repository.SettingsRepository
 
 @Composable
 fun ArtifactsScreen(
     viewModel: ArtifactsViewModel,
+    settingsRepository: SettingsRepository,
     onOpenArtifact: (String) -> Unit
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val token by settingsRepository.tokenFlow.collectAsStateWithLifecycle(initialValue = null)
+    val baseUrl by settingsRepository.baseUrlFlow.collectAsStateWithLifecycle(initialValue = "")
+    val context = LocalContext.current
     LaunchedEffect(Unit) { viewModel.load() }
 
     Column(
@@ -61,7 +69,13 @@ fun ArtifactsScreen(
             else -> {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(state.items, key = { it.id }) { item ->
-                        ArtifactCard(item = item, onOpen = { onOpenArtifact(item.id) })
+                        ArtifactCard(
+                            item = item,
+                            baseUrl = baseUrl,
+                            token = token,
+                            context = context,
+                            onOpen = { onOpenArtifact(item.id) }
+                        )
                     }
                 }
             }
@@ -72,6 +86,9 @@ fun ArtifactsScreen(
 @Composable
 private fun ArtifactCard(
     item: ArtifactItem,
+    baseUrl: String,
+    token: String?,
+    context: android.content.Context,
     onOpen: () -> Unit
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -81,8 +98,19 @@ private fun ArtifactCard(
             item.createdAt?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
             item.path?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
             if (isImage(item)) {
+                val raw = item.previewUrl ?: "/api/artifacts/${item.id}/preview"
+                val url = if (raw.startsWith("http://") || raw.startsWith("https://")) raw else "${baseUrl.trimEnd('/')}/${raw.trimStart('/')}"
+                val request = ImageRequest.Builder(context)
+                    .data(url)
+                    .apply {
+                        if (!token.isNullOrBlank()) {
+                            headers(Headers.headersOf("Authorization", "Bearer $token"))
+                        }
+                    }
+                    .crossfade(true)
+                    .build()
                 AsyncImage(
-                    model = item.previewUrl ?: item.path ?: item.filename,
+                    model = request,
                     contentDescription = item.title,
                     modifier = Modifier.fillMaxWidth().height(140.dp)
                 )

@@ -78,7 +78,8 @@ class SseParser(
                 "artifact_created" -> ChatStreamEvent.ArtifactCreated(
                     artifactId = obj["artifact_id"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                     title = obj["title"]?.jsonPrimitive?.contentOrNull,
-                    mimeType = obj["mime_type"]?.jsonPrimitive?.contentOrNull
+                    mimeType = obj["mime_type"]?.jsonPrimitive?.contentOrNull,
+                    previewUrl = obj["preview_url"]?.jsonPrimitive?.contentOrNull
                 )
 
                 "error" -> ChatStreamEvent.Error(

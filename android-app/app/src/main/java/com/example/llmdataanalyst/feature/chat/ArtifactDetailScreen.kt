@@ -30,19 +30,25 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.llmdataanalyst.core.model.ArtifactItem
 import com.example.llmdataanalyst.core.repository.ArtifactRepository
+import com.example.llmdataanalyst.core.repository.SettingsRepository
 import com.example.llmdataanalyst.core.util.AppResult
 import kotlinx.coroutines.launch
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import okhttp3.Headers
 import java.io.File
 
 @Composable
 fun ArtifactDetailScreen(
     artifactId: String,
-    artifactRepository: ArtifactRepository
+    artifactRepository: ArtifactRepository,
+    settingsRepository: SettingsRepository
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val token by settingsRepository.tokenFlow.collectAsStateWithLifecycle(initialValue = null)
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var artifact by remember { mutableStateOf<ArtifactItem?>(null) }
@@ -110,8 +116,17 @@ fun ArtifactDetailScreen(
 
         when (val block = previewBlock) {
             is ChatContentBlock.ImageArtifactBlock -> {
+                val request = ImageRequest.Builder(context)
+                    .data(block.previewUrl)
+                    .apply {
+                        if (!token.isNullOrBlank()) {
+                            headers(Headers.headersOf("Authorization", "Bearer $token"))
+                        }
+                    }
+                    .crossfade(true)
+                    .build()
                 AsyncImage(
-                    model = block.previewUrl,
+                    model = request,
                     contentDescription = block.title,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -192,8 +207,12 @@ fun ArtifactDetailScreen(
 private fun isImage(item: ArtifactItem): Boolean {
     val mime = item.mimeType.orEmpty().lowercase()
     val title = (item.title ?: item.filename).orEmpty().lowercase()
+    val filename = item.filename.orEmpty().lowercase()
+    val path = item.path.orEmpty().lowercase()
     return mime.contains("image/png") || mime.contains("image/jpeg") || mime.contains("image/webp") ||
-        title.endsWith(".png") || title.endsWith(".jpg") || title.endsWith(".jpeg") || title.endsWith(".webp")
+        title.endsWith(".png") || title.endsWith(".jpg") || title.endsWith(".jpeg") || title.endsWith(".webp") ||
+        filename.endsWith(".png") || filename.endsWith(".jpg") || filename.endsWith(".jpeg") || filename.endsWith(".webp") ||
+        path.endsWith(".png") || path.endsWith(".jpg") || path.endsWith(".jpeg") || path.endsWith(".webp")
 }
 
 private fun guessExtension(mimeType: String?): String {

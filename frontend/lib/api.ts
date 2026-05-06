@@ -63,7 +63,19 @@ export type SseEvent = {
 const TOKEN_KEY = "workspace_access_token";
 
 export function getApiBaseUrl() {
-  return process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") || "http://82.162.61.44:8003/api";
+  const configured = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+  if (configured) return configured.replace(/\/$/, "");
+
+  if (typeof window !== "undefined") {
+    const { protocol, hostname } = window.location;
+    const localHosts = new Set(["localhost", "127.0.0.1"]);
+    if (localHosts.has(hostname)) {
+      return "http://localhost:8003/api";
+    }
+    return `${protocol}//${hostname}:8003/api`;
+  }
+
+  return "http://localhost:8003/api";
 }
 
 export function setAuthToken(token: string | null) {
@@ -212,6 +224,11 @@ export const api = {
   getChat: (chatId: string) => request<{ chat: Chat; messages: ChatMessage[] }>(`/chats/${chatId}`),
   addMessage: (chatId: string, body: { role: "user" | "assistant" | "system"; content: string; blocks?: unknown[]; metadata?: Record<string, unknown> }) =>
     request<ChatMessage>(`/chats/${chatId}/messages`, { method: "POST", body: JSON.stringify(body) }),
+  streamChatMessage: (
+    chatId: string,
+    body: { role: "user" | "assistant" | "system"; content: string; blocks?: unknown[]; metadata?: Record<string, unknown> },
+    onEvent: (event: SseEvent) => void | Promise<void>
+  ) => streamSse(`/chats/${chatId}/messages/stream`, { method: "POST", body: JSON.stringify(body) }, onEvent),
   updateChat: (chatId: string, body: { title?: string; archived?: boolean; dataset_name?: string | null }) =>
     request<Chat>(`/chats/${chatId}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteChat: (chatId: string) => request<Chat>(`/chats/${chatId}`, { method: "DELETE" }),

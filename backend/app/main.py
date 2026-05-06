@@ -11,14 +11,11 @@ from app.services.auth_service import ensure_demo_user
 from app.services.dataset_registry import sync_builtin_datasets
 
 app = FastAPI(title=settings.app_name, version=settings.app_version)
+cors_origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3003",
-        "http://127.0.0.1:3003",
-        "http://82.162.61.44:3003",
-    ],
+    allow_origins=cors_origins,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],

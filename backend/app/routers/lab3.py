@@ -1,11 +1,16 @@
 ﻿from __future__ import annotations
 
+import asyncio
 import logging
+from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse, StreamingResponse
 
+from app.config import settings
 from app.schemas import Lab3AskRequest, Lab3MapColumnsRequest, Lab3ResetSessionRequest, Lab3RunToolRequest
+from app.services.artifact_service import register_artifact
+from app.services.auth_service import get_current_user
 from app.services.lab2_service import Lab2PipelineError
 from app.services.lab3_service import (
     ask_agent,
@@ -24,9 +29,79 @@ from app.services.lab3_service import (
     run_tool,
     upload_dataset,
 )
+from app.stream_events import StreamEmitter, chunk_text_for_streaming
 
 router = APIRouter(prefix="/lab3", tags=["lab3"])
 logger = logging.getLogger(__name__)
+
+
+def _artifact_kind_by_path(path: str) -> str:
+    suffix = Path(path).suffix.lower()
+    if suffix in {".png", ".jpg", ".jpeg", ".webp"}:
+        return "chart"
+    if suffix == ".md":
+        return "report"
+    if suffix == ".json":
+        return "json"
+    if suffix in {".csv", ".xlsx", ".xls"}:
+        return "table"
+    return "other"
+
+
+def _resolve_output_path(path: str) -> str:
+    p = Path((path or "").strip())
+    if not str(p):
+        return str(p)
+    if p.is_absolute() and p.exists():
+        return str(p)
+    root = (Path(settings.outputs_dir) / "lab3").resolve()
+    candidate = (root / p).resolve()
+    if candidate.exists():
+        return str(candidate)
+    matches = [f for f in root.rglob(p.name) if f.is_file()]
+    if matches:
+        matches.sort(key=lambda it: it.stat().st_mtime, reverse=True)
+        return str(matches[0])
+    return str(p)
+
+
+def _collect_paths_from_result(result: dict) -> list[tuple[str, str]]:
+    pairs: list[tuple[str, str]] = []
+    output_files = result.get("output_files") or {}
+    if isinstance(output_files, dict):
+        for key, path in output_files.items():
+            if isinstance(path, str) and path.strip():
+                pairs.append((str(key), path))
+    generated_files = result.get("generated_files") or []
+    if isinstance(generated_files, list):
+        for item in generated_files:
+            if not isinstance(item, dict):
+                continue
+            path = item.get("path")
+            if isinstance(path, str) and path.strip():
+                title = str(item.get("title") or item.get("name") or Path(path).name)
+                pairs.append((title, path))
+    return pairs
+
+
+def _register_result_artifacts(user_id: str, result: dict, chat_id: str | None = None, message_id: str | None = None) -> list[dict]:
+    created: list[dict] = []
+    for title, raw_path in _collect_paths_from_result(result):
+        path = _resolve_output_path(raw_path)
+        try:
+            artifact = register_artifact(
+                user_id=user_id,
+                kind=_artifact_kind_by_path(path),
+                title=title,
+                path=path,
+                chat_id=chat_id,
+                message_id=message_id,
+                metadata={"source": "lab3"},
+            )
+            created.append(artifact)
+        except Exception:
+            logger.exception("LAB3_ARTIFACT_REGISTER_FAILED path=%s title=%s", path, title)
+    return created
 
 
 @router.get("/status")
@@ -82,7 +157,7 @@ async def lab3_run_tool(request: Lab3RunToolRequest) -> dict:
 
 
 @router.post("/ask")
-async def lab3_ask(request: Lab3AskRequest) -> dict:
+async def lab3_ask(request: Lab3AskRequest, user: dict = Depends(get_current_user)) -> dict:
     try:
         logger.info(
             "LAB3_ASK_START dataset=%s mode=%s question_len=%s",
@@ -90,7 +165,7 @@ async def lab3_ask(request: Lab3AskRequest) -> dict:
             request.analysis_mode,
             len(request.question or ""),
         )
-        return await ask_agent(
+        result = await ask_agent(
             dataset_name=request.dataset_name,
             question=request.question,
             column_overrides=request.column_overrides,
@@ -102,9 +177,127 @@ async def lab3_ask(request: Lab3AskRequest) -> dict:
             reset_session_flag=request.reset_session,
             max_code_steps=request.max_code_steps,
         )
+        result["artifacts"] = _register_result_artifacts(user_id=user["id"], result=result)
+        return result
     except Lab2PipelineError as exc:
         logger.exception("LAB3_ASK_ERROR detail=%s", exc.message)
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+
+
+@router.post("/ask/stream")
+async def lab3_ask_stream(request: Lab3AskRequest, user: dict = Depends(get_current_user)):
+    async def event_generator():
+        queue: asyncio.Queue[str | None] = asyncio.Queue()
+
+        async def sender(payload: str) -> None:
+            await queue.put(payload)
+
+        emitter = StreamEmitter(sender=sender)
+
+        async def worker() -> None:
+            heartbeat_task: asyncio.Task | None = None
+
+            async def heartbeat() -> None:
+                hints = [
+                    "Планирую шаги анализа...",
+                    "Проверяю структуру данных...",
+                    "Готовлю и запускаю вычисления...",
+                    "Собираю таблицы и графики...",
+                ]
+                idx = 0
+                while True:
+                    await asyncio.sleep(4)
+                    await emitter.emit("tool_log", {"content": hints[idx % len(hints)]})
+                    idx += 1
+
+            try:
+                await emitter.emit("message_start", {"role": "assistant", "dataset": request.dataset_name})
+                await emitter.emit("tool_start", {"name": "lab3_agent"})
+                await emitter.emit("tool_log", {"content": "Запускаю анализ..."})
+                await emitter.emit("tool_log", {"content": "Обрабатываю запрос..."})
+                heartbeat_task = asyncio.create_task(heartbeat())
+                result = await ask_agent(
+                    dataset_name=request.dataset_name,
+                    question=request.question,
+                    column_overrides=request.column_overrides,
+                    max_tool_calls=request.max_tool_calls,
+                    use_critic=request.use_critic,
+                    analysis_mode=request.analysis_mode,
+                    session_id=request.session_id,
+                    include_history=request.include_history,
+                    reset_session_flag=request.reset_session,
+                    max_code_steps=request.max_code_steps,
+                )
+                artifacts = _register_result_artifacts(user_id=user["id"], result=result)
+                code_steps = result.get("code_steps") or result.get("steps") or []
+                if isinstance(code_steps, list):
+                    for step in code_steps:
+                        if not isinstance(step, dict):
+                            continue
+                        step_no = step.get("step", "?")
+                        exec_info = step.get("execution") if isinstance(step.get("execution"), dict) else {}
+                        status = exec_info.get("status") or step.get("status") or "unknown"
+                        await emitter.emit("tool_log", {"content": f"Шаг {step_no}: {status}"})
+                        code = str(step.get("code", "")).strip()
+                        if code:
+                            await emitter.emit("tool_log", {"content": f"Код шага {step_no}: {code[:220]}{'...' if len(code) > 220 else ''}"})
+
+                for chunk in chunk_text_for_streaming(str(result.get("final_answer", ""))):
+                    await emitter.emit("message_delta", {"content": chunk})
+
+                for item in artifacts:
+                    await emitter.emit(
+                        "artifact_created",
+                        {
+                            "artifact_id": item.get("id"),
+                            "title": item.get("title"),
+                            "mime_type": item.get("mime_type"),
+                            "preview_url": item.get("preview_url"),
+                        },
+                    )
+
+                await emitter.emit("tool_end", {"name": "lab3_agent", "status": "success"})
+                await emitter.emit(
+                    "done",
+                    {
+                        "status": "ok",
+                        "analysis_mode": result.get("analysis_mode", request.analysis_mode),
+                        "session_id": result.get("session_id"),
+                    },
+                )
+            except Lab2PipelineError:
+                logger.exception("LAB3_ASK_STREAM_ERROR")
+                await emitter.emit("error", {"message": "Не удалось получить ответ модели"})
+                await emitter.emit("done", {"status": "error"})
+            except Exception:  # pragma: no cover
+                logger.exception("LAB3_ASK_STREAM_UNEXPECTED_ERROR")
+                await emitter.emit("error", {"message": "Не удалось получить ответ модели"})
+                await emitter.emit("done", {"status": "error"})
+            finally:
+                if heartbeat_task and not heartbeat_task.done():
+                    heartbeat_task.cancel()
+                await queue.put(None)
+
+        task = asyncio.create_task(worker())
+        try:
+            while True:
+                item = await queue.get()
+                if item is None:
+                    break
+                yield item
+        finally:
+            if not task.done():
+                task.cancel()
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/session")

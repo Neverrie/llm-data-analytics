@@ -213,6 +213,7 @@ fun AppNavHost(
                     val vm: ArtifactsViewModel = viewModel(factory = ArtifactsViewModelFactory(appContainer.artifactRepository))
                     ArtifactsScreen(
                         viewModel = vm,
+                        settingsRepository = appContainer.settingsRepository,
                         onOpenArtifact = { artifactId -> navController.navigate("artifact/$artifactId") }
                     )
                 }
@@ -233,7 +234,11 @@ fun AppNavHost(
                     arguments = listOf(navArgument("artifactId") { type = NavType.StringType })
                 ) { backStackEntry ->
                     val artifactId = backStackEntry.arguments?.getString("artifactId").orEmpty()
-                    ArtifactDetailScreen(artifactId = artifactId, artifactRepository = appContainer.artifactRepository)
+                    ArtifactDetailScreen(
+                        artifactId = artifactId,
+                        artifactRepository = appContainer.artifactRepository,
+                        settingsRepository = appContainer.settingsRepository
+                    )
                 }
                 composable(NavRoute.Settings.route) {
                     val vm: SettingsViewModel = viewModel(

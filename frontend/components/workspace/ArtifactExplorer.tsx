@@ -77,64 +77,43 @@ export function ArtifactExplorer({
   const kinds = useMemo(() => ["all", ...Array.from(new Set(items.map((i) => i.kind)))], [items]);
   const selectedId = selected?.id;
   const selectedDownload = selected ? api.artifactDownloadUrl(selected.id) : "#";
-  const selectedIndex = useMemo(() => filtered.findIndex((x) => x.id === selectedId), [filtered, selectedId]);
-  const sideSelection = useMemo(() => {
-    if (!selectedId) return [];
-    if (selectedIndex < 0) return filtered.slice(0, 12);
-    const start = Math.max(0, selectedIndex - 5);
-    return filtered.slice(start, start + 12);
-  }, [filtered, selectedId, selectedIndex]);
-
   return (
     <section className="main-panel workspace-screen">
-      <div className={`artifacts-grid workspace-screen-scroll ${selected ? "with-side-preview" : ""}`}>
-      <div className="artifact-list-wrap">
-        <div className="explorer-toolbar">
-          <h3>Артефакты</h3>
-          <input className="small-input" placeholder="Поиск артефактов" value={query} onChange={(e) => setQuery(e.target.value)} />
-          <select className="small-input" value={kind} onChange={(e) => setKind(e.target.value)}>
-            {kinds.map((k) => <option key={k} value={k}>{k}</option>)}
-          </select>
-        </div>
-        <div className="artifact-list">
-          {filtered.map((item) => (
-            <button key={item.id} className={`artifact-item ${selectedId === item.id ? "active" : ""}`} onClick={() => onSelect(item.id)}>
-              <strong>{item.title}</strong>
-              <span>{item.kind} · {item.filename}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-      {selected ? (
-        <div className="artifact-list-wrap artifact-side-selected">
-          <div className="explorer-toolbar">
-            <h3>Выбранный набор</h3>
+      <div className="artifacts-scroll workspace-screen-scroll">
+        <div className="artifacts-grid">
+          <div className="artifact-list-wrap">
+            <div className="explorer-toolbar">
+              <h3>Артефакты</h3>
+              <input className="small-input" placeholder="Поиск артефактов" value={query} onChange={(e) => setQuery(e.target.value)} />
+              <select className="small-input" value={kind} onChange={(e) => setKind(e.target.value)}>
+                {kinds.map((k) => <option key={k} value={k}>{k}</option>)}
+              </select>
+            </div>
+            <div className="artifact-list">
+              {filtered.map((item) => (
+                <button key={item.id} className={`artifact-item ${selectedId === item.id ? "active" : ""}`} onClick={() => onSelect(item.id)}>
+                  <strong>{item.title}</strong>
+                  <span>{item.kind} · {item.filename}</span>
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="artifact-list">
-            {sideSelection.map((item) => (
-              <button key={item.id} className={`artifact-item ${selectedId === item.id ? "active" : ""}`} onClick={() => onSelect(item.id)}>
-                <strong>{item.title}</strong>
-                <span>{item.kind} · {item.filename}</span>
-              </button>
-            ))}
+          <div className="artifact-preview">
+            {!selected ? <div className="empty-state"><h3>Выберите артефакт</h3><p>Откройте файл из списка слева, чтобы увидеть превью.</p></div> : null}
+            {selected ? <h3>{selected.filename}</h3> : null}
+            {preview.kind === "image" ? <img src={preview.url} alt={selected?.filename || "artifact"} /> : null}
+            {preview.kind === "table" ? <DataTable columns={preview.columns} rows={preview.rows.slice(0, 30)} maxHeight={500} /> : null}
+            {preview.kind === "json" ? <pre className="code-pre">{JSON.stringify(preview.value, null, 2)}</pre> : null}
+            {preview.kind === "text" ? <pre className="code-pre">{preview.value}</pre> : null}
+            {selected ? (
+              <div className="panel-row">
+                <button className="btn-secondary" onClick={() => onSelect(selected.id)}>Открыть</button>
+                <a className="btn-secondary" href={selectedDownload} download>Скачать</a>
+                <button className="btn-ghost" onClick={() => navigator.clipboard.writeText(selected.path)}>Копировать путь</button>
+              </div>
+            ) : null}
           </div>
         </div>
-      ) : null}
-      <div className="artifact-preview">
-        {!selected ? <div className="empty-state"><h3>Выберите артефакт</h3><p>Откройте файл из списка слева, чтобы увидеть превью.</p></div> : null}
-        {selected ? <h3>{selected.filename}</h3> : null}
-        {preview.kind === "image" ? <img src={preview.url} alt={selected?.filename || "artifact"} /> : null}
-        {preview.kind === "table" ? <DataTable columns={preview.columns} rows={preview.rows.slice(0, 30)} maxHeight={500} /> : null}
-        {preview.kind === "json" ? <pre className="code-pre">{JSON.stringify(preview.value, null, 2)}</pre> : null}
-        {preview.kind === "text" ? <pre className="code-pre">{preview.value}</pre> : null}
-        {selected ? (
-          <div className="panel-row">
-            <button className="btn-secondary" onClick={() => onSelect(selected.id)}>Открыть</button>
-            <a className="btn-secondary" href={selectedDownload} download>Скачать</a>
-            <button className="btn-ghost" onClick={() => navigator.clipboard.writeText(selected.path)}>Копировать путь</button>
-          </div>
-        ) : null}
-      </div>
       </div>
     </section>
   );

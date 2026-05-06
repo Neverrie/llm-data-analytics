@@ -125,7 +125,7 @@ class ChatRepository(
             is ChatStreamEvent.ToolStart -> ChatSendResult.ToolProgress("▶ ${event.title ?: event.name ?: "Запуск"}")
             is ChatStreamEvent.ToolLog -> ChatSendResult.ToolProgress(event.content)
             is ChatStreamEvent.ToolEnd -> ChatSendResult.ToolProgress("✓ ${event.name ?: "Инструмент"}: ${event.status ?: "ok"}")
-            is ChatStreamEvent.ArtifactCreated -> ChatSendResult.ArtifactCreated(event.artifactId, event.title, event.mimeType)
+            is ChatStreamEvent.ArtifactCreated -> ChatSendResult.ArtifactCreated(event.artifactId, event.title, event.mimeType, event.previewUrl)
             is ChatStreamEvent.Error -> ChatSendResult.Failed(event.message)
             is ChatStreamEvent.Done -> ChatSendResult.Completed(event.messageId)
             is ChatStreamEvent.Unknown -> ChatSendResult.ToolProgress(event.rawData.take(180))
@@ -234,7 +234,7 @@ class ChatRepository(
             val title = metadata.title ?: metadata.filename ?: fallbackTitle
             val mime = metadata.mimeType ?: fallbackMimeType
             val previewUrl = buildPreviewUrl(artifactId)
-            if (isImageArtifact(title, mime)) {
+            if (isImageArtifact(title, mime, metadata.filename, metadata.path)) {
                 return@runCatching ChatContentBlock.ImageArtifactBlock(
                     artifactId = artifactId,
                     title = title,
@@ -260,9 +260,11 @@ class ChatRepository(
         }
     }
 
-    private fun isImageArtifact(title: String?, mime: String?): Boolean {
+    private fun isImageArtifact(title: String?, mime: String?, filename: String?, path: String?): Boolean {
         val lowerTitle = title.orEmpty().lowercase()
         val lowerMime = mime.orEmpty().lowercase()
+        val lowerFilename = filename.orEmpty().lowercase()
+        val lowerPath = path.orEmpty().lowercase()
         return lowerMime.contains("image/png") ||
             lowerMime.contains("image/jpeg") ||
             lowerMime.contains("image/jpg") ||
@@ -270,7 +272,15 @@ class ChatRepository(
             lowerTitle.endsWith(".png") ||
             lowerTitle.endsWith(".jpg") ||
             lowerTitle.endsWith(".jpeg") ||
-            lowerTitle.endsWith(".webp")
+            lowerTitle.endsWith(".webp") ||
+            lowerFilename.endsWith(".png") ||
+            lowerFilename.endsWith(".jpg") ||
+            lowerFilename.endsWith(".jpeg") ||
+            lowerFilename.endsWith(".webp") ||
+            lowerPath.endsWith(".png") ||
+            lowerPath.endsWith(".jpg") ||
+            lowerPath.endsWith(".jpeg") ||
+            lowerPath.endsWith(".webp")
     }
 
     private fun looksLikeJson(raw: String): Boolean {

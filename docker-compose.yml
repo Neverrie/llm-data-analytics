@@ -25,6 +25,7 @@ services:
       LAB3_CRITIC_MODEL: deepseek-r1:8b
       DATASETS_DIR: /datasets
       OUTPUTS_DIR: /outputs
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3003,http://127.0.0.1:3003,http://82.162.61.44:3003}
 
   frontend:
     build: ./frontend
@@ -38,6 +39,6 @@ services:
     depends_on:
       - backend
     environment:
-      NEXT_PUBLIC_API_BASE_URL: http://localhost:8003/api
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-}
 
 
