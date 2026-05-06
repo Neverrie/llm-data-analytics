@@ -252,7 +252,7 @@ class ChatViewModel(
 
     private fun buildRequestContentForMode(userText: String, mode: ChatExecutionMode): String {
         return if (mode == ChatExecutionMode.DatasetAgent) {
-            "$userText\n\nНе возвращай только код. Выполни анализ через backend-инструменты. Построй графики и таблицы при необходимости, сохрани визуализации как артефакты и верни итоговые выводы."
+            "$userText\n\nИспользуй доступные инструменты backend при необходимости и верни краткий результат."
         } else {
             userText
         }

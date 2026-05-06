@@ -25,7 +25,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -46,9 +45,7 @@ import coil.request.ImageRequest
 import okhttp3.Headers
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Icon
-import androidx.compose.foundation.shape.CircleShape
 import com.example.llmdataanalyst.R
 import com.example.llmdataanalyst.core.repository.ChatExecutionMode
 
@@ -77,20 +74,6 @@ fun ChatScreen(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(" ▼", fontWeight = FontWeight.Bold)
-            }
-            TextButton(onClick = onOpenDatasets) { Text("Сменить") }
-            IconButton(
-                onClick = viewModel::clearSelectedDataset,
-                modifier = Modifier.padding(2.dp)
-            ) {
-                Card(shape = CircleShape, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.error)) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Удалить выбор датасета",
-                        tint = MaterialTheme.colorScheme.onError,
-                        modifier = Modifier.padding(8.dp)
-                    )
-                }
             }
             DropdownMenu(expanded = datasetMenuOpen, onDismissRequest = { datasetMenuOpen = false }) {
                 state.datasets.forEach { ds ->
