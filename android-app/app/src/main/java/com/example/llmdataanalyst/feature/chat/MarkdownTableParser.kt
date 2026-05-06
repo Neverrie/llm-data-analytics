@@ -1,4 +1,4 @@
-package com.example.llmdataanalyst.feature.chat
+﻿package com.example.llmdataanalyst.feature.chat
 
 object MarkdownTableParser {
     private val separatorRegex = Regex("""^\s*\|?(\s*:?-{3,}:?\s*\|)+\s*:?-{3,}:?\s*\|?\s*$""")
@@ -60,4 +60,3 @@ object MarkdownTableParser {
         return row + List(size - row.size) { "—" }
     }
 }
-

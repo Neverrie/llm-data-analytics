@@ -312,7 +312,10 @@ class ChatViewModel(
         _uiState.update {
             val updated = it.messages.toMutableList()
             val idx = updated.indexOfLast { msg -> msg.role == "assistant" && msg.isLoading }
-            if (idx >= 0) updated[idx] = rebuildMessage(updated[idx].copy(content = updated[idx].content + delta))
+            if (idx >= 0) {
+                val merged = sanitizeAssistantText(updated[idx].content + delta)
+                updated[idx] = rebuildMessage(updated[idx].copy(content = merged))
+            }
             it.copy(messages = updated)
         }
     }
@@ -339,7 +342,7 @@ class ChatViewModel(
         _uiState.update {
             val updated = it.messages.toMutableList()
             val idx = updated.indexOfLast { msg -> msg.role == "assistant" && msg.isLoading }
-            if (idx >= 0) updated[idx] = rebuildMessage(updated[idx].copy(content = content, isLoading = false))
+            if (idx >= 0) updated[idx] = rebuildMessage(updated[idx].copy(content = sanitizeAssistantText(content), isLoading = false))
             it.copy(messages = updated, loading = false)
         }
     }
@@ -372,8 +375,15 @@ class ChatViewModel(
 
     private fun rebuildMessage(message: UiChatMessage): UiChatMessage {
         if (message.role != "assistant") return message.copy(blocks = listOf(ChatContentBlock.TextBlock(message.content)))
-        val textBlocks = MarkdownTableParser.parseToBlocks(message.content)
+        val textBlocks = MarkdownTableParser.parseToBlocks(sanitizeAssistantText(message.content))
         return message.copy(blocks = textBlocks + message.visualBlocks)
+    }
+
+    private fun sanitizeAssistantText(text: String): String {
+        return text
+            .replace(Regex("""<\s*/?\s*FINAL\s*>""", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""^\s*FINAL\s*:?\s*""", RegexOption.IGNORE_CASE), "")
+            .trim()
     }
 }
 

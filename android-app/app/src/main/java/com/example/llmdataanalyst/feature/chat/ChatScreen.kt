@@ -18,6 +18,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
@@ -31,9 +32,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -68,16 +71,21 @@ fun ChatScreen(
                     color = MaterialTheme.colorScheme.primary
                 )
                 if (!state.selectedDatasetName.isNullOrBlank() || !state.selectedDatasetId.isNullOrBlank()) {
-                    Text("Выбран датасет", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                    Text(
-                        state.selectedDatasetName
-                            ?: "Датасет выбран: ${state.selectedDatasetId}",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Button(onClick = { datasetMenuOpen = true }) {
+                            Text(
+                                text = state.selectedDatasetName ?: "Датасет: ${state.selectedDatasetId}",
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(" ▼")
+                        }
                         TextButton(onClick = onOpenDatasets) { Text("Сменить") }
                         TextButton(onClick = viewModel::clearSelectedDataset) { Text("Убрать") }
-                        Button(onClick = { datasetMenuOpen = true }) { Text("Быстрый выбор") }
                     }
                     DropdownMenu(expanded = datasetMenuOpen, onDismissRequest = { datasetMenuOpen = false }) {
                         state.datasets.forEach { ds ->
@@ -89,6 +97,13 @@ fun ChatScreen(
                                 }
                             )
                         }
+                        DropdownMenuItem(
+                            text = { Text("Добавить датасет") },
+                            onClick = {
+                                datasetMenuOpen = false
+                                onOpenDatasets()
+                            }
+                        )
                     }
                 } else {
                     Text("Датасет не выбран", style = MaterialTheme.typography.labelLarge)
@@ -149,7 +164,7 @@ fun ChatScreen(
                                     AsyncImage(
                                         model = request,
                                         contentDescription = block.title,
-                                        modifier = Modifier.fillMaxWidth().height(220.dp)
+                                        modifier = Modifier.fillMaxWidth().height(160.dp)
                                     )
                                     Button(onClick = { onOpenArtifact(block.artifactId) }) { Text(stringResource(R.string.chat_open_artifact)) }
                                 }
@@ -220,10 +235,14 @@ fun ChatScreen(
             value = state.input,
             onValueChange = viewModel::updateInput,
             label = { Text(stringResource(R.string.chat_message)) },
-            enabled = !state.loading
+            enabled = !state.loading,
+            trailingIcon = {
+                IconButton(onClick = viewModel::sendMessage, enabled = !state.loading && state.input.isNotBlank()) {
+                    Text("→", style = MaterialTheme.typography.titleMedium)
+                }
+            }
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = viewModel::sendMessage, enabled = !state.loading) { Text(stringResource(R.string.chat_send)) }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             Button(onClick = viewModel::stopStreaming, enabled = state.loading) { Text(stringResource(R.string.chat_stop)) }
             if (state.loading) CircularProgressIndicator(modifier = Modifier.padding(start = 8.dp))
         }
