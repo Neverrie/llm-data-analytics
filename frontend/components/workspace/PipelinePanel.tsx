@@ -33,6 +33,7 @@ export function PipelinePanel({
   form: { limit: number; min_score: string; max_score: string };
   onForm: (key: "limit" | "min_score" | "max_score", value: string) => void;
 }) {
+  const rawJsonText = useMemo(() => (result ? JSON.stringify(result, null, 2) : ""), [result]);
   const [stageIndex, setStageIndex] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [sampleOpen, setSampleOpen] = useState(false);
@@ -161,10 +162,13 @@ export function PipelinePanel({
 
         {result ? (
           <article className="workspace-section raw-card">
-            <details className="raw">
-              <summary>Raw JSON</summary>
-              <pre className="code-pre raw-scroll">{JSON.stringify(result, null, 2)}</pre>
-            </details>
+            <div className="panel-row">
+              <h3>Raw JSON</h3>
+              <button className="btn-secondary" onClick={downloadRawJson}>Скачать JSON</button>
+            </div>
+            <div className="raw-json-view">
+              <pre className="code-pre raw-scroll">{rawJsonText}</pre>
+            </div>
           </article>
         ) : null}
 
@@ -178,3 +182,15 @@ export function PipelinePanel({
     </section>
   );
 }
+  function downloadRawJson() {
+    if (!rawJsonText) return;
+    const blob = new Blob([rawJsonText], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `lab2_raw_${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }

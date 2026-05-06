@@ -470,6 +470,17 @@ body {
 .raw-card .raw { margin: 0; }
 .raw-card .raw summary { display: inline-flex; padding: 6px 10px; border: 1px solid var(--border); border-radius: 10px; background: rgba(255,255,255,.7); }
 .raw-scroll { max-height: 320px; overflow: auto; }
+.raw-json-view {
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255,255,255,.62);
+  padding: 8px;
+}
+.raw-json-view .raw-scroll {
+  max-height: 56vh;
+  margin: 0;
+}
 
 .workspace-page {
   flex: 1 1 auto;
