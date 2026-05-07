@@ -68,16 +68,17 @@ class ChatRepository(
         streamClient.sendMessageStream(baseUrl, chatId, request).collect { emit(it) }
     }
 
-    fun sendLab3Stream(datasetName: String, question: String): Flow<ChatStreamEvent> = flow {
+    fun sendLab3Stream(datasetName: String, question: String, chatId: String): Flow<ChatStreamEvent> = flow {
         val baseUrl = settingsRepository.baseUrlFlow.first()
         val body = buildJsonObject {
             put("dataset_name", datasetName)
             put("question", question)
             put("analysis_mode", "code_interpreter")
+            put("session_id", chatId)
             put("include_history", true)
             put("max_tool_calls", 6)
         }
-        streamClient.sendLab3AskStream(baseUrl, body).collect { emit(it) }
+        streamClient.sendLab3AskStream(baseUrl, chatId, body).collect { emit(it) }
     }
 
     fun sendMessage(
@@ -97,7 +98,8 @@ class ChatRepository(
             return flowOf(ChatSendResult.Failed("Для режима анализа выберите датасет"))
         }
         if (!streamingEnabled) return flowOf(ChatSendResult.FallbackUsed)
-        return streamDatasetAgent(datasetName, request.content)
+        if (chatId.isNullOrBlank()) return flowOf(ChatSendResult.Failed("Чат не создан"))
+        return streamDatasetAgent(datasetName, request.content, chatId)
     }
 
     private fun streamGeneral(chatId: String, request: ChatMessageCreateRequest): Flow<ChatSendResult> = flow {
@@ -109,9 +111,9 @@ class ChatRepository(
         }
     }
 
-    private fun streamDatasetAgent(datasetName: String, question: String): Flow<ChatSendResult> = flow {
+    private fun streamDatasetAgent(datasetName: String, question: String, chatId: String): Flow<ChatSendResult> = flow {
         try {
-            sendLab3Stream(datasetName, question).collect { emit(mapEvent(it)) }
+            sendLab3Stream(datasetName, question, chatId).collect { emit(mapEvent(it)) }
         } catch (e: Exception) {
             if (e is StreamingUnavailableException) emit(ChatSendResult.FallbackUsed)
             else emit(ChatSendResult.Failed(e.message ?: "Ошибка стриминга"))
@@ -160,20 +162,23 @@ class ChatRepository(
                 "table" -> {
                     val columns = obj["columns"]?.let { toStringList(it) }.orEmpty()
                     val rows = obj["rows"]?.let { toRows(it, columns) }.orEmpty()
+                    val artifactId = obj["artifact_id"]?.jsonPrimitive?.contentOrNull
                     if (columns.isNotEmpty() && rows.isNotEmpty()) {
                         resolved += ChatContentBlock.TableBlock(
                             title = obj["title"]?.jsonPrimitive?.contentOrNull,
                             columns = columns,
-                            rows = rows
+                            rows = rows,
+                            sourceArtifactId = artifactId
                         )
                     }
                 }
                 "chart" -> {
-                    val url = obj["url"]?.jsonPrimitive?.contentOrNull
+                    val url = obj["preview_url"]?.jsonPrimitive?.contentOrNull ?: obj["url"]?.jsonPrimitive?.contentOrNull
                     val title = obj["title"]?.jsonPrimitive?.contentOrNull
+                    val artifactId = obj["artifact_id"]?.jsonPrimitive?.contentOrNull ?: extractArtifactIdFromUrl(url).orEmpty()
                     if (!url.isNullOrBlank()) {
                         resolved += ChatContentBlock.ImageArtifactBlock(
-                            artifactId = extractArtifactIdFromUrl(url).orEmpty(),
+                            artifactId = artifactId,
                             title = title,
                             mimeType = "image/png",
                             previewUrl = absolutizeUrl(url)
@@ -184,7 +189,7 @@ class ChatRepository(
                     val path = obj["path"]?.jsonPrimitive?.contentOrNull
                     val downloadUrl = obj["download_url"]?.jsonPrimitive?.contentOrNull
                     val title = obj["title"]?.jsonPrimitive?.contentOrNull ?: obj["filename"]?.jsonPrimitive?.contentOrNull
-                    val artifactId = extractArtifactIdFromUrl(downloadUrl ?: path)
+                    val artifactId = obj["artifact_id"]?.jsonPrimitive?.contentOrNull ?: extractArtifactIdFromUrl(downloadUrl ?: path)
                     if (!artifactId.isNullOrBlank()) {
                         resolved += buildVisualBlockFromArtifact(artifactId, title, null)
                     } else if (!downloadUrl.isNullOrBlank()) {

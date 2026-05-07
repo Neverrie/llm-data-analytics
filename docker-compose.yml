@@ -11,6 +11,9 @@ services:
       - ./backend:/app
       - ./datasets:/datasets
       - ./outputs:/outputs
+      # Dev-only: backend uses host Docker daemon for disposable sandbox containers.
+      # Production should use a dedicated sandbox-manager service instead of docker.sock mount.
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       LLM_PROVIDER: ${LLM_PROVIDER:-openrouter}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
@@ -25,7 +28,21 @@ services:
       LAB3_CRITIC_MODEL: deepseek-r1:8b
       DATASETS_DIR: /datasets
       OUTPUTS_DIR: /outputs
+      HOST_OUTPUTS_DIR: ${HOST_OUTPUTS_DIR:-}
+      HOST_DATASETS_DIR: ${HOST_DATASETS_DIR:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3003,http://127.0.0.1:3003,http://82.162.61.44:3003}
+      SANDBOX_RUNNER_MODE: ${SANDBOX_RUNNER_MODE:-docker}
+      SANDBOX_DOCKER_IMAGE: ${SANDBOX_DOCKER_IMAGE:-llm-data-analytics-sandbox:latest}
+      SANDBOX_DOCKER_USER: ${SANDBOX_DOCKER_USER:-1000:1000}
+      SANDBOX_ALLOW_ROOT_RETRY: ${SANDBOX_ALLOW_ROOT_RETRY:-false}
+
+  sandbox-runner-image:
+    build:
+      context: ./backend
+      dockerfile: sandbox.Dockerfile
+    image: llm-data-analytics-sandbox:latest
+    container_name: llm-analytics-sandbox-image
+    command: ["tail", "-f", "/dev/null"]
 
   frontend:
     build: ./frontend

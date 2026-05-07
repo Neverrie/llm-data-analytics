@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { api, ArtifactItem, Chat, ChatMessage, DatasetItem, setAuthToken, User } from "@/lib/api";
-import { normalizeLab3ResponseToBlocks } from "@/lib/messageBlocks";
 import { AppShell } from "@/components/workspace/AppShell";
 import { ArtifactExplorer } from "@/components/workspace/ArtifactExplorer";
 import { ChatPanel } from "@/components/workspace/ChatPanel";
@@ -23,11 +22,6 @@ export default function HomePage() {
       .replace(/<\s*FINAL\s*>/gi, "")
       .replace(/<\s*\/\s*FINAL\s*>/gi, "")
       .trim();
-  }
-
-  function extractArtifactPathsFromText(text: string): string[] {
-    const matches = String(text || "").match(/\/outputs\/lab3\/[^\s)]+/g) || [];
-    return Array.from(new Set(matches));
   }
 
   const [user, setUser] = useState<User | null>(null);
@@ -290,24 +284,16 @@ export default function HomePage() {
         return;
       }
 
-      await api.addMessage(chatId, { role: "user", content: text, blocks: optimistic.blocks, metadata: {} });
       let streamedText = "";
       const streamLogs: string[] = [];
       const streamedArtifacts: any[] = [];
       let streamStatus = "ok";
 
-      const correlationRequest = /корреляц|correl/i.test(text);
-      const directCodeRequest = /(построй|нарисуй|plot|график|chart|matplotlib|x\^2|x2)/i.test(text);
-      const enhancedQuestion = directCodeRequest
-        ? `${text}\n\nОбязательно выполни код через code interpreter. Если задача про график, создай PNG-файл (не только текст/код), сохрани его в output_dir и укажи путь к файлу в final_answer.`
-        : correlationRequest
-          ? `${text}\n\nДоп. требования: построй матрицу корреляции как heatmap-картинку (PNG), сохрани файл и укажи его в ответе; также выведи топ корреляций в корректной markdown-таблице (одна строка = одна строка таблицы).`
-          : `${text}\n\nПиши таблицы строго в корректном markdown-формате (каждая строка таблицы на новой строке).`;
-
-      await api.askLab3AgentStream({
+      await api.streamChatAgent(chatId, {
         dataset_name: selectedDataset?.name || datasets[0]?.name || "customers_reviews.csv",
-        question: enhancedQuestion,
+        question: text,
         analysis_mode: "code_interpreter",
+        session_id: chatId,
         include_history: true,
         max_tool_calls: 6
       }, (evt) => {
@@ -347,31 +333,45 @@ export default function HomePage() {
         if (evt.event === "artifact_created") {
           const item = evt.data || {};
           streamedArtifacts.push(item);
-          const path = String(item?.path || "");
-          if (path.includes("/outputs/lab3/")) {
-            const low = path.toLowerCase();
-            const kind = low.endsWith(".png") || low.endsWith(".jpg") || low.endsWith(".jpeg") || low.endsWith(".webp")
-              ? "chart"
-              : low.endsWith(".json")
-                ? "json"
-                : low.endsWith(".md")
-                  ? "report"
-                  : "other";
-            api.registerArtifact({
-              kind,
-              title: item?.name || item?.title || path.split("/").pop() || "artifact",
-              path,
-              chat_id: chatId,
-              metadata: { source: "lab3_stream_event" }
-            }).catch(() => undefined);
-          }
           setLab3Response((prev: any) => ({ ...(prev || {}), artifacts: [...streamedArtifacts] }));
+          return;
+        }
+        if (evt.event === "code_preview") {
+          const code = String(evt.data?.code || "");
+          const preview = String(evt.data?.preview || "");
+          const step = Number(evt.data?.step || 1);
+          const language = String(evt.data?.language || "python");
+          const codeBlock = {
+            type: "code",
+            language,
+            step,
+            status: "preview",
+            code: code || preview
+          };
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === optimisticAssistantId
+                ? {
+                    ...m,
+                    blocks: [...(Array.isArray(m.blocks) ? (m.blocks as any[]) : [{ type: "markdown", content: m.content || "" }]), codeBlock]
+                  }
+                : m
+            )
+          );
+          return;
+        }
+        if (evt.event === "code_executed") {
+          const step = Number(evt.data?.step || 1);
+          const status = String(evt.data?.status || "unknown");
+          streamLogs.push(`Code executed: step ${step} (${status})`);
+          setLab3Response((prev: any) => ({ ...(prev || {}), logs: [...streamLogs] }));
           return;
         }
         if (evt.event === "error") {
           streamStatus = "error";
           const msg = String(evt.data?.message || "Ошибка стриминга");
-          setLab3Response((prev: any) => ({ ...(prev || {}), error: msg }));
+          streamLogs.push(`Lab3 stream error: ${msg}`);
+          setLab3Response((prev: any) => ({ ...(prev || {}), logs: [...streamLogs], error: msg }));
           return;
         }
         if (evt.event === "done") {
@@ -379,8 +379,22 @@ export default function HomePage() {
         }
       });
 
+      if (streamStatus === "error") {
+        const refreshed = await api.getChat(chatId);
+        setMessages(refreshed.messages || []);
+        await refreshSharedData();
+        await refreshChats();
+        setLab3Response((prev: any) => ({
+          ...(prev || {}),
+          error: "Ошибка sandbox или агента. Подробности сохранены в сообщении ассистента.",
+          stream_logs: streamLogs,
+          stream_artifacts: streamedArtifacts
+        }));
+        return;
+      }
+
       const assistantText = sanitizeAssistantText(streamedText || "") || "Ответ получен";
-      let answer: any = {
+      setLab3Response({
         final_answer: assistantText,
         warnings: streamStatus === "error" ? ["stream_error"] : [],
         provider: "stream",
@@ -388,97 +402,7 @@ export default function HomePage() {
         elapsed_seconds: undefined,
         stream_logs: streamLogs,
         stream_artifacts: streamedArtifacts
-      };
-      try {
-        const full = await api.getLab3Result();
-        if (full && typeof full === "object") {
-          answer = {
-            ...full,
-            final_answer: sanitizeAssistantText(String(full.final_answer || assistantText || "")),
-            stream_logs: streamLogs,
-            stream_artifacts: streamedArtifacts
-          };
-        }
-      } catch {
-        // keep stream-only answer as fallback
-      }
-
-      const hasImageArtifacts =
-        (Array.isArray(answer?.generated_files) && answer.generated_files.some((f: any) => /\.(png|jpg|jpeg|webp)$/i.test(String(f?.path || f?.name || "")))) ||
-        (answer?.output_files && Object.values(answer.output_files).some((p: any) => /\.(png|jpg|jpeg|webp)$/i.test(String(p || "")))) ||
-        (Array.isArray(answer?.stream_artifacts) && answer.stream_artifacts.some((f: any) => /\.(png|jpg|jpeg|webp)$/i.test(String(f?.path || f?.name || ""))));
-      if (!hasImageArtifacts) {
-        try {
-          const mentioned = Array.from(new Set((assistantText.match(/([A-Za-z0-9_\-]+?\.(png|jpg|jpeg|webp))/gi) || []).map((v) => v.toLowerCase())));
-          if (mentioned.length) {
-            const artifactItems = await api.listArtifacts();
-            const matched = (artifactItems.items || []).filter((a) => {
-              const n = String(a.filename || a.title || "").toLowerCase();
-              const p = String(a.path || "").toLowerCase();
-              return mentioned.some((m) => n.endsWith(m) || n.includes(m) || p.endsWith(m) || p.includes(m));
-            });
-            if (matched.length) {
-              const existing = Array.isArray(answer.generated_files) ? answer.generated_files : [];
-              answer.generated_files = [
-                ...existing,
-                ...matched.map((a) => ({ name: a.filename || a.title, path: a.path || a.filename || a.title || "" })),
-              ];
-            }
-          }
-        } catch {
-          // no-op: keep raw response if artifact enrichment fails
-        }
-      }
-      setLab3Response(answer);
-
-      const blocks = normalizeLab3ResponseToBlocks(answer as any);
-      await api.addMessage(chatId, {
-        role: "assistant",
-        content: assistantText,
-        blocks,
-        metadata: { provider: answer?.provider, model: answer?.model, elapsed_seconds: answer?.elapsed_seconds, stream: true }
       });
-
-      const registerPaths = new Set<string>();
-      const outputFiles = answer?.output_files && typeof answer.output_files === "object" ? Object.values(answer.output_files) : [];
-      outputFiles.forEach((p: any) => {
-        if (typeof p === "string" && p.includes("/outputs/lab3/")) registerPaths.add(p);
-      });
-      const generatedFiles = Array.isArray(answer?.generated_files) ? answer.generated_files : [];
-      generatedFiles.forEach((f: any) => {
-        const p = String(f?.path || "");
-        if (p.includes("/outputs/lab3/")) registerPaths.add(p);
-      });
-      const streamArtifacts = Array.isArray(answer?.stream_artifacts) ? answer.stream_artifacts : [];
-      streamArtifacts.forEach((f: any) => {
-        const p = String(f?.path || "");
-        if (p.includes("/outputs/lab3/")) registerPaths.add(p);
-      });
-      const codeTrace = String(answer?.code_interpreter_trace || "");
-      if (codeTrace.includes("/outputs/lab3/")) registerPaths.add(codeTrace);
-      extractArtifactPathsFromText(assistantText).forEach((p) => registerPaths.add(p));
-
-      for (const p of registerPaths) {
-        const low = p.toLowerCase();
-        const kind = low.endsWith(".png") || low.endsWith(".jpg") || low.endsWith(".jpeg") || low.endsWith(".webp")
-          ? "chart"
-          : low.endsWith(".json")
-            ? "json"
-            : low.endsWith(".md")
-              ? "report"
-              : "other";
-        try {
-          await api.registerArtifact({
-            kind,
-            title: p.split("/").pop() || "artifact",
-            path: p,
-            chat_id: chatId,
-            metadata: { source: "lab3_stream" }
-          });
-        } catch {
-          // Ignore duplicate/invalid paths to avoid breaking chat UX.
-        }
-      }
 
       const refreshed = await api.getChat(chatId);
       setMessages(refreshed.messages || []);

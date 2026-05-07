@@ -142,6 +142,11 @@ async def run_code_interpreter_agent(
     _ = max_steps
 
     system_prompt = (
+        "FINAL answer formatting rules (mandatory):\n"
+        "- Use clean Markdown with headings and bullet points.\n"
+        "- Do NOT output technical trace/debug/result file names.\n"
+        "- Do NOT say only that files were saved to output_dir.\n"
+        "- If charts were produced, summarize insights briefly; artifacts are attached separately.\n\n"
         "Ты аналитик данных в режиме Code Interpreter.\n"
         "Backend уже загрузил датасет в pandas DataFrame `df`.\n"
         "Также доступны: output_dir, dataset_name, column_mapping, profile.\n"

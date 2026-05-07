@@ -76,7 +76,21 @@ export function ArtifactExplorer({
 
   const kinds = useMemo(() => ["all", ...Array.from(new Set(items.map((i) => i.kind)))], [items]);
   const selectedId = selected?.id;
-  const selectedDownload = selected ? api.artifactDownloadUrl(selected.id) : "#";
+  const downloadSelected = async () => {
+    if (!selected) return;
+    const response = await api.fetchArtifactDownload(selected.id);
+    if (!response.ok) throw new Error("Не удалось скачать артефакт.");
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objectUrl;
+    a.download = selected.filename || selected.title || "artifact";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(objectUrl);
+  };
+
   return (
     <section className="main-panel workspace-screen">
       <div className="artifacts-scroll workspace-screen-scroll">
@@ -108,7 +122,7 @@ export function ArtifactExplorer({
             {selected ? (
               <div className="panel-row">
                 <button className="btn-secondary" onClick={() => onSelect(selected.id)}>Открыть</button>
-                <a className="btn-secondary" href={selectedDownload} download>Скачать</a>
+                <button className="btn-secondary" onClick={() => void downloadSelected()}>Скачать</button>
                 <button className="btn-ghost" onClick={() => navigator.clipboard.writeText(selected.path)}>Копировать путь</button>
               </div>
             ) : null}

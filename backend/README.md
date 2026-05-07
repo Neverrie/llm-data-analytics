@@ -145,3 +145,17 @@ ollama pull deepseek-r1:8b
 - Модель OpenRouter пишет блоки `<PYTHON>` и `<FINAL>`.
 - Backend исполняет код только через собственный sandbox (`code_sandbox.py`) и возвращает результаты в graph loop.
 - LangChain/LangGraph не предоставляют sandbox сами по себе; безопасность обеспечивается нашим sandbox-слоем.
+
+## Docker sandbox runner (dev)
+- SANDBOX_RUNNER_MODE=docker requires docker CLI inside backend container and mounted /var/run/docker.sock.
+- Backend talks to host docker daemon via socket and starts disposable sandbox containers.
+- This docker.sock pattern is dev-only; production should use a separate sandbox-manager service.
+
+
+Dev diagnostics (backend docker runner):
+- docker compose build --no-cache backend
+- docker compose up -d --force-recreate backend
+- docker compose exec backend which docker
+- docker compose exec backend docker version
+- docker compose exec backend docker image inspect llm-data-analytics-sandbox:latest
+

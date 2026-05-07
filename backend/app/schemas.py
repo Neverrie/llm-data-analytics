@@ -156,6 +156,8 @@ class Lab3AskRequest(BaseModel):
     analysis_mode: Literal["fast", "balanced", "full", "code_interpreter"] = "code_interpreter"
     max_code_steps: int | None = Field(default=None, ge=1, le=1000)
     session_id: str | None = None
+    chat_id: str | None = None
+    message_id: str | None = None
     include_history: bool = True
     reset_session: bool = False
 

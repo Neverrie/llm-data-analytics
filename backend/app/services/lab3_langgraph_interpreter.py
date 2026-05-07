@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import logging
@@ -39,14 +39,23 @@ class GraphState(TypedDict, total=False):
     llm_raw_outputs: list[dict[str, Any]]
     last_action: Literal["run_code", "final_answer", "parse_failed"] | None
     last_code: str | None
-    correction_sent: bool
-    fallback_inspection_used: bool
+    correction_attempts: int
     parse_mode: str | None
     chat_model: Any
 
 
 def _system_prompt() -> str:
     return (
+        "Всегда отвечай пользователю на русском языке. Исключение: имена колонок, названия файлов, код, stdout/stderr и технические идентификаторы.\n"
+        "FINAL answer formatting rules (mandatory):\n"
+        "- Use clean Markdown with short sections and bullet points.\n"
+        "- Do NOT include technical/debug blocks, trace/result/report file names.\n"
+        "- Do NOT write 'saved to output_dir' as the main result.\n"
+        "- If charts were created, describe insights briefly; files will be attached as artifacts.\n\n"
+        "DataFrame df уже загружен. Используй df.\n"
+        "Если нужно явно читать файл, используй только /input/dataset.csv.\n"
+        "Сохраняй файлы только в output_dir или /work.\n"
+        "Не выдумывай имена созданных файлов. Упоминай только files, которые backend вернул после выполнения.\n\n"
         "Ты работаешь как Code Interpreter для анализа pandas DataFrame.\n\n"
         "Backend уже загрузил датасет в переменную df.\n"
         "Также доступны:\n- output_dir\n- dataset_name\n- column_mapping\n- profile\n\n"
@@ -58,12 +67,18 @@ def _system_prompt() -> str:
         "- Не используй JSON.\n"
         "- Не используй tool_calls/function calling.\n"
         "- Не пиши текст вне тегов.\n"
-        "- Не читай файлы: df уже загружен.\n"
-        "- Запрещено: os, subprocess, socket, requests, urllib, shutil, sys, open, eval, exec, __import__, input, pd.read_csv, pd.read_excel.\n"
+        "- Датасет уже доступен как df; при явном чтении используй /input/dataset.csv.\n"
+        "- Сохраняй результаты только в output_dir (/work внутри sandbox).\n"
+        "- Сеть недоступна; не обращайся к внешним API.\n"
+        "- Не устанавливай пакеты во время выполнения.\n"
         "- Можно использовать pandas/numpy/matplotlib.\n"
         "- Для графиков сохраняй в output_dir.\n"
+        "- Если пользователь просит анализ данных, вычисления, график, кластеризацию, статистику, строки датасета или преобразование данных, твой первый ответ обязан быть <PYTHON>...</PYTHON>.\n"
+        "- Не возвращай markdown-объяснение до выполнения кода.\n"
+        "- Не утверждай, что файл создан, если код ещё не выполнялся.\n"
         "- Если нужен анализ — напиши <PYTHON>.\n"
         "- После результата кода напиши следующий <PYTHON> или <FINAL>.\n"
+        "- После получения <EXECUTION_RESULT> можешь вернуть <FINAL>...</FINAL>.\n"
         "- Финальный ответ на русском Markdown.\n"
         "- Не выдумывай факты вне результатов выполнения кода.\n\n"
         "Пример:\n<PYTHON>\nprint('shape:', df.shape)\nprint(df.dtypes)\nprint(df.isna().sum().sort_values(ascending=False).head(10))\n</PYTHON>"
@@ -100,16 +115,29 @@ def parse_langgraph_response(text: str) -> dict[str, Any]:
     except Exception:
         pass
 
+    if source:
+        return {"action": "final_answer", "answer": source, "parse_mode": "plain_text_final"}
     return {"action": "parse_failed", "parse_mode": "none"}
 
 
-def _default_inspection_code() -> str:
-    return (
-        "print(df.shape)\n"
-        "print(df.dtypes)\n"
-        "print(df.isna().sum().sort_values(ascending=False).head(15))\n"
-        "print(df.head(3).to_string())"
-    )
+def _build_final_fallback_from_steps(steps: list[dict[str, Any]]) -> str:
+    if not steps:
+        return "Модель не сгенерировала исполняемый Python-код для анализа."
+    last = steps[-1] if isinstance(steps[-1], dict) else {}
+    execution = last.get("execution") if isinstance(last.get("execution"), dict) else {}
+    status = str(execution.get("status") or "unknown")
+    stdout = str(execution.get("stdout") or "").strip()
+    stderr = str(execution.get("stderr") or "").strip()
+    files = execution.get("files") if isinstance(execution.get("files"), list) else []
+    file_names = [str(item.get("name") or "") for item in files if isinstance(item, dict) and str(item.get("name") or "").strip()]
+    parts = [f"## Результат выполнения\n- Статус: `{status}`"]
+    if file_names:
+        parts.append("## Артефакты\n" + "\n".join(f"- `{name}`" for name in file_names[:20]))
+    if stdout:
+        parts.append(f"## stdout\n```\n{stdout[:2000]}\n```")
+    if stderr:
+        parts.append(f"## stderr\n```\n{stderr[:2000]}\n```")
+    return "\n\n".join(parts)
 
 
 def _save_outputs(payload: dict[str, Any], final_answer: str) -> dict[str, str]:
@@ -158,8 +186,7 @@ def _build_graph():
             "llm_raw_outputs": [],
             "iteration": 0,
             "successful_executions_count": 0,
-            "correction_sent": False,
-            "fallback_inspection_used": False,
+            "correction_attempts": 0,
             "final_answer": None,
             "last_action": None,
             "last_code": None,
@@ -202,41 +229,53 @@ def _build_graph():
         debug_warnings = list(state["debug_warnings"])
         last_code = None
         final_answer = state.get("final_answer")
-        fallback_used = state["fallback_inspection_used"]
         successful = state["successful_executions_count"]
-        correction_sent = state["correction_sent"]
+        correction_attempts = int(state.get("correction_attempts", 0))
+        raw_preview = raw[:280].replace("\n", "\\n")
 
         if action == "run_code":
             last_code = str(parsed["code"]).strip()
         elif action == "final_answer":
-            final_answer = str(parsed["answer"]).strip()
+            candidate = str(parsed["answer"]).strip()
+            if successful == 0:
+                debug_warnings.append(
+                    f"LLM returned non-executable response in code interpreter mode. parse_mode={parse_mode}; raw_preview={raw_preview}"
+                )
+                if correction_attempts < 2:
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": "Ты нарушил формат. Верни только исполняемый Python-код в формате <PYTHON>...</PYTHON>. Не объясняй результат до выполнения кода.",
+                        }
+                    )
+                    correction_attempts += 1
+                    action = "parse_failed"
+                else:
+                    final_answer = "Модель не сгенерировала исполняемый Python-код для анализа."
+                    action = "final_answer"
+                    parse_mode = "contract_violation_final"
+            else:
+                final_answer = candidate
         else:
-            low = raw.lower()
             if successful > 0:
                 final_answer = raw.strip()
                 action = "final_answer"
                 parse_mode = "plain_text_final_fallback"
-            elif ("need to inspect df" in low or "inspect df" in low or "need dataframe" in low) and not fallback_used:
-                last_code = _default_inspection_code()
-                action = "run_code"
-                parse_mode = "fallback_inspection"
-                fallback_used = True
-            elif not correction_sent:
-                debug_warnings.append("Model response did not contain <PYTHON> or <FINAL>, correction requested.")
-                messages.append(
-                    {"role": "user", "content": "Your previous response did not contain <PYTHON> or <FINAL>. Return exactly one of these blocks."}
+            elif correction_attempts < 2:
+                debug_warnings.append(
+                    f"LLM returned non-executable response in code interpreter mode. parse_mode={parse_mode}; raw_preview={raw_preview}"
                 )
-                correction_sent = True
-            elif not fallback_used:
-                last_code = _default_inspection_code()
-                action = "run_code"
-                parse_mode = "fallback_inspection"
-                fallback_used = True
-                debug_warnings.append("Parse failed before execution; fallback inspection code used.")
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": "Ты нарушил формат. Верни только исполняемый Python-код в формате <PYTHON>...</PYTHON>. Не объясняй результат до выполнения кода.",
+                    }
+                )
+                correction_attempts += 1
             else:
-                final_answer = "Не удалось получить корректный ответ модели в формате <PYTHON>/<FINAL>."
+                final_answer = "Модель не сгенерировала исполняемый Python-код для анализа."
                 action = "final_answer"
-                parse_mode = "parse_failed_final"
+                parse_mode = "contract_violation_final"
 
         return {
             **state,
@@ -246,15 +285,14 @@ def _build_graph():
             "last_code": last_code,
             "final_answer": final_answer,
             "parse_mode": parse_mode,
-            "fallback_inspection_used": fallback_used,
-            "correction_sent": correction_sent,
+            "correction_attempts": correction_attempts,
         }
 
     def execute_code(state: GraphState) -> GraphState:
         code = state.get("last_code") or ""
         if not code:
             return state
-        source = "fallback_inspection" if state.get("parse_mode") == "fallback_inspection" else "llm"
+        source = "llm"
         execution = execute_python_code(
             code=code,
             dataset_name=state["dataset_name"],
@@ -355,22 +393,44 @@ async def run_langgraph_code_interpreter(
         "profile": profile,
         "column_mapping": column_mapping,
     }
-    final_state = await app.ainvoke(init_state)
-    final_answer = (final_state.get("final_answer") or "").strip() or "Не удалось получить финальный ответ."
+    hard_max_steps = int(getattr(settings, "lab3_code_interpreter_hard_max_steps", 12))
+    recursion_limit = max(64, hard_max_steps * 8)
+    final_state = await app.ainvoke(init_state, config={"recursion_limit": recursion_limit})
+    steps = final_state.get("code_steps", [])
+    successful_executions_count = int(final_state.get("successful_executions_count", 0))
+    steps_count = len(steps) if isinstance(steps, list) else 0
+    final_answer = (final_state.get("final_answer") or "").strip()
+    status = "success"
+    if steps_count == 0:
+        status = "failed_contract"
+        final_answer = "Модель не сгенерировала исполняемый Python-код для анализа."
+    elif not final_answer:
+        final_answer = "Код выполнен, но модель не сформировала текстовый вывод. Ниже показаны результаты выполнения."
+    warnings = list(final_state.get("warnings", []))
+    debug_warnings = list(final_state.get("debug_warnings", []))
+    if steps_count == 0:
+        warnings.append("LLM returned non-executable response in code interpreter mode")
+        parse_mode = str(final_state.get("parse_mode") or "none")
+        raw_messages = final_state.get("llm_raw_outputs", [])
+        raw_preview = ""
+        if isinstance(raw_messages, list) and raw_messages:
+            last_raw = raw_messages[-1] if isinstance(raw_messages[-1], dict) else {}
+            raw_preview = str(last_raw.get("raw") or "")[:280].replace("\n", "\\n")
+        debug_warnings.append(f"parse_mode={parse_mode}; raw_output_preview={raw_preview}")
     payload = {
-        "status": "success",
+        "status": status,
         "mode": "code_interpreter",
         "provider": "openrouter",
         "model": get_lab3_model(),
         "run_id": final_state.get("run_id"),
-        "steps": final_state.get("code_steps", []),
+        "steps": steps,
         "final_answer": final_answer,
         "files": final_state.get("generated_files", []),
         "elapsed_seconds": round(time.perf_counter() - started, 3),
         "llm_calls_count": int(final_state.get("llm_calls_count", 0)),
-        "successful_executions_count": int(final_state.get("successful_executions_count", 0)),
-        "warnings": final_state.get("warnings", []),
-        "debug_warnings": final_state.get("debug_warnings", []),
+        "successful_executions_count": successful_executions_count,
+        "warnings": warnings,
+        "debug_warnings": debug_warnings,
         "raw_messages": final_state.get("llm_raw_outputs", []),
     }
     payload["output_files"] = _save_outputs(payload, final_answer)
@@ -381,3 +441,4 @@ async def run_langgraph_code_interpreter(
         len(payload["steps"]),
     )
     return payload
+

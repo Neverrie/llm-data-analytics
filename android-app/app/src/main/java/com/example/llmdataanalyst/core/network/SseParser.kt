@@ -69,6 +69,17 @@ class SseParser(
                 "tool_log" -> ChatStreamEvent.ToolLog(
                     content = obj["content"]?.jsonPrimitive?.contentOrNull.orEmpty()
                 )
+                "code_preview" -> {
+                    val step = obj["step"]?.jsonPrimitive?.contentOrNull ?: "?"
+                    val preview = obj["preview"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                    val compact = preview.lines().take(6).joinToString("\n")
+                    ChatStreamEvent.ToolLog(content = "Code preview (step $step):\n$compact")
+                }
+                "code_executed" -> {
+                    val step = obj["step"]?.jsonPrimitive?.contentOrNull ?: "?"
+                    val status = obj["status"]?.jsonPrimitive?.contentOrNull ?: "unknown"
+                    ChatStreamEvent.ToolLog(content = "Code executed (step $step): $status")
+                }
 
                 "tool_end" -> ChatStreamEvent.ToolEnd(
                     name = obj["name"]?.jsonPrimitive?.contentOrNull,
@@ -79,7 +90,10 @@ class SseParser(
                     artifactId = obj["artifact_id"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                     title = obj["title"]?.jsonPrimitive?.contentOrNull,
                     mimeType = obj["mime_type"]?.jsonPrimitive?.contentOrNull,
-                    previewUrl = obj["preview_url"]?.jsonPrimitive?.contentOrNull
+                    previewUrl = obj["preview_url"]?.jsonPrimitive?.contentOrNull,
+                    downloadUrl = obj["download_url"]?.jsonPrimitive?.contentOrNull,
+                    kind = obj["kind"]?.jsonPrimitive?.contentOrNull,
+                    filename = obj["filename"]?.jsonPrimitive?.contentOrNull
                 )
 
                 "error" -> ChatStreamEvent.Error(

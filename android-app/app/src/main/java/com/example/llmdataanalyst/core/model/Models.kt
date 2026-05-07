@@ -177,7 +177,8 @@ data class Lab3AskRequest(
     val question: String,
     @SerialName("analysis_mode") val analysisMode: String = "code_interpreter",
     @SerialName("include_history") val includeHistory: Boolean = true,
-    @SerialName("max_tool_calls") val maxToolCalls: Int = 6
+    @SerialName("max_tool_calls") val maxToolCalls: Int = 6,
+    @SerialName("session_id") val sessionId: String? = null
 )
 
 @Serializable
@@ -185,7 +186,10 @@ data class ArtifactCreatedPayload(
     @SerialName("artifact_id") val artifactId: String = "",
     val title: String? = null,
     @SerialName("mime_type") val mimeType: String? = null,
-    @SerialName("preview_url") val previewUrl: String? = null
+    @SerialName("preview_url") val previewUrl: String? = null,
+    @SerialName("download_url") val downloadUrl: String? = null,
+    val kind: String? = null,
+    val filename: String? = null
 )
 
 sealed interface ChatStreamEvent {
@@ -198,7 +202,10 @@ sealed interface ChatStreamEvent {
         val artifactId: String,
         val title: String? = null,
         val mimeType: String? = null,
-        val previewUrl: String? = null
+        val previewUrl: String? = null,
+        val downloadUrl: String? = null,
+        val kind: String? = null,
+        val filename: String? = null
     ) : ChatStreamEvent
     data class Error(val message: String) : ChatStreamEvent
     data class Done(val status: String? = null, val messageId: String? = null) : ChatStreamEvent

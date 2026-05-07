@@ -48,10 +48,11 @@ class ChatStreamClient(
 
     fun sendLab3AskStream(
         baseUrl: String,
+        chatId: String,
         body: JsonElement
     ): Flow<ChatStreamEvent> = streamJsonBody(
         baseUrl = baseUrl,
-        apiPath = "/api/lab3/ask/stream",
+        apiPath = "/api/chats/$chatId/agent/stream",
         bodyJson = json.encodeToString(JsonElement.serializer(), body)
     )
 

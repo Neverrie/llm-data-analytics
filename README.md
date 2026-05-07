@@ -50,6 +50,14 @@ cp .env.example .env
 CORS:
 - `CORS_ORIGINS=http://localhost:3003,http://127.0.0.1:3003,http://<PUBLIC_IP>:3003`
 
+Docker sandbox (backend внутри контейнера):
+- `HOST_OUTPUTS_DIR=/absolute/path/to/project/outputs`
+- `HOST_DATASETS_DIR=/absolute/path/to/project/datasets`
+
+Пример для Windows:
+- `HOST_OUTPUTS_DIR=D:/Projects/llm-data-analytics-final/outputs`
+- `HOST_DATASETS_DIR=D:/Projects/llm-data-analytics-final/datasets`
+
 ## Доступ по публичному IP
 Порты опубликованы через docker compose:
 - frontend: `3003`

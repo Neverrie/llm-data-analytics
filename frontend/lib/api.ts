@@ -78,6 +78,16 @@ export function getApiBaseUrl() {
   return "http://localhost:8003/api";
 }
 
+export function toBackendUrl(pathOrUrl: string) {
+  if (!pathOrUrl) return "";
+  if (/^(https?:\/\/|data:)/i.test(pathOrUrl)) return pathOrUrl;
+  const apiBase = getApiBaseUrl();
+  const origin = apiBase.replace(/\/api$/, "");
+  if (pathOrUrl.startsWith("/api/")) return `${origin}${pathOrUrl}`;
+  if (pathOrUrl.startsWith("/")) return `${apiBase}${pathOrUrl}`;
+  return `${apiBase}/${pathOrUrl}`;
+}
+
 export function setAuthToken(token: string | null) {
   if (typeof window === "undefined") return;
   if (!token) {
@@ -272,6 +282,11 @@ export const api = {
     body: { dataset_name: string; question: string; analysis_mode?: "code_interpreter" | "fast" | "balanced" | "full"; include_history?: boolean; max_code_steps?: number; max_tool_calls?: number; use_critic?: boolean; column_overrides?: Record<string, string | null> },
     onEvent: (event: SseEvent) => void | Promise<void>
   ) => streamSse("/lab3/ask/stream", { method: "POST", body: JSON.stringify(body) }, onEvent),
+  streamChatAgent: (
+    chatId: string,
+    body: { dataset_name?: string; question: string; analysis_mode?: "code_interpreter" | "fast" | "balanced" | "full"; include_history?: boolean; max_code_steps?: number; max_tool_calls?: number; use_critic?: boolean; column_overrides?: Record<string, string | null>; session_id?: string },
+    onEvent: (event: SseEvent) => void | Promise<void>
+  ) => streamSse(`/chats/${chatId}/agent/stream`, { method: "POST", body: JSON.stringify(body) }, onEvent),
   getLab3Result: () => request<any>("/lab3/result"),
   getLab3Status: () => request<any>("/lab3/status")
 };

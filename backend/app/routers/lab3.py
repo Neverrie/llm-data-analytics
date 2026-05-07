@@ -2,14 +2,12 @@
 
 import asyncio
 import logging
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 
-from app.config import settings
 from app.schemas import Lab3AskRequest, Lab3MapColumnsRequest, Lab3ResetSessionRequest, Lab3RunToolRequest
-from app.services.artifact_service import register_artifact
+from app.services.artifact_service import register_result_artifacts
 from app.services.auth_service import get_current_user
 from app.services.lab2_service import Lab2PipelineError
 from app.services.lab3_service import (
@@ -33,75 +31,6 @@ from app.stream_events import StreamEmitter, chunk_text_for_streaming
 
 router = APIRouter(prefix="/lab3", tags=["lab3"])
 logger = logging.getLogger(__name__)
-
-
-def _artifact_kind_by_path(path: str) -> str:
-    suffix = Path(path).suffix.lower()
-    if suffix in {".png", ".jpg", ".jpeg", ".webp"}:
-        return "chart"
-    if suffix == ".md":
-        return "report"
-    if suffix == ".json":
-        return "json"
-    if suffix in {".csv", ".xlsx", ".xls"}:
-        return "table"
-    return "other"
-
-
-def _resolve_output_path(path: str) -> str:
-    p = Path((path or "").strip())
-    if not str(p):
-        return str(p)
-    if p.is_absolute() and p.exists():
-        return str(p)
-    root = (Path(settings.outputs_dir) / "lab3").resolve()
-    candidate = (root / p).resolve()
-    if candidate.exists():
-        return str(candidate)
-    matches = [f for f in root.rglob(p.name) if f.is_file()]
-    if matches:
-        matches.sort(key=lambda it: it.stat().st_mtime, reverse=True)
-        return str(matches[0])
-    return str(p)
-
-
-def _collect_paths_from_result(result: dict) -> list[tuple[str, str]]:
-    pairs: list[tuple[str, str]] = []
-    output_files = result.get("output_files") or {}
-    if isinstance(output_files, dict):
-        for key, path in output_files.items():
-            if isinstance(path, str) and path.strip():
-                pairs.append((str(key), path))
-    generated_files = result.get("generated_files") or []
-    if isinstance(generated_files, list):
-        for item in generated_files:
-            if not isinstance(item, dict):
-                continue
-            path = item.get("path")
-            if isinstance(path, str) and path.strip():
-                title = str(item.get("title") or item.get("name") or Path(path).name)
-                pairs.append((title, path))
-    return pairs
-
-
-def _register_result_artifacts(user_id: str, result: dict, chat_id: str | None = None, message_id: str | None = None) -> list[dict]:
-    created: list[dict] = []
-    for title, raw_path in _collect_paths_from_result(result):
-        path = _resolve_output_path(raw_path)
-        try:
-            artifact = register_artifact(
-                user_id=user_id,
-                kind=_artifact_kind_by_path(path),
-                title=title,
-                path=path,
-                chat_id=chat_id,
-                message_id=message_id,
-                metadata={"source": "lab3"},
-            )
-            created.append(artifact)
-        except Exception:
-            logger.exception("LAB3_ARTIFACT_REGISTER_FAILED path=%s title=%s", path, title)
-    return created
 
 
 @router.get("/status")
@@ -177,7 +106,13 @@ async def lab3_ask(request: Lab3AskRequest, user: dict = Depends(get_current_use
             reset_session_flag=request.reset_session,
             max_code_steps=request.max_code_steps,
         )
-        result["artifacts"] = _register_result_artifacts(user_id=user["id"], result=result)
+        result["artifacts"] = register_result_artifacts(
+            user_id=user["id"],
+            result=result,
+            chat_id=request.chat_id,
+            message_id=request.message_id,
+            source="lab3",
+        )
         return result
     except Lab2PipelineError as exc:
         logger.exception("LAB3_ASK_ERROR detail=%s", exc.message)
@@ -228,7 +163,13 @@ async def lab3_ask_stream(request: Lab3AskRequest, user: dict = Depends(get_curr
                     reset_session_flag=request.reset_session,
                     max_code_steps=request.max_code_steps,
                 )
-                artifacts = _register_result_artifacts(user_id=user["id"], result=result)
+                artifacts = register_result_artifacts(
+                    user_id=user["id"],
+                    result=result,
+                    chat_id=request.chat_id,
+                    message_id=request.message_id,
+                    source="lab3",
+                )
                 code_steps = result.get("code_steps") or result.get("steps") or []
                 if isinstance(code_steps, list):
                     for step in code_steps:
@@ -238,8 +179,18 @@ async def lab3_ask_stream(request: Lab3AskRequest, user: dict = Depends(get_curr
                         exec_info = step.get("execution") if isinstance(step.get("execution"), dict) else {}
                         status = exec_info.get("status") or step.get("status") or "unknown"
                         await emitter.emit("tool_log", {"content": f"Шаг {step_no}: {status}"})
+                        await emitter.emit("code_executed", {"step": step_no, "status": status})
                         code = str(step.get("code", "")).strip()
                         if code:
+                            await emitter.emit(
+                                "code_preview",
+                                {
+                                    "step": int(step.get("step") or step_no if str(step_no).isdigit() else 1),
+                                    "language": "python",
+                                    "preview": "\n".join(code.splitlines()[:12]),
+                                    "code": code,
+                                },
+                            )
                             await emitter.emit("tool_log", {"content": f"Код шага {step_no}: {code[:220]}{'...' if len(code) > 220 else ''}"})
 
                 for chunk in chunk_text_for_streaming(str(result.get("final_answer", ""))):
@@ -250,9 +201,12 @@ async def lab3_ask_stream(request: Lab3AskRequest, user: dict = Depends(get_curr
                         "artifact_created",
                         {
                             "artifact_id": item.get("id"),
+                            "kind": item.get("kind"),
                             "title": item.get("title"),
+                            "filename": item.get("filename"),
                             "mime_type": item.get("mime_type"),
                             "preview_url": item.get("preview_url"),
+                            "download_url": item.get("download_url"),
                         },
                     )
 
@@ -291,11 +245,12 @@ async def lab3_ask_stream(request: Lab3AskRequest, user: dict = Depends(get_curr
 
     return StreamingResponse(
         event_generator(),
-        media_type="text/event-stream",
+        media_type="text/event-stream; charset=utf-8",
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
+            "Content-Type": "text/event-stream; charset=utf-8",
         },
     )
 
