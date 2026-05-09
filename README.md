@@ -242,11 +242,6 @@ docker compose exec backend docker version
 - Для production лучше выносить sandbox в отдельный sandbox-manager service.
 - Sandbox должен работать без сети и с жёсткими resource limits.
 
-## 15) Важные ограничения
-
-- `lab3_result` не является источником истины для chat UI.
-- Утверждение "все датасеты только в `/datasets`" неверно (есть private uploaded storage).
-
 ---
 
 ## Структура проекта
