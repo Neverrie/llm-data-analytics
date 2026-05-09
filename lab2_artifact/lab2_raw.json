@@ -1,0 +1,1815 @@
+{
+  "lab": 2,
+  "status": "completed",
+  "provider": "openrouter",
+  "model": "qwen/qwen3.6-flash",
+  "dataset": "customers_reviews.csv",
+  "rows_requested": 200,
+  "rows_processed": 200,
+  "batch_size": 50,
+  "batches_processed": 4,
+  "output_file": "/outputs/lab2_result.json",
+  "warnings": [],
+  "results": [
+    {
+      "row_id": 1,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь доволен приложением.",
+      "suggested_action": "Продолжать поддерживать текущее качество."
+    },
+    {
+      "row_id": 2,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь оставляет положительный отзыв.",
+      "suggested_action": "Продолжать поддерживать текущее качество."
+    },
+    {
+      "row_id": 3,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь отмечает удобство приложения.",
+      "suggested_action": "Продолжать поддерживать текущее качество."
+    },
+    {
+      "row_id": 4,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь доволен сервисом.",
+      "suggested_action": "Продолжать поддерживать текущее качество."
+    },
+    {
+      "row_id": 5,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь высоко оценивает сервис.",
+      "suggested_action": "Продолжать поддерживать текущее качество."
+    },
+    {
+      "row_id": 6,
+      "sentiment": "positive",
+      "issue_type": "driver_feedback",
+      "topic": "driver_behavior",
+      "urgency": "low",
+      "summary": "Пользователь хвалит вежливость водителя.",
+      "suggested_action": "Отметить водителя за хорошую работу."
+    },
+    {
+      "row_id": 7,
+      "sentiment": "positive",
+      "issue_type": "pricing",
+      "topic": "pricing_transparency",
+      "urgency": "low",
+      "summary": "Пользователь доволен ценой и доступностью машин.",
+      "suggested_action": "Продолжать поддерживать конкурентные цены."
+    },
+    {
+      "row_id": 8,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь доволен качеством обслуживания.",
+      "suggested_action": "Продолжать поддерживать текущее качество."
+    },
+    {
+      "row_id": 9,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь оставляет восторженный отзыв.",
+      "suggested_action": "Продолжать поддерживать текущее качество."
+    },
+    {
+      "row_id": 10,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь доволен сервисом.",
+      "suggested_action": "Продолжать поддерживать текущее качество."
+    },
+    {
+      "row_id": 11,
+      "sentiment": "negative",
+      "issue_type": "payment_issue",
+      "topic": "billing",
+      "urgency": "high",
+      "summary": "Пользователь жалуется на двойное списание средств и небезопасность оплаты.",
+      "suggested_action": "Проверить сценарии оплаты и возврата средств, усилить безопасность платежей."
+    },
+    {
+      "row_id": 12,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь доволен приложением.",
+      "suggested_action": "Продолжать поддерживать текущее качество."
+    },
+    {
+      "row_id": 13,
+      "sentiment": "negative",
+      "issue_type": "wait_time",
+      "topic": "ride_matching",
+      "urgency": "medium",
+      "summary": "Пользователь жалуется на долгое ожидание водителя и штраф за отмену.",
+      "suggested_action": "Оптимизировать алгоритм подбора водителей и пересмотреть политику отмены."
+    },
+    {
+      "row_id": 14,
+      "sentiment": "negative",
+      "issue_type": "technical_issue",
+      "topic": "app_stability",
+      "urgency": "high",
+      "summary": "Пользователь сообщает о множественных технических сбоях: ошибки звонков, повторный запрос номера, зависания.",
+      "suggested_action": "Провести глубокое тестирование стабильности приложения и исправить ошибки авторизации и звонков."
+    },
+    {
+      "row_id": 15,
+      "sentiment": "negative",
+      "issue_type": "support_issue",
+      "topic": "customer_support",
+      "urgency": "high",
+      "summary": "Пользователь недоволен отсутствием службы поддержки.",
+      "suggested_action": "Усилить каналы поддержки и сократить время ответа."
+    },
+    {
+      "row_id": 16,
+      "sentiment": "negative",
+      "issue_type": "technical_issue",
+      "topic": "gps_location",
+      "urgency": "high",
+      "summary": "Пользователь жалуется на некорректную работу геолокации.",
+      "suggested_action": "Проверить и оптимизировать работу GPS-модуля и сервисов геолокации."
+    },
+    {
+      "row_id": 17,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь доволен сервисом.",
+      "suggested_action": "Продолжать поддерживать текущее качество."
+    },
+    {
+      "row_id": 18,
+      "sentiment": "negative",
+      "issue_type": "technical_issue",
+      "topic": "app_performance",
+      "urgency": "medium",
+      "summary": "Пользователь отмечает медленную работу и сложные настройки приложения.",
+      "suggested_action": "Оптимизировать производительность приложения и упростить интерфейс настроек."
+    },
+    {
+      "row_id": 19,
+      "sentiment": "negative",
+      "issue_type": "payment_issue",
+      "topic": "pricing_transparency",
+      "urgency": "high",
+      "summary": "Пользователь жалуется на изменение цены в большую сторону при бронировании заранее.",
+      "suggested_action": "Проверить алгоритмы ценообразования и обеспечить прозрачность тарифов."
+    },
+    {
+      "row_id": 20,
+      "sentiment": "negative",
+      "issue_type": "driver_feedback",
+      "topic": "driver_behavior",
+      "urgency": "high",
+      "summary": "Пользователь жалуется на грубость водителя и принуждение к отмене поездки.",
+      "suggested_action": "Провести расследование инцидента с водителем, применить меры дисциплинарного характера."
+    },
+    {
+      "row_id": 21,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь отмечает скорость и надежность сервиса.",
+      "suggested_action": "Продолжать поддерживать текущее качество."
+    },
+    {
+      "row_id": 22,
+      "sentiment": "positive",
+      "issue_type": "pricing",
+      "topic": "pricing_transparency",
+      "urgency": "low",
+      "summary": "Пользователь доволен качеством поездок и адекватной ценой.",
+      "suggested_action": "Продолжать поддерживать конкурентные цены."
+    },
+    {
+      "row_id": 23,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь высоко оценивает приложение.",
+      "suggested_action": "Продолжать поддерживать текущее качество."
+    },
+    {
+      "row_id": 24,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь доволен приложением.",
+      "suggested_action": "Продолжать поддерживать текущее качество."
+    },
+    {
+      "row_id": 25,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь доволен сервисом.",
+      "suggested_action": "Продолжать поддерживать текущее качество."
+    },
+    {
+      "row_id": 26,
+      "sentiment": "positive",
+      "issue_type": "safety",
+      "topic": "safety_features",
+      "urgency": "low",
+      "summary": "Пользователь отмечает безопасность сервиса.",
+      "suggested_action": "Продолжать поддерживать высокие стандарты безопасности."
+    },
+    {
+      "row_id": 27,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь оставляет восторженный отзыв.",
+      "suggested_action": "Продолжать поддерживать текущее качество."
+    },
+    {
+      "row_id": 28,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь доволен скоростью и качеством обслуживания.",
+      "suggested_action": "Продолжать поддерживать текущее качество."
+    },
+    {
+      "row_id": 29,
+      "sentiment": "negative",
+      "issue_type": "payment_issue",
+      "topic": "pricing_transparency",
+      "urgency": "high",
+      "summary": "Пользователь жалуется на завышение стоимости поездки, необоснованные остановки водителей и отказ в возврате средств.",
+      "suggested_action": "Пересмотреть политику тарификации и модерации действий водителей, ускорить рассмотрение жалоб."
+    },
+    {
+      "row_id": 30,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь высоко оценивает сервис.",
+      "suggested_action": "Продолжать поддерживать текущее качество."
+    },
+    {
+      "row_id": 31,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь доволен качеством обслуживания.",
+      "suggested_action": "Продолжать поддерживать текущее качество."
+    },
+    {
+      "row_id": 32,
+      "sentiment": "positive",
+      "issue_type": "support_issue",
+      "topic": "customer_support",
+      "urgency": "low",
+      "summary": "Пользователь доволен помощью поддержки.",
+      "suggested_action": "Продолжать поддерживать высокий уровень сервиса поддержки."
+    },
+    {
+      "row_id": 33,
+      "sentiment": "positive",
+      "issue_type": "technical_issue",
+      "topic": "gps_location",
+      "urgency": "low",
+      "summary": "Пользователь доволен удобством интерфейса и корректной работой карты.",
+      "suggested_action": "Продолжать поддерживать стабильную работу навигации."
+    },
+    {
+      "row_id": 34,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь высоко оценивает сервис.",
+      "suggested_action": "Продолжать поддерживать текущее качество."
+    },
+    {
+      "row_id": 35,
+      "sentiment": "positive",
+      "issue_type": "safety",
+      "topic": "safety_features",
+      "urgency": "low",
+      "summary": "Пользователь отмечает безопасность приложения.",
+      "suggested_action": "Продолжать поддерживать высокие стандарты безопасности."
+    },
+    {
+      "row_id": 36,
+      "sentiment": "negative",
+      "issue_type": "wait_time",
+      "topic": "ride_matching",
+      "urgency": "medium",
+      "summary": "Пользователь жалуется на длительное ожидание водителя.",
+      "suggested_action": "Оптимизировать алгоритм подбора водителей в пиковые часы."
+    },
+    {
+      "row_id": 37,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь оставляет восторженный отзыв.",
+      "suggested_action": "Продолжать поддерживать текущее качество."
+    },
+    {
+      "row_id": 38,
+      "sentiment": "positive",
+      "issue_type": "technical_issue",
+      "topic": "account_management",
+      "urgency": "low",
+      "summary": "Пользователь доволен возможностью входа через Gmail без номера телефона.",
+      "suggested_action": "Продолжать поддерживать гибкие методы авторизации."
+    },
+    {
+      "row_id": 39,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь доволен функционалом приложения.",
+      "suggested_action": "Продолжать развивать функциональность."
+    },
+    {
+      "row_id": 40,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь считает приложение лучшим на рынке.",
+      "suggested_action": "Продолжать поддерживать текущее качество."
+    },
+    {
+      "row_id": 41,
+      "sentiment": "positive",
+      "issue_type": "pricing",
+      "topic": "pricing_transparency",
+      "urgency": "low",
+      "summary": "Пользователь доволен ценой и удобством использования.",
+      "suggested_action": "Продолжать поддерживать конкурентные цены и интуитивный интерфейс."
+    },
+    {
+      "row_id": 42,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь доволен сервисом.",
+      "suggested_action": "Продолжать поддерживать текущее качество."
+    },
+    {
+      "row_id": 43,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь доволен сервисом.",
+      "suggested_action": "Продолжать поддерживать текущее качество."
+    },
+    {
+      "row_id": 44,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь доволен приложением для поездок.",
+      "suggested_action": "Продолжать поддерживать текущее качество."
+    },
+    {
+      "row_id": 45,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь доволен сервисом.",
+      "suggested_action": "Продолжать поддерживать текущее качество."
+    },
+    {
+      "row_id": 46,
+      "sentiment": "negative",
+      "issue_type": "technical_issue",
+      "topic": "gps_location",
+      "urgency": "medium",
+      "summary": "Пользователь сообщает о сбоях GPS и выражает раздражение.",
+      "suggested_action": "Проверить и исправить ошибки работы геолокации."
+    },
+    {
+      "row_id": 47,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь доволен сервисом.",
+      "suggested_action": "Продолжать поддерживать текущее качество."
+    },
+    {
+      "row_id": 48,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь высоко оценивает удобство и концепцию приложения.",
+      "suggested_action": "Продолжать развивать пользовательский опыт."
+    },
+    {
+      "row_id": 49,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_experience",
+      "urgency": "low",
+      "summary": "Пользователь доволен сервисом.",
+      "suggested_action": "Продолжать поддерживать текущее качество."
+    },
+    {
+      "row_id": 50,
+      "sentiment": "negative",
+      "issue_type": "safety",
+      "topic": "driver_safety",
+      "urgency": "high",
+      "summary": "Пользователь сообщает о серьезной аварии с участием водителя Uber Moto, оставившем место происшествия.",
+      "suggested_action": "Немедленно передать данные в правоохранительные органы, провести внутреннее расследование, усилить проверку водителей."
+    },
+    {
+      "row_id": 51,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь выражает общую положительную оценку.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 52,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь отмечает эффективность и плавность работы приложения.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 53,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь хвалит приложение.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 54,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь доволен опытом использования.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 55,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Краткая положительная оценка.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 56,
+      "sentiment": "negative",
+      "issue_type": "payment_issue",
+      "topic": "billing",
+      "urgency": "high",
+      "summary": "Пользователь жалуется на дополнительные платежи за каждую поездку.",
+      "suggested_action": "Проверить сценарии оплаты и возврата средств."
+    },
+    {
+      "row_id": 57,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь считает приложение лучшим для всех видов поездок.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 58,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь доволен первым опытом поездки и поведением водителя.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 59,
+      "sentiment": "negative",
+      "issue_type": "cancellation_policy",
+      "topic": "ride_management",
+      "urgency": "medium",
+      "summary": "Пользователю сложно отменить заказ.",
+      "suggested_action": "Проверить логику отмены поездок и уведомления пользователей."
+    },
+    {
+      "row_id": 60,
+      "sentiment": "negative",
+      "issue_type": "driver_behavior",
+      "topic": "off_platform_payment",
+      "urgency": "medium",
+      "summary": "Водители постоянно просят дополнительную оплату.",
+      "suggested_action": "Провести проверку водителей и усилить контроль за соблюдением правил оплаты."
+    },
+    {
+      "row_id": 61,
+      "sentiment": "negative",
+      "issue_type": "surge_pricing",
+      "topic": "pricing",
+      "urgency": "high",
+      "summary": "Пользователь недоволен динамическим ценообразованием и позиционированием водителей.",
+      "suggested_action": "Проанализировать алгоритмы динамического ценообразования и распределения водителей."
+    },
+    {
+      "row_id": 62,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Краткая положительная оценка.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 63,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь высоко оценивает сервис и честность водителя, вернувшего забытую вещь.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 64,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь отмечает удобство бронирования и поддержку.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 65,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Краткая положительная оценка.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 66,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь доволен поездкой на авто-рикше.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 67,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь доволен поездкой.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 68,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь отмечает отличный опыт.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 69,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь положительно оценивает приложение в Индии.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 70,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь выражает благодарность и высокую оценку (на арабском).",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 71,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь хвалит приложение (упоминает конкурента, но оценка высокая).",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 72,
+      "sentiment": "negative",
+      "issue_type": "pricing",
+      "topic": "surge_pricing",
+      "urgency": "medium",
+      "summary": "Пользователь считает тарифы слишком высокими и несправедливыми для постоянных клиентов.",
+      "suggested_action": "Пересмотреть модель лояльности и прозрачность тарифов."
+    },
+    {
+      "row_id": 73,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь высоко оценивает скорость, комфорт и цену поездки.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 74,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Краткая положительная оценка.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 75,
+      "sentiment": "negative",
+      "issue_type": "pricing",
+      "topic": "surge_pricing",
+      "urgency": "high",
+      "summary": "Пользователь шокирован высокими ценами и считает их неоправданными.",
+      "suggested_action": "Проанализировать алгоритмы динамического ценообразования."
+    },
+    {
+      "row_id": 76,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь хвалит приложение.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 77,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь считает приложение полезным.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 78,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь считает приложение лучше конкурента.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 79,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователю нравится приложение.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 80,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь отмечает хорошее качество.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 81,
+      "sentiment": "negative",
+      "issue_type": "payment_issue",
+      "topic": "billing",
+      "urgency": "high",
+      "summary": "Пользователь жалуется на случайные списания и ошибки при возврате средств.",
+      "suggested_action": "Проверить интеграцию платежных шлюзов и логику возврата средств."
+    },
+    {
+      "row_id": 82,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь отмечает скорость и отсутствие задержек.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 83,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь доволен качеством.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 84,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь доволен работой приложения.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 85,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь доволен своевременной подачей.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 86,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь доволен ценой, скоростью подачи и общением.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 87,
+      "sentiment": "negative",
+      "issue_type": "route_deviation",
+      "topic": "pricing",
+      "urgency": "high",
+      "summary": "Пользователь жалуется на намеренный обход маршрута водителем и завышение стоимости.",
+      "suggested_action": "Усилить контроль за маршрутами водителей и внедрить автоматическое оповещение об отклонениях."
+    },
+    {
+      "row_id": 88,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь доволен первым опытом поездки (на арабском).",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 89,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Краткая положительная оценка.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 90,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь доволен сервисом.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 91,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь доволен качеством обслуживания.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 92,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Краткая положительная оценка.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 93,
+      "sentiment": "negative",
+      "issue_type": "service_quality",
+      "topic": "auto_rickshaw",
+      "urgency": "medium",
+      "summary": "Пользователь недоволен качеством сервиса авто-рикш.",
+      "suggested_action": "Проверить стандарты обслуживания водителей авто-рикш."
+    },
+    {
+      "row_id": 94,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Краткая положительная оценка.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 95,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Краткая положительная оценка.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 96,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь доволен своевременной подачей.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 97,
+      "sentiment": "negative",
+      "issue_type": "driver_behavior",
+      "topic": "ride_management",
+      "urgency": "high",
+      "summary": "Водитель не двигался к пассажиру, заставил ждать 20 минут, начислены сборы за отмену.",
+      "suggested_action": "Усилить контроль за поведением водителей и пересмотреть правила списания сборов за отмену."
+    },
+    {
+      "row_id": 98,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Краткая положительная оценка.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 99,
+      "sentiment": "negative",
+      "issue_type": "safety_concern",
+      "topic": "customer_support",
+      "urgency": "high",
+      "summary": "Пользователь жалуется на частые отмены, безопасность, неэффективность поддержки и отсутствие связи с оператором.",
+      "suggested_action": "Пересмотреть систему модерации водителей, улучшить каналы поддержки и внедрить живых операторов для сложных случаев."
+    },
+    {
+      "row_id": 100,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь доволен низкими ценами и вежливостью водителей.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 101,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "general",
+      "urgency": "low",
+      "summary": "Пользователь выражает положительное впечатление от приложения.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 102,
+      "sentiment": "negative",
+      "issue_type": "trip_cancellation",
+      "topic": "reliability",
+      "urgency": "medium",
+      "summary": "Пользователь жалуется на частые отмены поездок и сравнивает цену с конкурентом.",
+      "suggested_action": "Проверить алгоритмы назначения водителей и стабильность сервиса в регионе."
+    },
+    {
+      "row_id": 103,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "driver_behavior",
+      "urgency": "low",
+      "summary": "Пользователь доволен пунктуальностью и вежливостью водителя.",
+      "suggested_action": "Отметить водителя за высокое качество обслуживания."
+    },
+    {
+      "row_id": 104,
+      "sentiment": "negative",
+      "issue_type": "pricing_discrepancy",
+      "topic": "billing",
+      "urgency": "high",
+      "summary": "Пользователь сообщает о мошеннической практике начисления платы, превышающей первоначально показанную цену.",
+      "suggested_action": "Провести расследование по фактам завышения стоимости поездки и проверить работу тарификации."
+    },
+    {
+      "row_id": 105,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "general",
+      "urgency": "low",
+      "summary": "Пользователь оставляет краткую положительную оценку.",
+      "suggested_action": "Продолжать поддерживать текущий уровень сервиса."
+    },
+    {
+      "row_id": 106,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "general",
+      "urgency": "low",
+      "summary": "Пользователь выражает общее удовлетворение.",
+      "suggested_action": "Продолжать поддерживать текущий уровень сервиса."
+    },
+    {
+      "row_id": 107,
+      "sentiment": "negative",
+      "issue_type": "pricing_discrepancy",
+      "topic": "billing",
+      "urgency": "high",
+      "summary": "Пользователь жалуется на значительное превышение итоговой стоимости поездки и отсутствие связи с поддержкой.",
+      "suggested_action": "Проверить сценарии ценообразования и восстановить доступ к поддержке для урегулирования спора."
+    },
+    {
+      "row_id": 108,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "pricing",
+      "urgency": "low",
+      "summary": "Пользователь отмечает выгодные цены.",
+      "suggested_action": "Продолжать поддерживать конкурентное ценообразование."
+    },
+    {
+      "row_id": 109,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "driver_behavior",
+      "urgency": "low",
+      "summary": "Пользователь хвалит скорость подачи, вежливость водителей и безопасность.",
+      "suggested_action": "Отметить водителей за высокое качество обслуживания и безопасность."
+    },
+    {
+      "row_id": 110,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "general",
+      "urgency": "low",
+      "summary": "Пользователь доволен опытом использования.",
+      "suggested_action": "Продолжать поддерживать текущий уровень сервиса."
+    },
+    {
+      "row_id": 111,
+      "sentiment": "neutral",
+      "issue_type": "general_feedback",
+      "topic": "general",
+      "urgency": "low",
+      "summary": "Пользователь дает среднюю оценку, несмотря на слово Best.",
+      "suggested_action": "Мониторить отзывы для уточнения ожиданий пользователя."
+    },
+    {
+      "row_id": 112,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "general",
+      "urgency": "low",
+      "summary": "Пользователь удовлетворен сервисом.",
+      "suggested_action": "Продолжать поддерживать текущий уровень сервиса."
+    },
+    {
+      "row_id": 113,
+      "sentiment": "negative",
+      "issue_type": "driver_overcharging",
+      "topic": "billing",
+      "urgency": "medium",
+      "summary": "Пользователь сообщает о систематическом завышении стоимости поездок водителями в конкретном регионе.",
+      "suggested_action": "Провести проверку водителей в регионе Гувахати и усилить контроль за соблюдением тарифов."
+    },
+    {
+      "row_id": 114,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "driver_behavior",
+      "urgency": "low",
+      "summary": "Пользователь выражает благодарность водителю за исключительную помощь.",
+      "suggested_action": "Передать благодарность водителю и отметить в системе за высокий уровень сервиса."
+    },
+    {
+      "row_id": 115,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "reliability",
+      "urgency": "low",
+      "summary": "Пользователь отмечает скорость и надежность сервиса.",
+      "suggested_action": "Продолжать поддерживать текущий уровень сервиса."
+    },
+    {
+      "row_id": 116,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "general",
+      "urgency": "low",
+      "summary": "Пользователь оставляет положительный отзыв.",
+      "suggested_action": "Продолжать поддерживать текущий уровень сервиса."
+    },
+    {
+      "row_id": 117,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "app_performance",
+      "urgency": "low",
+      "summary": "Пользователь доволен приложением и скоростью отклика.",
+      "suggested_action": "Продолжать оптимизировать скорость работы приложения."
+    },
+    {
+      "row_id": 118,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "pickup_speed",
+      "urgency": "low",
+      "summary": "Пользователь хвалит быструю подачу транспорта.",
+      "suggested_action": "Продолжать поддерживать высокую плотность водителей."
+    },
+    {
+      "row_id": 119,
+      "sentiment": "negative",
+      "issue_type": "pricing_complaint",
+      "topic": "pricing",
+      "urgency": "medium",
+      "summary": "Пользователь считает стоимость поездок завышенной.",
+      "suggested_action": "Проанализировать тарифы в регионе и рассмотреть возможность акций или скидок."
+    },
+    {
+      "row_id": 120,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "general",
+      "urgency": "low",
+      "summary": "Пользователь выражает высокую оценку (опечатка в слове).",
+      "suggested_action": "Продолжать поддерживать текущий уровень сервиса."
+    },
+    {
+      "row_id": 121,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "general",
+      "urgency": "low",
+      "summary": "Пользователь доволен качеством обслуживания.",
+      "suggested_action": "Продолжать поддерживать текущий уровень сервиса."
+    },
+    {
+      "row_id": 122,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "general",
+      "urgency": "low",
+      "summary": "Пользователь отмечает хорошее обслуживание.",
+      "suggested_action": "Продолжать поддерживать текущий уровень сервиса."
+    },
+    {
+      "row_id": 123,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "general",
+      "urgency": "low",
+      "summary": "Пользователь оставляет краткую положительную оценку.",
+      "suggested_action": "Продолжать поддерживать текущий уровень сервиса."
+    },
+    {
+      "row_id": 124,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "general",
+      "urgency": "low",
+      "summary": "Пользователь доволен поездкой.",
+      "suggested_action": "Продолжать поддерживать текущий уровень сервиса."
+    },
+    {
+      "row_id": 125,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "competitive_comparison",
+      "urgency": "low",
+      "summary": "Пользователь считает приложение лучше конкурентов.",
+      "suggested_action": "Продолжать укреплять конкурентные преимущества."
+    },
+    {
+      "row_id": 126,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "general",
+      "urgency": "low",
+      "summary": "Пользователь оставляет положительный отзыв.",
+      "suggested_action": "Продолжать поддерживать текущий уровень сервиса."
+    },
+    {
+      "row_id": 127,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "driver_behavior",
+      "urgency": "low",
+      "summary": "Пользователь отмечает безопасное вождение.",
+      "suggested_action": "Отметить водителя за безопасное вождение."
+    },
+    {
+      "row_id": 128,
+      "sentiment": "negative",
+      "issue_type": "app_usability",
+      "topic": "user_experience",
+      "urgency": "high",
+      "summary": "Пользователь жалуется на частые проверки документов, отказ в приеме заказов и отсутствие возможности договориться о цене.",
+      "suggested_action": "Пересмотреть частоту верификации и добавить функцию согласования цены с водителем."
+    },
+    {
+      "row_id": 129,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "driver_behavior",
+      "urgency": "low",
+      "summary": "Пользователь отмечает высокий профессионализм водителя.",
+      "suggested_action": "Отметить водителя за профессионализм."
+    },
+    {
+      "row_id": 130,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "general",
+      "urgency": "low",
+      "summary": "Пользователь доволен сервисом.",
+      "suggested_action": "Продолжать поддерживать текущий уровень сервиса."
+    },
+    {
+      "row_id": 131,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "general",
+      "urgency": "low",
+      "summary": "Пользователь оставляет положительный отзыв (возможна опечатка).",
+      "suggested_action": "Продолжать поддерживать текущий уровень сервиса."
+    },
+    {
+      "row_id": 132,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "general",
+      "urgency": "low",
+      "summary": "Пользователь считает приложение полезным и хорошим.",
+      "suggested_action": "Продолжать поддерживать текущий уровень сервиса."
+    },
+    {
+      "row_id": 133,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "general",
+      "urgency": "low",
+      "summary": "Пользователь отмечает удобство приложения.",
+      "suggested_action": "Продолжать поддерживать текущий уровень сервиса."
+    },
+    {
+      "row_id": 134,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "general",
+      "urgency": "low",
+      "summary": "Пользователь оставляет положительный отзыв.",
+      "suggested_action": "Продолжать поддерживать текущий уровень сервиса."
+    },
+    {
+      "row_id": 135,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "general",
+      "urgency": "low",
+      "summary": "Пользователь хвалит приложение.",
+      "suggested_action": "Продолжать поддерживать текущий уровень сервиса."
+    },
+    {
+      "row_id": 136,
+      "sentiment": "negative",
+      "issue_type": "subscription_issue",
+      "topic": "billing",
+      "urgency": "high",
+      "summary": "Пользователь жалуется на автоматическую ежемесячную оплату и отсутствие возможности отменить подписку.",
+      "suggested_action": "Проверить настройки подписки пользователя и предоставить инструкцию по отмене или оформить возврат."
+    },
+    {
+      "row_id": 137,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "driver_behavior",
+      "urgency": "low",
+      "summary": "Пользователь отмечает безопасность поездки.",
+      "suggested_action": "Продолжать поддерживать высокий стандарт безопасности."
+    },
+    {
+      "row_id": 138,
+      "sentiment": "negative",
+      "issue_type": "pricing_complaint",
+      "topic": "pricing",
+      "urgency": "medium",
+      "summary": "Пользователь считает цены завышенными и просит их снизить.",
+      "suggested_action": "Проанализировать тарифы и рассмотреть внедрение гибкого ценообразования или скидок."
+    },
+    {
+      "row_id": 139,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "general",
+      "urgency": "low",
+      "summary": "Пользователь оставляет положительный отзыв.",
+      "suggested_action": "Продолжать поддерживать текущий уровень сервиса."
+    },
+    {
+      "row_id": 140,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "general",
+      "urgency": "low",
+      "summary": "Пользователь оставляет положительный отзыв.",
+      "suggested_action": "Продолжать поддерживать текущий уровень сервиса."
+    },
+    {
+      "row_id": 141,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "general",
+      "urgency": "low",
+      "summary": "Пользователь выражает высокую удовлетворенность.",
+      "suggested_action": "Продолжать поддерживать текущий уровень сервиса."
+    },
+    {
+      "row_id": 142,
+      "sentiment": "negative",
+      "issue_type": "feature_request",
+      "topic": "product_features",
+      "urgency": "medium",
+      "summary": "Пользователь считает, что приложению не хватает множества функций.",
+      "suggested_action": "Собрать детальный фидбек по недостающим функциям и включить в бэклог разработки."
+    },
+    {
+      "row_id": 143,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "general",
+      "urgency": "low",
+      "summary": "Пользователь отмечает отличный опыт поездки.",
+      "suggested_action": "Продолжать поддерживать текущий уровень сервиса."
+    },
+    {
+      "row_id": 144,
+      "sentiment": "negative",
+      "issue_type": "driver_overcharging",
+      "topic": "billing",
+      "urgency": "high",
+      "summary": "Пользователь жалуется на доплату со стороны водителя и бездействие службы поддержки.",
+      "suggested_action": "Провести расследование по факту завышения цены и обучить сотрудников поддержки работе с подобными кейсами."
+    },
+    {
+      "row_id": 145,
+      "sentiment": "mixed",
+      "issue_type": "ride_cancellation",
+      "topic": "app_logic",
+      "urgency": "low",
+      "summary": "Пользователь хвалит приложение, но отмечает проблему с повторным назначением отмененного заказа тем же водителем.",
+      "suggested_action": "Настроить алгоритм переназначения отмененных поездок для исключения повторного назначения тому же водителю."
+    },
+    {
+      "row_id": 146,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "service_quality",
+      "urgency": "low",
+      "summary": "Пользователь отмечает скорость и комфорт обслуживания.",
+      "suggested_action": "Продолжать поддерживать текущий уровень сервиса."
+    },
+    {
+      "row_id": 147,
+      "sentiment": "negative",
+      "issue_type": "pricing_discrepancy",
+      "topic": "billing",
+      "urgency": "high",
+      "summary": "Пользователь сообщает о двукратном увеличении цены после прибытия на место посадки и сравнивает с конкурентами.",
+      "suggested_action": "Проверить работу тарификации в реальном времени и внедрить прозрачное ценообразование."
+    },
+    {
+      "row_id": 148,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "general",
+      "urgency": "low",
+      "summary": "Пользователь выражает благодарность за отличный опыт поездки на авто.",
+      "suggested_action": "Продолжать поддерживать высокий уровень сервиса."
+    },
+    {
+      "row_id": 149,
+      "sentiment": "positive",
+      "issue_type": "general_feedback",
+      "topic": "general",
+      "urgency": "low",
+      "summary": "Пользователь оставляет положительный отзыв.",
+      "suggested_action": "Продолжать поддерживать текущий уровень сервиса."
+    },
+    {
+      "row_id": 150,
+      "sentiment": "negative",
+      "issue_type": "app_bug",
+      "topic": "communication",
+      "urgency": "medium",
+      "summary": "Пользователь сообщает о неработающей функции звонка в конкретном регионе.",
+      "suggested_action": "Передать отчет в техническую команду для диагностики и исправления функции связи в указанном регионе."
+    },
+    {
+      "row_id": 151,
+      "sentiment": "negative",
+      "issue_type": "ride_cancellation",
+      "topic": "driver_behavior",
+      "urgency": "high",
+      "summary": "Пользователь жалуется на частые отмены поездок водителями.",
+      "suggested_action": "Улучшить систему удержания водителей и уведомления об отменах."
+    },
+    {
+      "row_id": 152,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь выражает общую положительную оценку.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 153,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Краткая положительная оценка с эмодзи.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 154,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "app_usability",
+      "urgency": "low",
+      "summary": "Пользователь хвалит простоту и удобство интерфейса.",
+      "suggested_action": "Сохранить текущий уровень UX/UI."
+    },
+    {
+      "row_id": 155,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Краткая положительная оценка.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 156,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "grocery_delivery",
+      "urgency": "low",
+      "summary": "Пользователь доволен расширением услуг, особенно доставкой продуктов.",
+      "suggested_action": "Продолжать развивать направление доставки и поддерживать акции."
+    },
+    {
+      "row_id": 157,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Краткий восторженный отзыв.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 158,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "app_usability",
+      "urgency": "low",
+      "summary": "Пользователь отмечает удобство и простоту использования.",
+      "suggested_action": "Сохранить текущий уровень UX/UI."
+    },
+    {
+      "row_id": 159,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "driver_experience",
+      "urgency": "low",
+      "summary": "Водитель доволен опытом работы в приложении.",
+      "suggested_action": "Продолжать поддерживать условия для водителей."
+    },
+    {
+      "row_id": 160,
+      "sentiment": "negative",
+      "issue_type": "billing",
+      "topic": "customer_support",
+      "urgency": "high",
+      "summary": "Пользователь недоволен завышенной ценой и отсутствием поддержки.",
+      "suggested_action": "Проверить алгоритмы ценообразования и усилить поддержку для постоянных клиентов."
+    },
+    {
+      "row_id": 161,
+      "sentiment": "negative",
+      "issue_type": "pricing",
+      "topic": "billing",
+      "urgency": "high",
+      "summary": "Пользователь критикует плату за время в пробке.",
+      "suggested_action": "Пересмотреть политику начисления платы за ожидание в пробках."
+    },
+    {
+      "row_id": 162,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Краткая положительная оценка.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 163,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Краткая восторженная оценка.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 164,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "moto_taxi",
+      "urgency": "low",
+      "summary": "Пользователь доволен услугой мото-такси.",
+      "suggested_action": "Продолжать развивать направление мото-такси."
+    },
+    {
+      "row_id": 165,
+      "sentiment": "neutral",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Нейтральная/сдержанная оценка.",
+      "suggested_action": "Мониторить отзывы для выявления скрытых проблем."
+    },
+    {
+      "row_id": 166,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Краткая положительная оценка.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 167,
+      "sentiment": "positive",
+      "issue_type": "pricing",
+      "topic": "pricing_policy",
+      "urgency": "low",
+      "summary": "Пользователь доволен надежностью, но отмечает высокую цену из-за инфляции.",
+      "suggested_action": "Предложить программы лояльности или скидки для снижения воспринимаемой стоимости."
+    },
+    {
+      "row_id": 168,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Краткая положительная оценка.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 169,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Краткая положительная оценка.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 170,
+      "sentiment": "negative",
+      "issue_type": "ride_cancellation",
+      "topic": "customer_support",
+      "urgency": "high",
+      "summary": "Пользователь столкнулся с отменой водителя в экстренной ситуации и недоволен скидками.",
+      "suggested_action": "Улучшить коммуникацию с водителями и усилить поддержку для экстренных поездок."
+    },
+    {
+      "row_id": 171,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "driver_quality",
+      "urgency": "low",
+      "summary": "Пользователь высоко оценивает качество водителей.",
+      "suggested_action": "Продолжать поддерживать высокие стандарты сервиса водителей."
+    },
+    {
+      "row_id": 172,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Положительная оценка.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 173,
+      "sentiment": "negative",
+      "issue_type": "billing",
+      "topic": "general_feedback",
+      "urgency": "medium",
+      "summary": "Текст отзыва нечеткий, но упоминаются дополнительные сборы.",
+      "suggested_action": "Проверить историю поездок пользователя на предмет лишних списаний."
+    },
+    {
+      "row_id": 174,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь доволен первым опытом использования.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 175,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "pricing",
+      "urgency": "low",
+      "summary": "Пользователь хвалит низкую стоимость поездок по сравнению с конкурентами.",
+      "suggested_action": "Подчеркнуть конкурентные цены в маркетинговых материалах."
+    },
+    {
+      "row_id": 176,
+      "sentiment": "negative",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "high",
+      "summary": "Пользователь выражает крайнее недовольство приложением.",
+      "suggested_action": "Запросить дополнительные детали для выявления конкретной проблемы."
+    },
+    {
+      "row_id": 177,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь регулярно доволен поездками.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 178,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "app_usability",
+      "urgency": "low",
+      "summary": "Пользователь доволен скоростью отклика и тарифами.",
+      "suggested_action": "Сохранить текущие настройки тарифов и производительности."
+    },
+    {
+      "row_id": 179,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Краткая положительная оценка.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 180,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Краткая положительная оценка.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 181,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "driver_quality",
+      "urgency": "low",
+      "summary": "Пользователь благодарит водителя за помощь и отличный сервис.",
+      "suggested_action": "Отметить водителя для поощрения, продолжить развивать сервис."
+    },
+    {
+      "row_id": 182,
+      "sentiment": "negative",
+      "issue_type": "app_features",
+      "topic": "customer_support",
+      "urgency": "medium",
+      "summary": "Пользователь критикует отсутствие функций предварительного заказа и поддержки.",
+      "suggested_action": "Приоритизировать разработку функций планирования поездок и улучшить каналы поддержки."
+    },
+    {
+      "row_id": 183,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "driver_quality",
+      "urgency": "low",
+      "summary": "Пользователь хвалит конкретного водителя.",
+      "suggested_action": "Продолжать поддерживать высокие стандарты сервиса водителей."
+    },
+    {
+      "row_id": 184,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Краткая положительная оценка.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 185,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Положительная оценка.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 186,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Краткая положительная оценка.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 187,
+      "sentiment": "negative",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "high",
+      "summary": "Краткий негативный отзыв (вероятно, опечатка от Bad).",
+      "suggested_action": "Запросить дополнительные детали для выявления конкретной проблемы."
+    },
+    {
+      "row_id": 188,
+      "sentiment": "negative",
+      "issue_type": "wait_time",
+      "topic": "ride_availability",
+      "urgency": "medium",
+      "summary": "Пользователь недоволен длительным временем ожидания.",
+      "suggested_action": "Проанализировать плотность водителей в указанных регионах и оптимизировать алгоритмы распределения."
+    },
+    {
+      "row_id": 189,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Краткая восторженная оценка.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 190,
+      "sentiment": "negative",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "high",
+      "summary": "Краткий негативный отзыв (опечатка от Bad).",
+      "suggested_action": "Запросить дополнительные детали для выявления конкретной проблемы."
+    },
+    {
+      "row_id": 191,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь отмечает удобство, надежность и эффективность.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 192,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Краткая положительная оценка с эмодзи.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 193,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "driver_quality",
+      "urgency": "low",
+      "summary": "Пользователь хвалит вежливость водителя и чистоту автомобиля.",
+      "suggested_action": "Продолжать поддерживать высокие стандарты сервиса и чистоты транспорта."
+    },
+    {
+      "row_id": 194,
+      "sentiment": "negative",
+      "issue_type": "pricing",
+      "topic": "billing",
+      "urgency": "medium",
+      "summary": "Пользователь недоволен резким повышением цен и просит пересмотра.",
+      "suggested_action": "Рассмотреть возможность введения гибких тарифов или программ поддержки для бюджетных пользователей."
+    },
+    {
+      "row_id": 195,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь считает приложение очень полезным.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 196,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Положительная оценка.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 197,
+      "sentiment": "negative",
+      "issue_type": "app_features",
+      "topic": "user_experience",
+      "urgency": "medium",
+      "summary": "Пользователь жалуется на навязчивую рекламу, которую не удается отключить.",
+      "suggested_action": "Исправить баг с настройками уведомлений о рекламе и пересмотреть частоту показов."
+    },
+    {
+      "row_id": 198,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Краткая положительная оценка.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    },
+    {
+      "row_id": 199,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "route_optimization",
+      "urgency": "low",
+      "summary": "Пользователь хвалит удобство маршрута из аэропорта в Диснейуорлд.",
+      "suggested_action": "Продолжать поддерживать удобные маршруты и интеграцию с популярными направлениями."
+    },
+    {
+      "row_id": 200,
+      "sentiment": "positive",
+      "issue_type": "none",
+      "topic": "general_feedback",
+      "urgency": "low",
+      "summary": "Пользователь выражает общую симпатию к компании.",
+      "suggested_action": "Продолжать поддерживать высокое качество сервиса."
+    }
+  ]
+}
