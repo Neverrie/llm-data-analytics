@@ -13,7 +13,7 @@ class WorkspaceRepository(
     private val apiProvider: ApiProvider
 ) {
     suspend fun workspace(): AppResult<WorkspaceResponse> = safeApiCall { apiProvider.api().workspace() }
-    suspend fun chats(): AppResult<ChatsResponse> = safeApiCall { apiProvider.api().chats() }
+    suspend fun chats(archived: Boolean? = false): AppResult<ChatsResponse> = safeApiCall { apiProvider.api().chats(archived = archived) }
     suspend fun updateChat(chatId: String, request: UpdateChatRequest): AppResult<ChatItem> = safeApiCall { apiProvider.api().updateChat(chatId, request) }
     suspend fun deleteChat(chatId: String): AppResult<ChatItem> = safeApiCall { apiProvider.api().deleteChat(chatId) }
     suspend fun datasets(): AppResult<DatasetsResponse> = safeApiCall { apiProvider.api().datasets() }

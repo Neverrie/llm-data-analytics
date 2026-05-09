@@ -12,7 +12,8 @@ export function DatasetExplorer({
   profile,
   onSelect,
   onUpload,
-  onUseInChat
+  onUseInChat,
+  onDelete
 }: {
   datasets: DatasetItem[];
   selected?: string;
@@ -21,6 +22,7 @@ export function DatasetExplorer({
   onSelect: (id: string) => void;
   onUpload: (file: File) => void;
   onUseInChat?: (id: string) => void;
+  onDelete?: (id: string) => void;
 }) {
   const [tab, setTab] = useState<"preview" | "profile" | "columns">("preview");
   const selectedDataset = useMemo(() => datasets.find((d) => d.id === selected), [datasets, selected]);
@@ -39,6 +41,9 @@ export function DatasetExplorer({
             <input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => e.target.files?.[0] && onUpload(e.target.files[0])} hidden />
           </label>
           {selected && onUseInChat ? <button className="btn-secondary" onClick={() => onUseInChat(selected)}>Использовать в чате</button> : null}
+          {selected && onDelete && (selectedDataset?.source === "uploaded" || selectedDataset?.source === "upload") ? (
+            <button className="btn-ghost danger" onClick={() => onDelete(selected)}>Удалить датасет</button>
+          ) : null}
         </div>
       </div>
 

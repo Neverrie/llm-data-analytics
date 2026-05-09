@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, File, Query, UploadFile
 
 from app.schemas import DatasetsResponse
 from app.services.auth_service import get_current_user
-from app.services.dataset_registry import dataset_preview, dataset_profile, list_datasets, upload_dataset
+from app.services.dataset_registry import dataset_preview, dataset_profile, delete_dataset, list_datasets, upload_dataset
 
 router = APIRouter(prefix="/datasets", tags=["datasets"])
 
@@ -29,3 +29,8 @@ def get_dataset_preview(
 @router.get("/{dataset_id}/profile")
 def get_dataset_profile(dataset_id: str, user: dict = Depends(get_current_user)) -> dict:
     return dataset_profile(user["id"], dataset_id)
+
+
+@router.delete("/{dataset_id}")
+def delete_dataset_item(dataset_id: str, user: dict = Depends(get_current_user)) -> dict:
+    return delete_dataset(user["id"], dataset_id)

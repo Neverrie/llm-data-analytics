@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ArtifactItem, Chat, ChatMessage, DatasetItem, setAuthToken, User } from "@/lib/api";
 import { AppShell } from "@/components/workspace/AppShell";
 import { ArtifactExplorer } from "@/components/workspace/ArtifactExplorer";
@@ -49,12 +49,24 @@ export default function HomePage() {
   const [datasetPreview, setDatasetPreview] = useState<any>(null);
   const [datasetProfile, setDatasetProfile] = useState<any>(null);
   const [datasetNotice, setDatasetNotice] = useState("");
+  const inFlightByChatRef = useRef<Record<string, string>>({});
+  const lastSentRef = useRef<Record<string, { text: string; at: number }>>({});
+  const streamAbortRef = useRef<AbortController | null>(null);
+  const activeRunIdRef = useRef<string | null>(null);
 
   const selectedDataset = useMemo(() => datasets.find((d) => d.id === selectedDatasetId), [datasets, selectedDatasetId]);
   const selectedArtifact = useMemo(() => artifacts.find((a) => a.id === selectedArtifactId), [artifacts, selectedArtifactId]);
   const lab3Chats = useMemo(() => allChats.filter((c) => c.kind === "lab3_chat"), [allChats]);
   const pipelineChats = useMemo(() => allChats.filter((c) => c.kind === "lab2_pipeline"), [allChats]);
   const latestPipelineChat = pipelineChats[0];
+  const interruptedRequest = useMemo(() => {
+    if (!messages.length) return null as null | { text: string };
+    const last = messages[messages.length - 1];
+    if (last.role !== "user") return null as null | { text: string };
+    const text = String(last.content || "").trim();
+    if (!text) return null as null | { text: string };
+    return { text };
+  }, [messages]);
 
   async function refreshSharedData() {
     const [ds, arts] = await Promise.all([api.listDatasets(), api.listArtifacts()]);
@@ -207,6 +219,7 @@ export default function HomePage() {
   }
 
   async function sendAgentMessage(text: string) {
+    if (!text.trim()) return;
     let chatId = selectedChatId;
     if (!chatId) {
       await createChat();
@@ -214,6 +227,18 @@ export default function HomePage() {
       chatId = updated.find((c) => c.kind === "lab3_chat")?.id || "";
     }
     if (!chatId) return;
+    if (agentLoading || inFlightByChatRef.current[chatId]) return;
+    const nowMs = Date.now();
+    const last = lastSentRef.current[chatId];
+    if (last && last.text === text.trim() && nowMs - last.at < 1200) return;
+    lastSentRef.current[chatId] = { text: text.trim(), at: nowMs };
+    const clientMessageId = (typeof crypto !== "undefined" && "randomUUID" in crypto)
+      ? crypto.randomUUID()
+      : `${nowMs}-${Math.random().toString(16).slice(2)}`;
+    inFlightByChatRef.current[chatId] = clientMessageId;
+    activeRunIdRef.current = null;
+    const controller = new AbortController();
+    streamAbortRef.current = controller;
 
     const optimistic: ChatMessage = {
       id: `tmp-${Date.now()}`,
@@ -294,9 +319,14 @@ export default function HomePage() {
         question: text,
         analysis_mode: "code_interpreter",
         session_id: chatId,
+        client_message_id: clientMessageId,
         include_history: true,
         max_tool_calls: 6
       }, (evt) => {
+        if (evt.event === "run_started") {
+          activeRunIdRef.current = String(evt.data?.run_id || "").trim() || null;
+          return;
+        }
         if (evt.event === "message_delta") {
           const delta = String(evt.data?.content || "");
           if (!delta) return;
@@ -374,19 +404,28 @@ export default function HomePage() {
           setLab3Response((prev: any) => ({ ...(prev || {}), logs: [...streamLogs], error: msg }));
           return;
         }
+        if (evt.event === "cancelled") {
+          streamStatus = "cancelled";
+          const msg = String(evt.data?.message || "Запрос остановлен пользователем");
+          streamLogs.push(msg);
+          setLab3Response((prev: any) => ({ ...(prev || {}), logs: [...streamLogs], error: msg }));
+          return;
+        }
         if (evt.event === "done") {
           streamStatus = String(evt.data?.status || "ok");
         }
-      });
+      }, controller.signal);
 
-      if (streamStatus === "error") {
+      if (streamStatus === "error" || streamStatus === "cancelled") {
         const refreshed = await api.getChat(chatId);
         setMessages(refreshed.messages || []);
         await refreshSharedData();
         await refreshChats();
         setLab3Response((prev: any) => ({
           ...(prev || {}),
-          error: "Ошибка sandbox или агента. Подробности сохранены в сообщении ассистента.",
+          error: streamStatus === "cancelled"
+            ? "Запрос остановлен пользователем."
+            : "Ошибка sandbox или агента. Подробности сохранены в сообщении ассистента.",
           stream_logs: streamLogs,
           stream_artifacts: streamedArtifacts
         }));
@@ -409,23 +448,42 @@ export default function HomePage() {
       await refreshSharedData();
       await refreshChats();
     } catch (e) {
-      const errorText = (e as Error).message;
+      const errorText = (e as Error).name === "AbortError" ? "Запрос остановлен пользователем" : (e as Error).message;
       setLab3Response({ error: errorText });
-      try {
-        await api.addMessage(chatId, {
-          role: "assistant",
-          content: `Ошибка: ${errorText}`,
-          blocks: [{ type: "warning", content: errorText }],
-          metadata: { error: true }
-        });
-        const refreshed = await api.getChat(chatId);
-        setMessages(refreshed.messages || []);
-      } catch {
-        setError(errorText);
+      if ((e as Error).name !== "AbortError") {
+        try {
+          await api.addMessage(chatId, {
+            role: "assistant",
+            content: `Ошибка: ${errorText}`,
+            blocks: [{ type: "warning", content: errorText }],
+            metadata: { error: true }
+          });
+          const refreshed = await api.getChat(chatId);
+          setMessages(refreshed.messages || []);
+        } catch {
+          setError(errorText);
+        }
       }
     } finally {
       setAgentLoading(false);
+      streamAbortRef.current = null;
+      activeRunIdRef.current = null;
+      if (chatId) delete inFlightByChatRef.current[chatId];
     }
+  }
+
+  async function stopAgentStream() {
+    streamAbortRef.current?.abort();
+    const runId = activeRunIdRef.current;
+    if (runId) {
+      try {
+        await api.cancelAgentRun(runId);
+      } catch {
+        // best effort
+      }
+    }
+    setAgentLoading(false);
+    setLab3Response((prev: any) => ({ ...(prev || {}), error: "Запрос остановлен пользователем" }));
   }
 
   async function runPipelineSample() {
@@ -505,6 +563,33 @@ export default function HomePage() {
       setLoading(true);
       await api.uploadDataset(file);
       await refreshSharedData();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function deleteDataset(id: string) {
+    try {
+      setLoading(true);
+      await api.deleteDataset(id);
+      const ds = await api.listDatasets();
+      setDatasets(ds.items || []);
+      const nextId = (ds.items || [])[0]?.id || "";
+      if (selectedDatasetId === id) {
+        setSelectedDatasetId(nextId);
+        setDatasetPreview(null);
+        setDatasetProfile(null);
+        if (nextId) await loadDatasetPreview(nextId, false);
+      }
+      if (selectedChatId) {
+        const selected = (ds.items || []).find((d) => d.id === nextId);
+        if (selected) {
+          await api.updateChat(selectedChatId, { dataset_name: selected.name });
+          await refreshChats();
+        }
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -609,7 +694,17 @@ export default function HomePage() {
                     }}
                   />
                 </div>
-                <ChatPanel messages={messages} onSend={sendAgentMessage} loading={agentLoading} lab3Response={lab3Response} datasetName={selectedDataset?.name} datasetNotice={datasetNotice} />
+                <ChatPanel
+                  messages={messages}
+                  onSend={sendAgentMessage}
+                  onStop={stopAgentStream}
+                  loading={agentLoading}
+                  lab3Response={lab3Response}
+                  datasetName={selectedDataset?.name}
+                  datasetNotice={datasetNotice}
+                  interruptedRequest={interruptedRequest}
+                  onRetryInterrupted={(text) => sendAgentMessage(text)}
+                />
               </>
             ) : null}
 
@@ -627,7 +722,7 @@ export default function HomePage() {
               />
             ) : null}
 
-            {activeSection === "datasets" ? <DatasetExplorer datasets={datasets} selected={selectedDatasetId} preview={datasetPreview} profile={datasetProfile} onSelect={(id) => loadDatasetPreview(id, false)} onUpload={uploadDataset} onUseInChat={(id) => { setActiveSection("agent"); updateChatDatasetContext(id); }} /> : null}
+            {activeSection === "datasets" ? <DatasetExplorer datasets={datasets} selected={selectedDatasetId} preview={datasetPreview} profile={datasetProfile} onSelect={(id) => loadDatasetPreview(id, false)} onUpload={uploadDataset} onUseInChat={(id) => { setActiveSection("agent"); updateChatDatasetContext(id); }} onDelete={deleteDataset} /> : null}
             {activeSection === "artifacts" ? <ArtifactExplorer items={artifacts} onSelect={setSelectedArtifactId} selected={selectedArtifact} /> : null}
             {activeSection === "settings" ? <EmptyState title="Настройки" description={`${user.display_name} (${user.email})`} /> : null}
           </div>

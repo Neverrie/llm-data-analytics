@@ -18,6 +18,11 @@ sealed interface ChatContentBlock {
     ) : ChatContentBlock
 
     data class MarkdownBlock(val text: String) : ChatContentBlock
+    data class WarningBlock(
+        val text: String,
+        val details: String? = null,
+        val errorType: String? = null
+    ) : ChatContentBlock
     data class JsonBlock(val text: String, val sourceArtifactId: String? = null) : ChatContentBlock
     data class UnsupportedArtifactBlock(
         val artifactId: String,
@@ -25,4 +30,3 @@ sealed interface ChatContentBlock {
         val mimeType: String?
     ) : ChatContentBlock
 }
-

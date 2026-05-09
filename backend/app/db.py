@@ -92,6 +92,12 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_datasets_user ON datasets(user_id);
             """
         )
+        # lightweight forward migration for message idempotency
+        table_info = conn.execute("PRAGMA table_info(messages)").fetchall()
+        columns = {str(row[1]) for row in table_info}
+        if "client_message_id" not in columns:
+            conn.execute("ALTER TABLE messages ADD COLUMN client_message_id TEXT")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_chat_client ON messages(chat_id, client_message_id)")
         conn.commit()
 
 

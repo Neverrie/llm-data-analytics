@@ -55,7 +55,10 @@ fun DatasetsScreen(
         Button(onClick = {
             picker.launch(
                 arrayOf(
+                    "*/*",
                     "text/csv",
+                    "text/plain",
+                    "application/csv",
                     "application/vnd.ms-excel",
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     "application/octet-stream"
@@ -88,6 +91,9 @@ fun DatasetsScreen(
                         if (!selectMode) {
                             Button(onClick = { onOpenDataset(ds.id) }) { Text("Открыть") }
                             Button(onClick = { onUseInChat(ds) }) { Text("Использовать в чате") }
+                            if (ds.source.equals("upload", ignoreCase = true) || ds.source.equals("uploaded", ignoreCase = true)) {
+                                Button(onClick = { viewModel.deleteDataset(ds.id) }) { Text("Удалить") }
+                            }
                         } else {
                             Button(onClick = { onUseInChat(ds) }) { Text("Выбрать") }
                         }

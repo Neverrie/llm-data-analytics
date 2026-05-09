@@ -34,7 +34,10 @@ export type ChatMessage = {
 export type DatasetItem = {
   id: string;
   name: string;
-  source: "built_in" | "upload";
+  source: "built_in" | "upload" | "public" | "uploaded";
+  filename?: string;
+  owner_user_id?: string | null;
+  size_bytes?: number | null;
   rows_count: number | null;
   columns_count: number | null;
   created_at: string;
@@ -157,7 +160,8 @@ async function streamSse(
   const response = await fetch(`${getApiBaseUrl()}${path}`, {
     ...init,
     headers,
-    cache: "no-store"
+    cache: "no-store",
+    signal: init.signal,
   });
 
   if (!response.ok || !response.body) {
@@ -249,6 +253,7 @@ export const api = {
     form.append("file", file);
     return request<DatasetItem>("/datasets/upload", { method: "POST", body: form });
   },
+  deleteDataset: (datasetId: string) => request<{ status: string; id: string }>(`/datasets/${datasetId}`, { method: "DELETE" }),
   previewDataset: (datasetId: string, limit = 20) => request<{ columns: string[]; rows: Record<string, unknown>[] }>(`/datasets/${datasetId}/preview?limit=${limit}`),
   profileDataset: (datasetId: string) => request<{ rows_count: number; columns_count: number; columns: Array<{ name: string; dtype: string; missing_count: number; unique_count: number }> }>(`/datasets/${datasetId}/profile`),
 
@@ -284,9 +289,11 @@ export const api = {
   ) => streamSse("/lab3/ask/stream", { method: "POST", body: JSON.stringify(body) }, onEvent),
   streamChatAgent: (
     chatId: string,
-    body: { dataset_name?: string; question: string; analysis_mode?: "code_interpreter" | "fast" | "balanced" | "full"; include_history?: boolean; max_code_steps?: number; max_tool_calls?: number; use_critic?: boolean; column_overrides?: Record<string, string | null>; session_id?: string },
-    onEvent: (event: SseEvent) => void | Promise<void>
-  ) => streamSse(`/chats/${chatId}/agent/stream`, { method: "POST", body: JSON.stringify(body) }, onEvent),
+    body: { dataset_name?: string; question: string; analysis_mode?: "code_interpreter" | "fast" | "balanced" | "full"; include_history?: boolean; max_code_steps?: number; max_tool_calls?: number; use_critic?: boolean; column_overrides?: Record<string, string | null>; session_id?: string; client_message_id?: string },
+    onEvent: (event: SseEvent) => void | Promise<void>,
+    signal?: AbortSignal
+  ) => streamSse(`/chats/${chatId}/agent/stream`, { method: "POST", body: JSON.stringify(body), signal }, onEvent),
+  cancelAgentRun: (runId: string) => request<{ status: string; run_id: string }>(`/agent-runs/${runId}/cancel`, { method: "POST" }),
   getLab3Result: () => request<any>("/lab3/result"),
   getLab3Status: () => request<any>("/lab3/status")
 };

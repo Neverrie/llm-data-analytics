@@ -2,8 +2,11 @@ import logging
 import json
 import base64
 import re
+import subprocess
+import traceback
 import uuid
 from pathlib import Path
+from typing import Any
 from urllib.parse import quote
 import pandas as pd
 
@@ -26,14 +29,41 @@ from app.services.artifact_service import artifact_to_message_block, register_ar
 from app.services.chat_router import route_dataset_chat
 from app.services.auth_service import get_current_user, user_public
 from app.services.code_sandbox import execute_python_code_general
+from app.services.dataset_resolver import resolve_dataset_for_user
 from app.services.lab3_service import ask_agent
+from app.services.agent_runs import create_run, cancel_run, get_container_names
 from app.services.llm_client import LLMClient, LLMClientError
-from app.services.workspace_service import add_message, archive_chat, create_chat, get_chat, list_chats, update_chat, workspace_overview
+from app.services.markdown_utils import normalize_markdown_tables, sanitize_model_final_answer
+from app.services.workspace_service import (
+    add_message,
+    archive_chat,
+    create_chat,
+    get_chat,
+    get_message_by_client_id,
+    list_chats,
+    update_chat,
+    workspace_overview,
+)
+from app.db import fetch_all, get_connection
 from app.stream_events import chunk_text_for_streaming, sse_event
 from app.config import settings
 
 router = APIRouter(tags=["workspace"])
 logger = logging.getLogger(__name__)
+
+
+def _sanitize_error_text(text: str) -> str:
+    out = str(text or "")
+    for raw in [
+        getattr(settings, "openrouter_api_key", None),
+        getattr(settings, "gemini_api_key", None),
+        getattr(settings, "dashscope_api_key", None),
+    ]:
+        value = str(raw or "").strip()
+        if value:
+            out = out.replace(value, "***")
+    out = re.sub(r"sk-[A-Za-z0-9_\-]+", "sk-***", out)
+    return out
 
 
 def _extract_python_block(text: str) -> str | None:
@@ -127,6 +157,55 @@ def _artifact_kind_by_name(name: str) -> str:
     return "other"
 
 
+def _normalize_file_path_key(path: str) -> str:
+    raw = str(path or "").strip()
+    if not raw:
+        return ""
+    try:
+        return str(Path(raw).resolve())
+    except Exception:
+        return raw.replace("\\", "/")
+
+
+def _file_dedupe_key(file_item: dict[str, Any]) -> str:
+    path = _normalize_file_path_key(str(file_item.get("path") or ""))
+    if path:
+        return f"path:{path}"
+    name = str(file_item.get("name") or file_item.get("filename") or "").strip().lower()
+    size = str(file_item.get("size") or file_item.get("size_bytes") or "")
+    mime = str(file_item.get("mime_type") or "").strip().lower()
+    return f"meta:{name}|{size}|{mime}"
+
+
+def _artifact_dedupe_key(artifact: dict[str, Any]) -> str:
+    path = _normalize_file_path_key(str(artifact.get("path") or ""))
+    if path:
+        return f"path:{path}"
+    filename = str(artifact.get("filename") or "").strip().lower()
+    size = str(artifact.get("size_bytes") or "")
+    mime = str(artifact.get("mime_type") or "").strip().lower()
+    if filename or size or mime:
+        return f"meta:{filename}|{size}|{mime}"
+    artifact_id = str(artifact.get("id") or "").strip()
+    if artifact_id:
+        return f"id:{artifact_id}"
+    return "unknown"
+
+
+def _chart_block_dedupe_key(block: dict[str, Any]) -> str:
+    title = str(block.get("title") or block.get("filename") or "").strip().lower()
+    mime = str(block.get("mime_type") or "").strip().lower()
+    preview_url = str(block.get("preview_url") or block.get("url") or "").strip()
+    if title or mime:
+        return f"meta:{title}|{mime}"
+    if preview_url:
+        return f"url:{preview_url}"
+    artifact_id = str(block.get("artifact_id") or "").strip()
+    if artifact_id:
+        return f"id:{artifact_id}"
+    return "unknown"
+
+
 def _artifact_to_block(artifact: dict) -> dict:
     mime = str(artifact.get("mime_type") or "")
     if mime.startswith("image/"):
@@ -151,12 +230,123 @@ def _artifact_to_block(artifact: dict) -> dict:
 
 
 def _is_dataset_overview_request(question: str) -> bool:
-    low = (question or "").lower()
-    return any(token in low for token in ["что скажешь по датасету", "обзор датасета", "опиши датасет", "какие колонки", "первые строки"])
+    low = (question or "").lower().strip()
+    if not low:
+        return False
+    patterns = [
+        r"\bhead\b",
+        r"\bdf\.head\b",
+        r"\bpreview\b",
+        r"\bfirst\s*\d*\s*rows?\b",
+        r"первые\s+\d+\s+строк",
+        r"первые\s+строки",
+        r"выведи\s+первые",
+        r"выведи\s+строк",
+        r"что\s+скажешь\s+по\s+датасет",
+        r"обзор\s+датасет",
+    ]
+    return any(re.search(pattern, low) for pattern in patterns)
 
 
-def _build_dataset_overview_blocks(dataset_name: str) -> list[dict]:
-    dataset_path = (Path(settings.datasets_dir) / dataset_name).resolve()
+def _build_dataset_agent_context(user_id: str, chat_id: str, limit: int = 10) -> dict:
+    chat_state = get_chat(user_id, chat_id)
+    messages = chat_state.get("messages", [])
+    recent_messages = [
+        {
+            "role": str(m.get("role") or ""),
+            "content": str(m.get("content") or ""),
+            "created_at": str(m.get("created_at") or ""),
+        }
+        for m in messages[-limit:]
+    ]
+    last_user_analysis_request = ""
+    for msg in reversed(messages):
+        if str(msg.get("role")) == "user":
+            content = str(msg.get("content") or "").strip()
+            if content and not re.search(r"^(попробуй еще раз|ещ[её] раз|retry|продолжи|а теперь)\s*$", content, flags=re.IGNORECASE):
+                last_user_analysis_request = content
+                break
+    last_assistant_summary = ""
+    last_successful_run: dict[str, Any] | None = None
+    last_error: dict[str, Any] | None = None
+    for msg in reversed(messages):
+        if str(msg.get("role")) != "assistant":
+            continue
+        metadata = msg.get("metadata") if isinstance(msg.get("metadata"), dict) else {}
+        blocks = msg.get("blocks") if isinstance(msg.get("blocks"), list) else []
+        if not last_assistant_summary:
+            last_assistant_summary = str(msg.get("content") or "")[:1400]
+        if not last_error:
+            warning = next((b for b in blocks if isinstance(b, dict) and b.get("type") == "warning"), None)
+            if warning or metadata.get("error"):
+                last_error = {
+                    "content": str((warning or {}).get("content") or msg.get("content") or "")[:1200],
+                    "error_type": str((warning or {}).get("error_type") or metadata.get("error_type") or ""),
+                    "error_message": str(metadata.get("error_message") or "")[:1200],
+                    "stderr": str(metadata.get("stderr") or "")[:1200],
+                }
+        if not last_successful_run and not metadata.get("error"):
+            steps = metadata.get("code_steps") if isinstance(metadata.get("code_steps"), list) else []
+            successful_execs = int(metadata.get("successful_executions_count") or 0)
+            if steps or successful_execs > 0 or any(isinstance(b, dict) and b.get("type") in {"chart", "table", "execution"} for b in blocks):
+                last_successful_run = {
+                    "run_id": str(metadata.get("run_id") or ""),
+                    "final_answer": str(msg.get("content") or "")[:1200],
+                    "steps_count": len(steps),
+                    "successful_executions_count": successful_execs,
+                    "files": metadata.get("generated_files") if isinstance(metadata.get("generated_files"), list) else [],
+                    "block_types": [str(b.get("type")) for b in blocks if isinstance(b, dict)],
+                }
+        if last_error and last_successful_run:
+            break
+
+    with get_connection() as conn:
+        artifacts = fetch_all(
+            conn,
+            "SELECT filename, kind, mime_type FROM artifacts WHERE user_id = ? AND chat_id = ? ORDER BY created_at DESC LIMIT 30",
+            (user_id, chat_id),
+        )
+    return {
+        "recent_messages": recent_messages,
+        "last_user_analysis_request": last_user_analysis_request,
+        "last_assistant_summary": last_assistant_summary,
+        "last_successful_run": last_successful_run,
+        "last_error": last_error,
+        "available_artifacts": artifacts,
+    }
+
+
+def _resolve_followup_intent(current_message: str, conversation_context: dict[str, Any]) -> dict[str, Any]:
+    text = str(current_message or "").strip()
+    low = text.lower()
+    last_req = str(conversation_context.get("last_user_analysis_request") or "").strip()
+    last_err = conversation_context.get("last_error") if isinstance(conversation_context.get("last_error"), dict) else {}
+    new_task_patterns = [
+        r"проанализируй\s+датасет",
+        r"что\s+скажешь\s+по\s+датасету",
+        r"сделай\s+обзор\s+датасета",
+        r"покажи\s+структуру\s+датасета",
+        r"\beda\b",
+        r"найди\s+закономерности",
+    ]
+    if any(re.search(pattern, low) for pattern in new_task_patterns):
+        return {"intent": "new_task", "resolved_task": text, "should_reference_previous_run": False}
+    if re.search(r"^(попробуй еще раз|ещ[её] раз|retry|исправь|переделай)\s*$", low):
+        resolved = f"Повтори предыдущую задачу: {last_req}" if last_req else text
+        err_short = str(last_err.get("error_message") or last_err.get("content") or "").strip()
+        if err_short:
+            resolved = f"{resolved}. Исправь ошибку предыдущего запуска: {err_short[:500]}"
+        return {"intent": "retry_previous_task", "resolved_task": resolved, "should_reference_previous_run": bool(last_req)}
+    if re.search(r"^(продолжи|дальше|а теперь|теперь)\b", low):
+        resolved = f"Продолжи предыдущую задачу: {last_req}. Уточнение: {text}" if last_req else text
+        return {"intent": "continue_previous_task", "resolved_task": resolved, "should_reference_previous_run": True}
+    if re.search(r"(подробнее|детальнее|раскрой|объясни подробнее)", low):
+        resolved = f"Сделай подробнее предыдущий результат: {last_req}" if last_req else text
+        return {"intent": "refine_previous_answer", "resolved_task": resolved, "should_reference_previous_run": True}
+    return {"intent": "new_task", "resolved_task": text, "should_reference_previous_run": False}
+
+def _build_dataset_overview_blocks(dataset_name: str, user_id: str | None) -> list[dict]:
+    dataset_path = resolve_dataset_for_user(dataset_name, user_id).path
     if not dataset_path.exists() or not dataset_path.is_file():
         return []
     frame = pd.read_csv(dataset_path) if dataset_path.suffix.lower() == ".csv" else pd.read_excel(dataset_path)
@@ -270,7 +460,15 @@ def get_chat_detail(chat_id: str, user: dict = Depends(get_current_user)) -> Cha
 @router.post("/chats/{chat_id}/messages", response_model=ChatMessageItem)
 def post_chat_message(chat_id: str, payload: ChatMessageCreateRequest, user: dict = Depends(get_current_user)) -> ChatMessageItem:
     try:
-        item = add_message(user["id"], chat_id, payload.role, payload.content, payload.blocks, payload.metadata)
+        item = add_message(
+            user["id"],
+            chat_id,
+            payload.role,
+            payload.content,
+            payload.blocks,
+            payload.metadata,
+            client_message_id=payload.client_message_id,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return ChatMessageItem.model_validate(item)
@@ -288,7 +486,15 @@ async def post_chat_message_stream(chat_id: str, payload: ChatMessageCreateReque
                 yield sse_event("done", {"status": "error"})
                 return
 
-            _ = add_message(user["id"], chat_id, payload.role, payload.content, payload.blocks, payload.metadata)
+            _ = add_message(
+                user["id"],
+                chat_id,
+                payload.role,
+                payload.content,
+                payload.blocks,
+                payload.metadata,
+                client_message_id=payload.client_message_id,
+            )
 
             yield sse_event("message_start", {"chat_id": chat_id, "role": "assistant"})
             yield sse_event("tool_start", {"name": "chat_generation"})
@@ -481,9 +687,13 @@ async def post_chat_message_stream(chat_id: str, payload: ChatMessageCreateReque
                             },
                         ]
                         final_text = await llm.chat(messages=final_messages, purpose="general")
+                        final_text = normalize_markdown_tables(final_text)
+                        final_text = sanitize_model_final_answer(final_text)
                         yield sse_event("tool_end", {"name": "sandbox_execution", "status": exec_result.get("status", "ok")})
                     else:
                         final_text = _extract_final_block(planner_raw) or planner_raw
+                        final_text = normalize_markdown_tables(final_text)
+                        final_text = sanitize_model_final_answer(final_text)
                 else:
                     llm_messages = [
                         {"role": "system", "content": "You are an assistant. Reply in Russian concisely and clearly."},
@@ -499,6 +709,8 @@ async def post_chat_message_stream(chat_id: str, payload: ChatMessageCreateReque
                         assembled.append(delta)
                         yield sse_event("message_delta", {"content": delta})
                     final_text = "".join(assembled).strip() or "Could not generate response."
+                    final_text = normalize_markdown_tables(final_text)
+                    final_text = sanitize_model_final_answer(final_text)
 
                 if wants_code:
                     for chunk in chunk_text_for_streaming(final_text):
@@ -540,6 +752,8 @@ async def post_chat_message_stream(chat_id: str, payload: ChatMessageCreateReque
 @router.post("/chats/{chat_id}/agent/stream")
 async def post_chat_agent_stream(chat_id: str, payload: dict, user: dict = Depends(get_current_user)):
     async def event_generator():
+        route = "unknown"
+        dataset_name = str(payload.get("dataset_name") or "").strip()
         try:
             chat_state = get_chat(user["id"], chat_id)
             chat = chat_state.get("chat", {})
@@ -554,6 +768,23 @@ async def post_chat_agent_stream(chat_id: str, payload: dict, user: dict = Depen
                 yield sse_event("done", {"status": "error"})
                 return
 
+            client_message_id = str(payload.get("client_message_id") or "").strip() or None
+            payload_session_id = str(payload.get("session_id") or "").strip()
+            effective_session_id = chat_id
+            agent_run_id = uuid.uuid4().hex
+            create_run(agent_run_id)
+            if payload_session_id and payload_session_id != chat_id:
+                logger.warning(
+                    "Ignoring mismatched session_id for dataset-agent stream: payload_session_id=%s chat_id=%s",
+                    payload_session_id,
+                    chat_id,
+                )
+            if client_message_id:
+                existing_user_msg = get_message_by_client_id(user["id"], chat_id, "user", client_message_id)
+                if existing_user_msg is not None:
+                    yield sse_event("tool_log", {"content": "Повторный запрос с тем же client_message_id проигнорирован."})
+                    yield sse_event("done", {"status": "ok", "duplicate": True, "message_id": existing_user_msg.get("id")})
+                    return
             user_msg = add_message(
                 user["id"],
                 chat_id,
@@ -561,16 +792,41 @@ async def post_chat_agent_stream(chat_id: str, payload: dict, user: dict = Depen
                 question,
                 [{"type": "markdown", "content": question}],
                 {"source": "dataset_agent"},
+                client_message_id=client_message_id,
             )
             yield sse_event("message_start", {"chat_id": chat_id, "role": "assistant"})
+            yield sse_event("run_started", {"run_id": agent_run_id})
             yield sse_event("tool_start", {"name": "lab3_agent"})
             yield sse_event("tool_log", {"content": "Определяю маршрут запроса..."})
 
             recent_messages = chat_state.get("messages", [])
+            conversation_context = _build_dataset_agent_context(user["id"], chat_id, limit=12)
+            followup_intent = _resolve_followup_intent(question, conversation_context)
+            resolved_task = str(followup_intent.get("resolved_task") or question)
+            last_req = str(conversation_context.get("last_user_analysis_request") or "")
+            artifacts_ctx = conversation_context.get("available_artifacts")
+            artifacts_count = len(artifacts_ctx) if isinstance(artifacts_ctx, list) else 0
+            recent_ctx = conversation_context.get("recent_messages")
+            ctx_count = len(recent_ctx) if isinstance(recent_ctx, list) else 0
+            logger.info(
+                "DATASET_AGENT_CONTEXT chat_id=%s session_id=%s dataset_name=%s current_message=%s "
+                "followup_intent=%s resolved_task=%s last_user_analysis_request=%s context_message_count=%s artifact_count=%s",
+                chat_id,
+                effective_session_id,
+                dataset_name,
+                question[:240],
+                str(followup_intent.get("intent") or "new_task"),
+                resolved_task[:300],
+                last_req[:240],
+                ctx_count,
+                artifacts_count,
+            )
             router = await route_dataset_chat(
                 user_message=question,
                 dataset_name=dataset_name,
                 recent_messages=recent_messages,
+                conversation_context=conversation_context,
+                followup_intent=followup_intent,
             )
             route = str(router.get("route") or "answer_directly")
             reason = str(router.get("reason") or "")
@@ -582,10 +838,12 @@ async def post_chat_agent_stream(chat_id: str, payload: dict, user: dict = Depen
 
             if route == "answer_directly":
                 final_answer = await _answer_directly_for_dataset_chat(
-                    question=question,
+                    question=resolved_task if followup_intent.get("intent") != "new_task" else question,
                     dataset_name=dataset_name,
                     recent_messages=recent_messages,
                 )
+                final_answer = normalize_markdown_tables(final_answer)
+                final_answer = sanitize_model_final_answer(final_answer)
                 for chunk in chunk_text_for_streaming(final_answer):
                     yield sse_event("message_delta", {"content": chunk})
                 assistant_message = add_message(
@@ -611,12 +869,35 @@ async def post_chat_agent_stream(chat_id: str, payload: dict, user: dict = Depen
                 max_tool_calls=int(payload.get("max_tool_calls") or 6),
                 use_critic=bool(payload.get("use_critic") or False),
                 analysis_mode=str(payload.get("analysis_mode") or "code_interpreter"),
-                session_id=str(payload.get("session_id") or chat_id),
+                session_id=effective_session_id,
                 include_history=bool(payload.get("include_history", True)),
                 reset_session_flag=bool(payload.get("reset_session", False)),
                 max_code_steps=payload.get("max_code_steps"),
+                conversation_context=conversation_context,
+                resolved_task=resolved_task,
+                followup_intent=followup_intent,
+                user_id=user["id"],
+                run_id=agent_run_id,
             )
             result_status = str(result.get("status") or "").strip().lower()
+            if result_status == "cancelled":
+                cancel_text = "Запрос остановлен пользователем."
+                assistant_message = add_message(
+                    user["id"],
+                    chat_id,
+                    "assistant",
+                    cancel_text,
+                    [{"type": "warning", "content": cancel_text}],
+                    {
+                        "streamed": True,
+                        "cancelled": True,
+                        "run_id": result.get("run_id") or agent_run_id,
+                        "router": {"route": route, "reason": reason, "user_intent": user_intent},
+                    },
+                )
+                yield sse_event("cancelled", {"message": cancel_text, "run_id": result.get("run_id") or agent_run_id})
+                yield sse_event("done", {"status": "cancelled", "message_id": assistant_message.get("id")})
+                return
             if result_status in {"error", "failed_contract"}:
                 error_text = str(result.get("final_answer") or "Модель не сгенерировала исполняемый Python-код для анализа.").strip()
                 error_block = {"type": "warning", "content": error_text}
@@ -631,6 +912,7 @@ async def post_chat_agent_stream(chat_id: str, payload: dict, user: dict = Depen
                         "sandbox_mode": True,
                         "session_id": result.get("session_id") or chat_id,
                         "router": {"route": route, "reason": reason, "user_intent": user_intent},
+                        "run_id": agent_run_id,
                         "raw_messages": result.get("raw_messages", []),
                         "debug_warnings": result.get("debug_warnings", []),
                         "warnings": result.get("warnings", []),
@@ -685,11 +967,39 @@ async def post_chat_agent_stream(chat_id: str, payload: dict, user: dict = Depen
             final_answer = str(result.get("final_answer") or "")
             if not final_answer.strip():
                 final_answer = "Не удалось получить текстовый ответ после выполнения анализа."
+            final_answer = normalize_markdown_tables(final_answer)
+            final_answer = sanitize_model_final_answer(final_answer)
             for chunk in chunk_text_for_streaming(final_answer):
                 yield sse_event("message_delta", {"content": chunk})
 
             artifacts: list[dict] = []
+            merged_files_map: dict[str, dict] = {}
+            files_before = 0
             for file_item in (result.get("files") or []):
+                if isinstance(file_item, dict):
+                    files_before += 1
+                    key = _file_dedupe_key(file_item)
+                    if key:
+                        merged_files_map[key] = file_item
+            if isinstance(code_steps, list):
+                for step in code_steps:
+                    if not isinstance(step, dict):
+                        continue
+                    execution = step.get("execution") if isinstance(step.get("execution"), dict) else {}
+                    for file_item in (execution.get("files") or []):
+                        if isinstance(file_item, dict):
+                            files_before += 1
+                            key = _file_dedupe_key(file_item)
+                            if key and key not in merged_files_map:
+                                merged_files_map[key] = file_item
+            logger.info(
+                "LAB3_FILES_DEDUP before=%s after=%s keys=%s",
+                files_before,
+                len(merged_files_map),
+                list(merged_files_map.keys())[:40],
+            )
+
+            for file_item in merged_files_map.values():
                 path = str(file_item.get("path") or "")
                 name = str(file_item.get("name") or Path(path).name or "artifact")
                 if not path:
@@ -720,10 +1030,25 @@ async def post_chat_agent_stream(chat_id: str, payload: dict, user: dict = Depen
                 except Exception:
                     logger.exception("Agent stream artifact registration failed path=%s", path)
 
+            artifacts_before = len(artifacts)
+            dedup_artifacts: list[dict] = []
+            seen_artifacts: set[str] = set()
+            artifact_keys: list[str] = []
+            for artifact in artifacts:
+                if not isinstance(artifact, dict):
+                    continue
+                key = _artifact_dedupe_key(artifact)
+                if key in seen_artifacts:
+                    continue
+                seen_artifacts.add(key)
+                artifact_keys.append(key)
+                dedup_artifacts.append(artifact)
+            artifacts = dedup_artifacts
+
             overview_blocks: list[dict] = []
             if _is_dataset_overview_request(question):
                 try:
-                    overview_blocks = _build_dataset_overview_blocks(dataset_name)
+                    overview_blocks = _build_dataset_overview_blocks(dataset_name, user["id"])
                 except Exception:
                     logger.exception("Failed to build dataset overview blocks")
             execution_blocks: list[dict] = []
@@ -751,28 +1076,57 @@ async def post_chat_agent_stream(chat_id: str, payload: dict, user: dict = Depen
                             "stderr": str(execution.get("stderr") or ""),
                             "status": str(execution.get("status") or step.get("status") or "unknown"),
                             "elapsed_seconds": execution.get("elapsed_seconds"),
+                            "files": execution.get("files") if isinstance(execution.get("files"), list) else [],
                         }
                     )
 
-            blocks = [
-                {"type": "markdown", "content": final_answer},
-                *execution_blocks,
-                *overview_blocks,
-                *[artifact_to_message_block(user["id"], a) for a in artifacts],
-            ]
+            artifact_blocks = [artifact_to_message_block(user["id"], a) for a in artifacts]
+            blocks_before = len(artifact_blocks)
+            has_table_artifact_block = any(
+                isinstance(b, dict) and b.get("type") == "table"
+                for b in artifact_blocks
+            )
+            # Avoid duplicated dataset previews: if execution already produced table artifacts
+            # (e.g. head.csv), render artifact tables as the single source of truth.
+            if has_table_artifact_block:
+                overview_blocks = []
+            chart_blocks_raw = [b for b in artifact_blocks if isinstance(b, dict) and b.get("type") == "chart"]
+            chart_blocks: list[dict] = []
+            seen_chart: set[str] = set()
+            for block in chart_blocks_raw:
+                key = _chart_block_dedupe_key(block)
+                if key in seen_chart:
+                    continue
+                seen_chart.add(key)
+                chart_blocks.append(block)
+            other_artifact_blocks = [b for b in artifact_blocks if isinstance(b, dict) and b.get("type") != "chart"]
+            logger.info(
+                "LAB3_ARTIFACT_BLOCKS_DEDUP before=%s after=%s keys=%s artifacts_before=%s artifacts_after=%s",
+                blocks_before,
+                len(chart_blocks) + len(other_artifact_blocks),
+                artifact_keys[:40],
+                artifacts_before,
+                len(artifacts),
+            )
+            blocks = [{"type": "markdown", "content": final_answer}, *chart_blocks, *overview_blocks, *other_artifact_blocks, *execution_blocks]
+            logger.info("LAB3_CHAT_MESSAGE_BLOCKS block_types=%s", [str(b.get("type")) for b in blocks if isinstance(b, dict)])
             assistant_message = add_message(
                 user["id"],
                 chat_id,
                 "assistant",
                 final_answer,
                 blocks,
-                {
-                    "streamed": True,
-                    "sandbox_mode": True,
-                    "session_id": result.get("session_id") or chat_id,
-                    "router": {"route": route, "reason": reason, "user_intent": user_intent},
-                },
-            )
+                    {
+                        "streamed": True,
+                        "sandbox_mode": True,
+                        "session_id": result.get("session_id") or chat_id,
+                        "router": {"route": route, "reason": reason, "user_intent": user_intent},
+                        "run_id": result.get("run_id") or agent_run_id,
+                        "generated_files": result.get("files", []),
+                        "code_steps": code_steps if isinstance(code_steps, list) else [],
+                        "successful_executions_count": result.get("successful_executions_count", 0),
+                    },
+                )
             yield sse_event("tool_end", {"name": "lab3_agent", "status": "success"})
             yield sse_event(
                 "done",
@@ -784,21 +1138,40 @@ async def post_chat_agent_stream(chat_id: str, payload: dict, user: dict = Depen
             )
         except Exception as exc:
             logger.exception("Dataset-agent stream failed")
-            err_text = str(exc or "")
-            message = err_text if "Sandbox Docker runner is not available" in err_text else "Не удалось получить ответ модели"
+            error_type = exc.__class__.__name__
+            error_message = _sanitize_error_text(str(exc or "").strip() or "unknown error")
+            traceback_full = _sanitize_error_text(traceback.format_exc())
+            traceback_lines = traceback_full.splitlines()
+            traceback_preview = "\n".join(traceback_lines[-40:]) if traceback_lines else ""
+            user_message = f"Ошибка dataset-agent: {error_message}" if error_message else "Ошибка dataset-agent: неизвестная ошибка"
             try:
                 _ = add_message(
                     user["id"],
                     chat_id,
                     "assistant",
-                    f"Ошибка sandbox: {message}" if "Sandbox Docker runner is not available" in message else message,
-                    [{"type": "warning", "content": f"Ошибка sandbox: {message}" if "Sandbox Docker runner is not available" in message else message}],
-                    {"streamed": True, "error": True},
+                    user_message,
+                    [
+                        {
+                            "type": "warning",
+                            "content": user_message,
+                            "details": traceback_preview,
+                            "error_type": error_type,
+                        }
+                    ],
+                    {
+                        "streamed": True,
+                        "error": True,
+                        "error_type": error_type,
+                        "error_message": error_message,
+                        "traceback": traceback_preview,
+                        "route": route,
+                        "dataset_name": dataset_name,
+                    },
                 )
             except Exception:
                 logger.exception("Failed to persist error message")
-            yield sse_event("tool_log", {"content": message})
-            yield sse_event("error", {"message": message})
+            yield sse_event("tool_log", {"content": user_message})
+            yield sse_event("error", {"message": user_message, "error_type": error_type, "error_message": error_message})
             yield sse_event("done", {"status": "error"})
 
     return StreamingResponse(
@@ -811,6 +1184,25 @@ async def post_chat_agent_stream(chat_id: str, payload: dict, user: dict = Depen
             "Content-Type": "text/event-stream; charset=utf-8",
         },
     )
+
+
+@router.post("/agent-runs/{run_id}/cancel")
+def cancel_agent_run(run_id: str, user: dict = Depends(get_current_user)):
+    _ = user
+    was_found = cancel_run(run_id)
+    for container_name in get_container_names(run_id):
+        try:
+            subprocess.run(
+                ["docker", "stop", container_name],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=10,
+            )
+        except Exception:
+            logger.exception("Failed to stop sandbox container during cancellation: run_id=%s container=%s", run_id, container_name)
+    return {"status": "cancelled" if was_found else "not_found", "run_id": run_id}
 
 
 @router.patch("/chats/{chat_id}", response_model=ChatItem)

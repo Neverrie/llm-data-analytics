@@ -91,7 +91,7 @@ def test_dataset_preview() -> None:
 def test_upload_dataset() -> None:
     with TestClient(app) as client:
         headers = _auth_headers(client)
-        files = {"file": ("tiny.csv", io.BytesIO(b"a,b\n1,2\n"), "text/csv")}
+        files = {"file": ("sample_upload.csv", io.BytesIO(b"a,b\n1,2\n"), "text/csv")}
         uploaded = client.post("/api/datasets/upload", files=files, headers=headers)
         assert uploaded.status_code == 200
         dataset_id = uploaded.json()["id"]

@@ -58,6 +58,22 @@ class DatasetsViewModel(
         _uiState.update { it.copy(selectedDatasetId = datasetId) }
     }
 
+    fun deleteDataset(datasetId: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(loading = true, error = null) }
+            when (val result = datasetRepository.deleteDataset(datasetId)) {
+                is AppResult.Success -> {
+                    val oldSelected = _uiState.value.selectedDatasetId
+                    loadDatasets()
+                    if (oldSelected == datasetId) {
+                        _uiState.update { it.copy(selectedDatasetId = null, preview = null, profile = null) }
+                    }
+                }
+                is AppResult.Error -> _uiState.update { it.copy(loading = false, error = result.message) }
+            }
+        }
+    }
+
     fun loadDetail(datasetId: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(loading = true, error = null, selectedDatasetId = datasetId) }
@@ -83,4 +99,3 @@ class DatasetsViewModelFactory(
         return DatasetsViewModel(datasetRepository) as T
     }
 }
-

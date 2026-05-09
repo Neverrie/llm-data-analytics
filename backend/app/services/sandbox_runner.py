@@ -11,6 +11,7 @@ import re
 from typing import Any
 
 from app.config import settings
+from app.services.agent_runs import is_cancelled, register_container, unregister_container
 
 logger = logging.getLogger(__name__)
 WINDOWS_DRIVE_RE = re.compile(r"^[A-Za-z]:[\\/]")
@@ -46,6 +47,8 @@ class SandboxRunner:
         work_dir: Path,
         dataset_path: Path | None,
         limits: SandboxLimits,
+        run_id: str | None = None,
+        step: int | None = None,
     ) -> SandboxResult:
         raise NotImplementedError
 
@@ -58,9 +61,13 @@ class LocalSubprocessRunner(SandboxRunner):
         work_dir: Path,
         dataset_path: Path | None,
         limits: SandboxLimits,
+        run_id: str | None = None,
+        step: int | None = None,
     ) -> SandboxResult:
         started = time.perf_counter()
         try:
+            if is_cancelled(run_id):
+                return SandboxResult(status="cancelled", stderr="Request cancelled by user.")
             proc = subprocess.run(
                 [sys.executable, "-I", str(script_path)],
                 capture_output=True,
@@ -165,7 +172,7 @@ class DockerSandboxRunner(SandboxRunner):
         except Exception:
             return False
 
-    def map_container_path_to_host(self, path: Path) -> Path:
+    def map_container_path_to_host(self, path: Path) -> str:
         resolved = path.resolve()
         outputs_root = Path(settings.outputs_dir).resolve()
         datasets_root = Path(settings.datasets_dir).resolve()
@@ -179,7 +186,9 @@ class DockerSandboxRunner(SandboxRunner):
                     "Docker sandbox requires HOST_OUTPUTS_DIR because backend runs inside a container."
                 )
             rel = resolved.relative_to(outputs_root)
-            return (Path(host_outputs).resolve() / rel).resolve()
+            if self._is_windows_host_path(host_outputs):
+                return self._join_host_path(host_outputs.replace("\\", "/").rstrip("/"), rel)
+            return str((Path(host_outputs).resolve() / rel).resolve())
 
         if self._is_within(resolved, datasets_root):
             if not host_datasets:
@@ -187,9 +196,11 @@ class DockerSandboxRunner(SandboxRunner):
                     "Docker sandbox requires HOST_DATASETS_DIR because dataset is mounted from backend container path."
                 )
             rel = resolved.relative_to(datasets_root)
-            return (Path(host_datasets).resolve() / rel).resolve()
+            if self._is_windows_host_path(host_datasets):
+                return self._join_host_path(host_datasets.replace("\\", "/").rstrip("/"), rel)
+            return str((Path(host_datasets).resolve() / rel).resolve())
 
-        return resolved
+        return str(resolved)
 
     @staticmethod
     def _is_windows_host_path(path_str: str) -> bool:
@@ -211,6 +222,8 @@ class DockerSandboxRunner(SandboxRunner):
         work_dir: Path,
         dataset_path: Path | None,
         limits: SandboxLimits,
+        run_id: str | None = None,
+        step: int | None = None,
     ) -> SandboxResult:
         started = time.perf_counter()
         preflight_error = self._preflight_check()
@@ -231,30 +244,31 @@ class DockerSandboxRunner(SandboxRunner):
             )
 
         host_outputs_env = (settings.host_outputs_dir or "").strip()
-        host_datasets_env = (settings.host_datasets_dir or "").strip()
         if not host_outputs_env:
             return SandboxResult(
                 status="error",
                 stderr="Docker sandbox requires HOST_OUTPUTS_DIR because backend runs inside a container.",
             )
-        if dataset_path and not host_datasets_env:
-            return SandboxResult(
-                status="error",
-                stderr="Docker sandbox requires HOST_DATASETS_DIR because dataset is mounted from backend container path.",
-            )
-        work_rel = work_dir.resolve().relative_to(Path(settings.outputs_dir).resolve())
-        host_work_dir_str = self._join_host_path(host_outputs_env, work_rel)
+        try:
+            mapped_work = self.map_container_path_to_host(work_dir)
+        except Exception as exc:
+            return SandboxResult(status="error", stderr=str(exc))
+        host_work_dir_str = mapped_work
         host_dataset_path_str: str | None = None
         if dataset_path:
-            ds_rel = dataset_path.resolve().relative_to(Path(settings.datasets_dir).resolve())
-            host_dataset_path_str = self._join_host_path(host_datasets_env, ds_rel)
+            try:
+                mapped_dataset = self.map_container_path_to_host(dataset_path)
+            except Exception as exc:
+                return SandboxResult(status="error", stderr=str(exc))
+            host_dataset_path_str = mapped_dataset
         host_work_dir_clean = host_work_dir_str.rstrip("/\\")
         host_script_path = f"{host_work_dir_clean}/{script_path.name}"
 
         logger.info(
-            "SANDBOX_DOCKER_PATHS work_dir=%s host_work_dir=%s dataset_path=%s host_dataset_path=%s",
+            "SANDBOX_DOCKER_PATHS container_work_dir=%s host_work_dir=%s host_outputs_dir=%s dataset_path=%s host_dataset_path=%s",
             str(work_dir),
             host_work_dir_str,
+            host_outputs_env,
             str(dataset_path) if dataset_path else "-",
             host_dataset_path_str or "-",
         )
@@ -276,6 +290,13 @@ class DockerSandboxRunner(SandboxRunner):
                     )
 
         user_spec = str(getattr(settings, "sandbox_docker_user", "1000:1000")).strip() or "1000:1000"
+        if is_cancelled(run_id):
+            return SandboxResult(status="cancelled", stderr="Request cancelled by user.")
+        container_name = None
+        if run_id:
+            safe_run = re.sub(r"[^a-zA-Z0-9_.-]", "-", run_id)[:36]
+            safe_step = step if step is not None else 0
+            container_name = f"llm-sandbox-{safe_run}-{safe_step}"
         write_test_cmd = [
             docker_bin,
             "run",
@@ -338,6 +359,10 @@ class DockerSandboxRunner(SandboxRunner):
             docker_bin,
             "run",
             "--rm",
+        ]
+        if container_name:
+            cmd.extend(["--name", container_name])
+        cmd.extend([
             "--network",
             "none",
             "--read-only",
@@ -361,12 +386,14 @@ class DockerSandboxRunner(SandboxRunner):
             f"{host_work_dir_str}:/work:rw",
             "-w",
             "/work",
-        ]
+        ])
         if host_dataset_path_str:
             cmd.extend(["-v", f"{host_dataset_path_str}:/input/dataset.csv:ro"])
         cmd.extend([self.image, "python", "/work/script.py"])
 
         try:
+            if container_name:
+                register_container(run_id, container_name)
             proc = subprocess.run(
                 cmd,
                 capture_output=True,
@@ -375,6 +402,14 @@ class DockerSandboxRunner(SandboxRunner):
                 errors="replace",
                 timeout=limits.timeout_seconds + 5,
             )
+            logger.info("SANDBOX_DOCKER_EXIT run_id=%s returncode=%s", run_id or "-", proc.returncode)
+            if is_cancelled(run_id):
+                return SandboxResult(
+                    status="cancelled",
+                    stdout=(proc.stdout or "")[: limits.max_stdout_chars],
+                    stderr="Request cancelled by user.",
+                    elapsed_seconds=round(time.perf_counter() - started, 3),
+                )
             if (
                 proc.returncode != 0
                 and user_spec != "0:0"
@@ -411,6 +446,8 @@ class DockerSandboxRunner(SandboxRunner):
                 elapsed_seconds=round(time.perf_counter() - started, 3),
             )
         finally:
+            if container_name:
+                unregister_container(run_id, container_name)
             try:
                 created_files = [p.name for p in sorted(work_dir.iterdir()) if p.is_file()]
                 logger.info("SANDBOX_DOCKER_WORKDIR_FILES work_dir=%s files=%s", str(work_dir), created_files[:50])

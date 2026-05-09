@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
@@ -40,7 +41,20 @@ async def route_dataset_chat(
     user_message: str,
     dataset_name: str,
     recent_messages: list[dict[str, Any]],
+    conversation_context: dict[str, Any] | None = None,
+    followup_intent: dict[str, Any] | None = None,
 ) -> dict[str, str]:
+    conversation_context = conversation_context or {}
+    followup_intent = followup_intent or {}
+    intent_name = str(followup_intent.get("intent") or "")
+    if intent_name in {"retry_previous_task", "continue_previous_task", "refine_previous_answer"}:
+        last_req = str(conversation_context.get("last_user_analysis_request") or "").strip()
+        if last_req:
+            return {
+                "route": "analyze_with_code",
+                "reason": "Короткий follow-up запрос в контексте предыдущей аналитической задачи.",
+                "user_intent": f"{intent_name}: {last_req[:120]}",
+            }
     system_prompt = (
         "Ты router для чата аналитика данных.\n\n"
         "Всегда пиши поля reason и user_intent на русском языке. "
@@ -85,6 +99,8 @@ async def route_dataset_chat(
     user_prompt = (
         f"dataset_name: {dataset_name}\n"
         f"history: {history_payload}\n"
+        f"conversation_context: {json.dumps(conversation_context, ensure_ascii=False)}\n"
+        f"followup_intent: {json.dumps(followup_intent, ensure_ascii=False)}\n"
         f"user_message: {user_message}"
     )
     client = LLMClient()

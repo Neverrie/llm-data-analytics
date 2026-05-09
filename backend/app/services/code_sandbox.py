@@ -2,10 +2,12 @@
 
 import ast
 import logging
+import mimetypes
 from pathlib import Path
 from typing import Any
 
 from app.config import settings
+from app.services.dataset_resolver import resolve_dataset_for_user
 from app.services.sandbox_runner import DockerSandboxRunner, LocalSubprocessRunner, SandboxLimits
 
 SOFT_BLOCK_TOKENS = [
@@ -36,23 +38,27 @@ def _soft_block_reason(code: str) -> str | None:
 
 
 def _dataset_path(dataset_name: str) -> Path:
-    path = (Path(settings.datasets_dir) / dataset_name).resolve()
-    base = Path(settings.datasets_dir).resolve()
-    if base not in path.parents and path != base:
-        raise ValueError("Invalid dataset path")
-    return path
+    return resolve_dataset_for_user(dataset_name, None).path
 
 
 def _collect_files(run_dir: Path, limits: SandboxLimits) -> list[dict[str, Any]]:
+    allowed_suffixes = {".png", ".jpg", ".jpeg", ".webp", ".csv", ".xlsx", ".xls", ".json", ".html", ".md"}
     files: list[dict[str, Any]] = []
-    for path in sorted(run_dir.iterdir()):
-        if path.name in {"script.py"} or not path.is_file():
+    for path in sorted(run_dir.rglob("*")):
+        if not path.is_file():
+            continue
+        if path.name in {"script.py"}:
+            continue
+        if "__pycache__" in path.parts:
+            continue
+        if path.suffix.lower() not in allowed_suffixes:
             continue
         size = path.stat().st_size
         if size > limits.max_file_size:
             path.unlink(missing_ok=True)
             continue
-        files.append({"name": path.name, "path": str(path), "size": int(size)})
+        mime_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        files.append({"name": path.name, "path": str(path), "size": int(size), "mime_type": mime_type})
         if len(files) >= limits.max_files:
             break
     return files
@@ -144,7 +150,16 @@ def _build_runner() -> tuple[Any, bool]:
     return DockerSandboxRunner(image=image), True
 
 
-def _run(code: str, *, run_id: str, dataset_name: str | None, column_mapping: dict[str, Any] | None, profile: dict[str, Any] | None) -> dict[str, Any]:
+def _run(
+    code: str,
+    *,
+    run_id: str,
+    dataset_name: str | None,
+    user_id: str | None,
+    step: int | None,
+    column_mapping: dict[str, Any] | None,
+    profile: dict[str, Any] | None,
+) -> dict[str, Any]:
     reason = _soft_block_reason(code)
     if reason:
         return {"status": "blocked", "reason": reason}
@@ -152,7 +167,7 @@ def _run(code: str, *, run_id: str, dataset_name: str | None, column_mapping: di
     run_dir = Path(settings.outputs_dir) / "lab3" / "code_runs" / run_id
     prepare_sandbox_work_dir(run_dir)
 
-    dataset_path = _dataset_path(dataset_name) if dataset_name else None
+    dataset_path = resolve_dataset_for_user(dataset_name, user_id).path if dataset_name else None
     timeout_seconds = int(getattr(settings, "lab3_code_exec_timeout_seconds", 15))
     limits = SandboxLimits(timeout_seconds=timeout_seconds)
 
@@ -174,7 +189,14 @@ def _run(code: str, *, run_id: str, dataset_name: str | None, column_mapping: di
         logger.debug("Could not chmod script_path=%s", str(script_path), exc_info=True)
 
     logger.info("CODE_EXEC_START run_id=%s mode=%s dataset=%s", run_id, runner.__class__.__name__, dataset_name or "-")
-    res = runner.run(script_path=script_path, work_dir=run_dir, dataset_path=dataset_path, limits=limits)
+    res = runner.run(
+        script_path=script_path,
+        work_dir=run_dir,
+        dataset_path=dataset_path,
+        limits=limits,
+        run_id=run_id,
+        step=step,
+    )
 
     files = _collect_files(run_dir, limits)
     out = {
@@ -195,10 +217,20 @@ def execute_python_code(
     dataset_name: str,
     run_id: str,
     *,
+    user_id: str | None = None,
+    step: int | None = None,
     column_mapping: dict[str, Any] | None = None,
     profile: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return _run(code, run_id=run_id, dataset_name=dataset_name, column_mapping=column_mapping, profile=profile)
+    return _run(
+        code,
+        run_id=run_id,
+        dataset_name=dataset_name,
+        user_id=user_id,
+        step=step,
+        column_mapping=column_mapping,
+        profile=profile,
+    )
 
 
 def execute_python_code_general(
@@ -206,7 +238,17 @@ def execute_python_code_general(
     run_id: str,
     *,
     dataset_name: str | None = None,
+    user_id: str | None = None,
+    step: int | None = None,
     column_mapping: dict[str, Any] | None = None,
     profile: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return _run(code, run_id=run_id, dataset_name=dataset_name, column_mapping=column_mapping, profile=profile)
+    return _run(
+        code,
+        run_id=run_id,
+        dataset_name=dataset_name,
+        user_id=user_id,
+        step=step,
+        column_mapping=column_mapping,
+        profile=profile,
+    )

@@ -1,11 +1,13 @@
 ﻿from __future__ import annotations
 
+import asyncio
 import json
 import re
 from typing import Any
 
 from app.config import get_default_model_for_provider, get_lab3_model, settings
 from app.ollama_client import OllamaClient, OllamaClientError
+from app.services.langchain_llm import get_langchain_chat_model
 from app.services.openrouter_client import OpenRouterClient, OpenRouterClientError
 from app.stream_events import chunk_text_for_streaming
 
@@ -44,6 +46,31 @@ class LLMClient:
     def _is_retryable_openrouter_error(message: str) -> bool:
         low = message.lower()
         return any(token in low for token in ["rate limit", "capacity", "temporarily unavailable", "overloaded", "try again later"])
+
+    @staticmethod
+    def _gemini_retry_delay_seconds(message: str) -> int | None:
+        low = message.lower()
+        if "quota exceeded" not in low and "resourceexhausted" not in low and "429" not in low:
+            return None
+        match = re.search(r"retry in\s+([0-9]+(?:\.[0-9]+)?)s", message, flags=re.IGNORECASE)
+        if match:
+            return max(1, int(float(match.group(1))))
+        match = re.search(r"seconds:\s*([0-9]+)", message, flags=re.IGNORECASE)
+        if match:
+            return max(1, int(match.group(1)))
+        return 25
+
+    async def _gemini_ainvoke_with_retry(self, model: Any, messages: list[dict[str, str]]) -> Any:
+        attempts = 0
+        while True:
+            attempts += 1
+            try:
+                return await model.ainvoke(messages)
+            except Exception as exc:
+                delay = self._gemini_retry_delay_seconds(str(exc))
+                if delay is None or attempts >= 3:
+                    raise
+                await asyncio.sleep(min(delay + 1, 60))
 
     async def _openrouter_chat_with_fallback(
         self,
@@ -115,11 +142,27 @@ class LLMClient:
                     temperature=temperature,
                     want_json=False,
                 )
+            if self.provider == "gemini":
+                lc_model = get_langchain_chat_model(model=resolved_model, temperature=temperature)
+                resp = await self._gemini_ainvoke_with_retry(lc_model, messages)
+                content = getattr(resp, "content", "")
+                if isinstance(content, str):
+                    text = content.strip()
+                elif isinstance(content, list):
+                    text = "\n".join(
+                        str(item.get("text", "")).strip() if isinstance(item, dict) else str(item).strip()
+                        for item in content
+                    ).strip()
+                else:
+                    text = str(content).strip()
+                if not text:
+                    raise LLMClientError("Gemini returned empty content.")
+                return text
 
             prompt = "\n\n".join(f"{m.get('role', 'user')}: {m.get('content', '')}" for m in messages)
             resp = await OllamaClient(settings.ollama_base_url).generate_text(resolved_model, prompt)
             return resp.response.strip()
-        except (OpenRouterClientError, OllamaClientError) as exc:
+        except (OpenRouterClientError, OllamaClientError, RuntimeError) as exc:
             raise LLMClientError(str(exc)) from exc
 
     async def chat_json(
@@ -141,6 +184,25 @@ class LLMClient:
                 if not isinstance(result, dict):
                     raise LLMClientError("LLM JSON response must be an object.")
                 return result
+            if self.provider == "gemini":
+                lc_model = get_langchain_chat_model(model=resolved_model, temperature=temperature)
+                json_messages = [
+                    *messages,
+                    {
+                        "role": "user",
+                        "content": "Return strictly valid JSON object only. No markdown fences.",
+                    },
+                ]
+                resp = await self._gemini_ainvoke_with_retry(lc_model, json_messages)
+                content = getattr(resp, "content", "")
+                text = content.strip() if isinstance(content, str) else str(content).strip()
+                fenced = re.search(r"```json\s*(.*?)\s*```", text, flags=re.IGNORECASE | re.DOTALL)
+                if fenced:
+                    text = fenced.group(1).strip()
+                parsed = json.loads(text)
+                if not isinstance(parsed, dict):
+                    raise LLMClientError("LLM JSON response must be an object.")
+                return parsed
 
             prompt = "\n\n".join(f"{m.get('role', 'user')}: {m.get('content', '')}" for m in messages)
             resp = await OllamaClient(settings.ollama_base_url).generate_json(resolved_model, prompt)
@@ -152,7 +214,7 @@ class LLMClient:
             if not isinstance(parsed, dict):
                 raise LLMClientError("LLM JSON response must be an object.")
             return parsed
-        except (OpenRouterClientError, OllamaClientError, json.JSONDecodeError) as exc:
+        except (OpenRouterClientError, OllamaClientError, json.JSONDecodeError, RuntimeError) as exc:
             raise LLMClientError(str(exc)) from exc
 
     async def stream_chat(
@@ -191,6 +253,14 @@ class LLMClient:
                         continue
                     break
             raise LLMClientError(str(last_error) if last_error else "OpenRouter stream failed.")
+        if self.provider == "gemini":
+            try:
+                text = await self.chat(messages=messages, purpose=purpose, model=resolved_model, temperature=temperature)
+                for chunk in chunk_text_for_streaming(text):
+                    yield chunk
+                return
+            except (LLMClientError, RuntimeError) as exc:
+                raise LLMClientError(str(exc)) from exc
 
         try:
             prompt = "\n\n".join(f"{m.get('role', 'user')}: {m.get('content', '')}" for m in messages)

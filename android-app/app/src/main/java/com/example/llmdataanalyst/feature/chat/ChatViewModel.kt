@@ -3,6 +3,7 @@
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import android.util.Log
 import com.example.llmdataanalyst.core.model.ChatMessageCreateRequest
 import com.example.llmdataanalyst.core.model.ChatSendResult
 import com.example.llmdataanalyst.core.model.DatasetItem
@@ -25,6 +26,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import java.util.Locale
+import java.util.UUID
 
 data class UiChatMessage(
     val id: String,
@@ -55,6 +57,9 @@ class ChatViewModel(
     private val datasetRepository: DatasetRepository,
     private val settingsRepository: SettingsRepository
 ) : ViewModel() {
+    companion object {
+        private const val TAG = "ChatViewModel"
+    }
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState
 
@@ -114,6 +119,8 @@ class ChatViewModel(
 
     fun openChat(chatId: String) {
         if (chatId.isBlank()) return
+        streamJob?.cancel()
+        _uiState.update { it.copy(loading = false) }
         viewModelScope.launch {
             runCatching {
                 val detail = chatRepository.getChat(chatId)
@@ -198,13 +205,15 @@ class ChatViewModel(
                     put("client", buildJsonObject { put("platform", "android") })
                     uiState.value.selectedDatasetId?.let { put("dataset_id", JsonPrimitive(it)) }
                     uiState.value.selectedDatasetName?.let { put("dataset_name", JsonPrimitive(it)) }
-                }
+                },
+                clientMessageId = UUID.randomUUID().toString()
+            )
+            Log.d(
+                TAG,
+                "dataset-agent-send chat_id=$chatId session_id=$chatId dataset_name=${uiState.value.selectedDatasetName.orEmpty()} message=${text.take(200)} client_message_id=${request.clientMessageId}"
             )
 
-            var usedFallback = false
-            var failedFallbackTried = false
             var gotDone = false
-            val artifactsBefore = if (mode == ChatExecutionMode.DatasetAgent) chatRepository.listArtifacts().map { it.id }.toSet() else emptySet()
 
             chatRepository.sendMessage(
                 mode = mode,
@@ -228,59 +237,23 @@ class ChatViewModel(
                         }
                     }
                     is ChatSendResult.FallbackUsed -> {
-                        usedFallback = true
-                        _events.emit("Стриминг недоступен, использую обычный режим")
-                        if (mode == ChatExecutionMode.DatasetAgent) {
-                            val response = chatRepository.sendLab3Json(uiState.value.selectedDatasetName.orEmpty(), text)
-                            val finalAnswer = extractLab3FinalAnswer(response)
-                            setAssistantFinal(finalAnswer)
-                            refreshArtifactsAfterAgent(assistantId, artifactsBefore)
-                        } else {
-                            val jsonMsg = chatRepository.sendMessageJson(chatId, request)
-                            setAssistantFinal(chatRepository.stripDatasetTechnicalPrefix(jsonMsg.content))
-                        }
+                        _events.emit("Стриминг недоступен. Повторите запрос позже.")
+                        appendError("Стриминг недоступен")
                     }
                     is ChatSendResult.Completed -> {
                         gotDone = true
-                        if (mode == ChatExecutionMode.DatasetAgent) {
-                            runCatching {
-                                val lab3 = chatRepository.getLab3Result()
-                                val finalText = extractLab3FinalAnswer(lab3)
-                                if (finalText.isNotBlank()) {
-                                    setAssistantFinal(finalText)
-                                    hydrateArtifactsMentionedInText(assistantId, finalText)
-                                }
-                            }
-                            refreshArtifactsAfterAgent(assistantId, artifactsBefore)
-                        } else {
-                            result.messageId?.let { replaceTemporaryAssistantId(assistantId, it) }
-                            syncChat(chatId)
-                        }
+                        result.messageId?.let { replaceTemporaryAssistantId(assistantId, it) }
+                        syncChat(chatId)
                     }
                     is ChatSendResult.Failed -> {
-                        if (mode == ChatExecutionMode.DatasetAgent && !usedFallback && !failedFallbackTried) {
-                            failedFallbackTried = true
-                            usedFallback = true
-                            _events.emit("Стриминг завершился ошибкой, использую обычный режим")
-                            runCatching {
-                                val response = chatRepository.sendLab3Json(uiState.value.selectedDatasetName.orEmpty(), text)
-                                val finalAnswer = extractLab3FinalAnswer(response)
-                                setAssistantFinal(finalAnswer)
-                                refreshArtifactsAfterAgent(assistantId, artifactsBefore)
-                            }.onFailure {
-                                appendError(result.message)
-                                _events.emit(result.message)
-                            }
-                        } else {
-                            appendError(result.message)
-                            _events.emit(result.message)
-                        }
+                        appendError(result.message)
+                        _events.emit(result.message)
                     }
                     else -> Unit
                 }
             }
 
-            if (!gotDone && !usedFallback) _events.emit("Ответ завершён")
+            if (!gotDone) _events.emit("Ответ завершён")
             _uiState.update {
                 val updated = it.messages.toMutableList()
                 val idx = updated.indexOfLast { msg -> msg.role == "assistant" && msg.isLoading }
@@ -291,60 +264,7 @@ class ChatViewModel(
     }
 
     private fun buildRequestContentForMode(userText: String, mode: ChatExecutionMode): String {
-        return if (mode == ChatExecutionMode.DatasetAgent) {
-            "$userText\n\nИспользуй доступные инструменты backend при необходимости и верни краткий результат."
-        } else {
-            userText
-        }
-    }
-
-    private fun extractLab3FinalAnswer(payload: kotlinx.serialization.json.JsonElement): String {
-        return runCatching {
-            payload.jsonObject["final_answer"]?.toString()?.trim('"')
-        }.getOrNull().orEmpty()
-    }
-
-    private suspend fun refreshArtifactsAfterAgent(assistantMessageId: String, beforeIds: Set<String>) {
-        val now = chatRepository.listArtifacts()
-        val newItems = now
-            .filter { it.id !in beforeIds }
-            .filterNot { isTechnicalArtifact(it.title ?: it.filename ?: "", it.mimeType ?: "", it.kind ?: "") }
-            .filter { isRenderableArtifact(it.title ?: it.filename ?: "", it.mimeType ?: "", it.kind ?: "") }
-        if (newItems.isNotEmpty()) {
-            _events.emit("Найдено новых артефактов: ${newItems.size}")
-        }
-        newItems.forEach { art ->
-            hydrateArtifactBlock(
-                assistantMessageId = assistantMessageId,
-                artifactId = art.id,
-                title = art.title ?: art.filename,
-                mimeType = art.mimeType
-            )
-        }
-    }
-
-    private suspend fun hydrateArtifactsMentionedInText(assistantMessageId: String, text: String) {
-        val names = Regex("""([A-Za-z0-9_\-]+\.(png|jpg|jpeg|webp))""", RegexOption.IGNORE_CASE)
-            .findAll(text)
-            .map { it.groupValues[1].lowercase() }
-            .toSet()
-        if (names.isEmpty()) return
-        val artifacts = chatRepository.listArtifacts()
-        artifacts
-            .filter { art ->
-                val title = (art.title ?: art.filename).orEmpty().lowercase()
-                names.any { n -> title.endsWith(n) || title.contains(n) }
-            }
-            .forEach { art ->
-                if (!art.id.isNullOrBlank()) {
-                    hydrateArtifactBlock(
-                        assistantMessageId = assistantMessageId,
-                        artifactId = art.id,
-                        title = art.title ?: art.filename,
-                        mimeType = art.mimeType
-                    )
-                }
-            }
+        return userText
     }
 
     private fun resolveDatasetName(datasetId: String?, datasets: List<DatasetItem>): String? {

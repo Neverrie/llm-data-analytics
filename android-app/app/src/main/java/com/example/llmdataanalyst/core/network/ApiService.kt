@@ -29,9 +29,9 @@ import okhttp3.ResponseBody
 import okhttp3.MultipartBody
 import retrofit2.Response
 import retrofit2.http.Part
-import retrofit2.http.Query
 import retrofit2.http.PATCH
 import retrofit2.http.DELETE
+import retrofit2.http.Query
 
 interface ApiService {
     @GET("api/health")
@@ -53,7 +53,9 @@ interface ApiService {
     suspend fun workspace(): WorkspaceResponse
 
     @GET("api/chats")
-    suspend fun chats(): ChatsResponse
+    suspend fun chats(
+        @Query("archived") archived: Boolean? = false
+    ): ChatsResponse
 
     @POST("api/chats")
     suspend fun createChat(@Body request: CreateChatRequest): com.example.llmdataanalyst.core.model.ChatItem
@@ -88,6 +90,9 @@ interface ApiService {
 
     @GET("api/datasets/{datasetId}/profile")
     suspend fun datasetProfile(@Path("datasetId") datasetId: String): DatasetProfileResponse
+
+    @DELETE("api/datasets/{datasetId}")
+    suspend fun deleteDataset(@Path("datasetId") datasetId: String): kotlinx.serialization.json.JsonElement
 
     @GET("api/artifacts")
     suspend fun artifacts(): ArtifactsResponse

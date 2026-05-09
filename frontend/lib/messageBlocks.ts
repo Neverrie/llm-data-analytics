@@ -3,11 +3,11 @@
 export type MessageBlock =
   | { type: "markdown"; content: string }
   | { type: "code"; language: "python"; code: string; status?: string; step?: number }
-  | { type: "execution"; step?: number; stdout?: string; stderr?: string; status?: string; elapsed_seconds?: number }
+  | { type: "execution"; step?: number; stdout?: string; stderr?: string; status?: string; elapsed_seconds?: number; files?: Array<Record<string, unknown>> }
   | { type: "table"; artifact_id?: string; columns?: string[]; rows?: Record<string, unknown>[]; title?: string; preview_url?: string; download_url?: string }
   | { type: "chart"; artifact_id?: string; url?: string; preview_url?: string; download_url?: string; mime_type?: string; title?: string }
   | { type: "file"; artifact_id?: string; filename?: string; download_url?: string; preview_url?: string; mime_type?: string; title?: string; path?: string }
-  | { type: "warning"; content: string }
+  | { type: "warning"; content: string; details?: string; error_type?: string }
   | { type: "raw"; payload: unknown; title?: string };
 
 export function normalizeLab3ResponseToBlocks(response: any): MessageBlock[] {

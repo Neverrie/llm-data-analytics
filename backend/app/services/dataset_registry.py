@@ -71,13 +71,21 @@ def list_datasets(user_id: str) -> list[dict]:
             "SELECT * FROM datasets WHERE user_id IS NULL OR user_id = ? ORDER BY created_at DESC",
             (user_id,),
         )
+    def _size(path_value: str | None) -> int | None:
+        if not path_value:
+            return None
+        p = Path(path_value)
+        return int(p.stat().st_size) if p.exists() and p.is_file() else None
     return [
         {
             "id": row["id"],
             "name": row["name"],
-            "source": row["source"],
+            "filename": row["name"],
+            "source": ("uploaded" if row["user_id"] else "public"),
+            "owner_user_id": row["user_id"],
             "rows_count": row["rows_count"],
             "columns_count": row["columns_count"],
+            "size_bytes": _size(row["path"]),
             "created_at": row["created_at"],
             "preview_available": True,
         }
@@ -160,9 +168,12 @@ async def upload_dataset(user_id: str, file: UploadFile) -> dict:
     return {
         "id": dataset_id,
         "name": output_path.name,
+        "filename": output_path.name,
         "source": "upload",
+        "owner_user_id": user_id,
         "rows_count": int(len(frame)),
         "columns_count": int(len(frame.columns)),
+        "size_bytes": int(output_path.stat().st_size),
         "created_at": now,
         "preview_available": True,
     }
@@ -182,3 +193,26 @@ def datasets_for_lab3() -> list[dict]:
         ext = Path(name).suffix.lower().lstrip(".") or "file"
         out.append({"name": name, "path": row["path"], "type": ext})
     return out
+
+
+def delete_dataset(user_id: str, dataset_id: str) -> dict:
+    with get_connection() as conn:
+        row = fetch_one(conn, "SELECT * FROM datasets WHERE id = ?", (dataset_id,))
+        if not row:
+            raise HTTPException(status_code=404, detail="Dataset not found.")
+        owner = row["user_id"]
+        if owner is None:
+            raise HTTPException(status_code=403, detail="Public dataset cannot be deleted.")
+        if owner != user_id:
+            raise HTTPException(status_code=403, detail="Dataset belongs to another user.")
+
+        dataset_path = Path(str(row["path"])).resolve()
+        allowed_root = (Path(settings.outputs_dir) / "users" / user_id / "datasets").resolve()
+        if dataset_path.exists() and dataset_path.is_file():
+            if allowed_root in dataset_path.parents:
+                dataset_path.unlink(missing_ok=True)
+
+        conn.execute("DELETE FROM datasets WHERE id = ?", (dataset_id,))
+        conn.commit()
+
+    return {"status": "success", "id": dataset_id}

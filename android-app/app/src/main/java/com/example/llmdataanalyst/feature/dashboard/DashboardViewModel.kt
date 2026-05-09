@@ -58,11 +58,12 @@ class DashboardViewModel(
                 ?.message
 
             _uiState.update {
+                val activeChats = (chats as? AppResult.Success)?.data?.items.orEmpty().filter { c -> !c.archived }
                 it.copy(
                     loading = false,
                     error = error,
                     workspace = (ws as? AppResult.Success)?.data,
-                    chats = (chats as? AppResult.Success)?.data?.items.orEmpty(),
+                    chats = activeChats,
                     datasets = (datasets as? AppResult.Success)?.data?.items.orEmpty(),
                     artifacts = (artifacts as? AppResult.Success)?.data?.items.orEmpty()
                 )

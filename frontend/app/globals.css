@@ -279,7 +279,33 @@ body {
 .code-pre { margin: 0; font-size: 12px; max-height: 220px; overflow: auto; background: #f5f4f1; border-radius: 10px; padding: 9px; border: 1px solid var(--border-soft); }
 .code-pre.error { color: var(--danger); }
 .raw summary { cursor: pointer; font-weight: 600; }
-.raw.compact pre { max-height: 180px; }
+.raw.compact pre {
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.warning-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.warning-card > .code-pre {
+  margin-top: 0;
+}
+.step-summary {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 8px;
+  align-items: center;
+}
+.step-summary em {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .pipeline-header { padding: 10px; }
 .glass-inset { border-radius: 16px; border: 1px solid var(--border); background: rgba(255,255,255,.5); }

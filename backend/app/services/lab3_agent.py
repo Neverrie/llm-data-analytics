@@ -10,6 +10,7 @@ from app.services.lab2_service import Lab2PipelineError
 from app.services.lab3_column_mapper import get_effective_column_mapping
 from app.services.lab3_code_interpreter import run_code_interpreter_agent
 from app.services.lab3_langgraph_interpreter import run_langgraph_code_interpreter
+from app.services.lab3_tool_agent import run_lab3_tool_agent
 from app.services.llm_client import LLMClient, LLMClientError
 from app.services.lab3_security import validate_tool_call
 from app.services.lab3_session import (
@@ -457,6 +458,11 @@ async def run_agent(
     include_history: bool = True,
     reset_session: bool = False,
     max_code_steps: int | None = None,
+    conversation_context: dict[str, Any] | None = None,
+    resolved_task: str | None = None,
+    followup_intent: dict[str, Any] | None = None,
+    user_id: str | None = None,
+    run_id: str | None = None,
 ) -> dict[str, Any]:
     started_at = time.perf_counter()
     warnings: list[str] = []
@@ -483,6 +489,7 @@ async def run_agent(
         dataset_name,
         column_overrides,
         use_llm_assist=use_llm_mapping,
+        user_id=user_id,
     )
     mapping = mapping_model.model_dump()
     if mapping_llm_used:
@@ -490,12 +497,29 @@ async def run_agent(
 
     planner_raw_output: str | None = None
     if analysis_mode == "code_interpreter":
-        _ = history_context, include_history, max_code_steps
-        ci_result = await run_langgraph_code_interpreter(
-            dataset_name=dataset_name,
-            question=question,
-            column_mapping=mapping,
-            profile=profile,
+        _ = include_history, max_code_steps
+        engine = str(getattr(settings, "lab3_code_interpreter_engine", "tool_calling")).strip().lower()
+        if engine == "legacy_langgraph":
+            ci_result = await run_langgraph_code_interpreter(
+                dataset_name=dataset_name,
+                question=question,
+                column_mapping=mapping,
+                profile=profile,
+            )
+        else:
+            ci_result = await run_lab3_tool_agent(
+                dataset_name=dataset_name,
+                question=question,
+                column_mapping=mapping,
+                profile=profile,
+                chat_history=history_context.get("turns", []),
+                session_id=session_id_value,
+                max_tool_calls=max_tool_calls,
+                conversation_context=conversation_context,
+                resolved_task=resolved_task,
+            followup_intent=followup_intent,
+            user_id=user_id,
+            run_id=run_id,
         )
         session_state = append_turn(
             session_id=session_id_value,
@@ -508,7 +532,7 @@ async def run_agent(
         )
         result_payload = {
             "lab": 3,
-            "status": "success",
+            "status": ci_result.get("status", "success"),
             "dataset": dataset_name,
             "question": question,
             "analysis_mode": "code_interpreter",
@@ -522,7 +546,7 @@ async def run_agent(
             "history_length": len(session_state.get("turns", [])),
             "conversation_summary": session_state.get("conversation_summary", ""),
             "column_mapping": mapping,
-            "planner_output": {"plan": "code interpreter loop", "tool_calls": []},
+            "planner_output": {"plan": "code interpreter tool-calling loop", "tool_calls": []},
             "planner_warnings": [],
             "executed_tools": [],
             "final_answer": ci_result.get("final_answer", ""),
@@ -533,6 +557,7 @@ async def run_agent(
             "output_files": ci_result.get("output_files", {}),
             "successful_executions_count": ci_result.get("successful_executions_count", 0),
             "raw_messages": ci_result.get("raw_messages", []),
+            "run_id": ci_result.get("run_id"),
         }
         return result_payload
 

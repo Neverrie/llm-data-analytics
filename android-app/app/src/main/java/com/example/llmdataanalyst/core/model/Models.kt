@@ -146,7 +146,8 @@ data class ChatMessageCreateRequest(
     val role: String,
     val content: String,
     val blocks: List<JsonElement> = emptyList(),
-    val metadata: Map<String, JsonElement> = emptyMap()
+    val metadata: Map<String, JsonElement> = emptyMap(),
+    @SerialName("client_message_id") val clientMessageId: String? = null
 )
 
 @Serializable

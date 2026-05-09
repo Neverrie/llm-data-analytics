@@ -68,7 +68,7 @@ class ChatRepository(
         streamClient.sendMessageStream(baseUrl, chatId, request).collect { emit(it) }
     }
 
-    fun sendLab3Stream(datasetName: String, question: String, chatId: String): Flow<ChatStreamEvent> = flow {
+    fun sendLab3Stream(datasetName: String, question: String, chatId: String, clientMessageId: String? = null): Flow<ChatStreamEvent> = flow {
         val baseUrl = settingsRepository.baseUrlFlow.first()
         val body = buildJsonObject {
             put("dataset_name", datasetName)
@@ -77,6 +77,9 @@ class ChatRepository(
             put("session_id", chatId)
             put("include_history", true)
             put("max_tool_calls", 6)
+            if (!clientMessageId.isNullOrBlank()) {
+                put("client_message_id", clientMessageId)
+            }
         }
         streamClient.sendLab3AskStream(baseUrl, chatId, body).collect { emit(it) }
     }
@@ -99,7 +102,7 @@ class ChatRepository(
         }
         if (!streamingEnabled) return flowOf(ChatSendResult.FallbackUsed)
         if (chatId.isNullOrBlank()) return flowOf(ChatSendResult.Failed("Чат не создан"))
-        return streamDatasetAgent(datasetName, request.content, chatId)
+        return streamDatasetAgent(datasetName, request.content, chatId, request.clientMessageId)
     }
 
     private fun streamGeneral(chatId: String, request: ChatMessageCreateRequest): Flow<ChatSendResult> = flow {
@@ -111,9 +114,9 @@ class ChatRepository(
         }
     }
 
-    private fun streamDatasetAgent(datasetName: String, question: String, chatId: String): Flow<ChatSendResult> = flow {
+    private fun streamDatasetAgent(datasetName: String, question: String, chatId: String, clientMessageId: String?): Flow<ChatSendResult> = flow {
         try {
-            sendLab3Stream(datasetName, question, chatId).collect { emit(mapEvent(it)) }
+            sendLab3Stream(datasetName, question, chatId, clientMessageId).collect { emit(mapEvent(it)) }
         } catch (e: Exception) {
             if (e is StreamingUnavailableException) emit(ChatSendResult.FallbackUsed)
             else emit(ChatSendResult.Failed(e.message ?: "Ошибка стриминга"))
@@ -158,6 +161,14 @@ class ChatRepository(
                 "markdown", "text" -> {
                     val text = obj["content"]?.jsonPrimitive?.contentOrNull ?: message.content
                     if (text.isNotBlank()) resolved += ChatContentBlock.MarkdownBlock(text)
+                }
+                "warning" -> {
+                    val text = obj["content"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                    val details = obj["details"]?.jsonPrimitive?.contentOrNull
+                    val errorType = obj["error_type"]?.jsonPrimitive?.contentOrNull
+                    if (text.isNotBlank()) {
+                        resolved += ChatContentBlock.WarningBlock(text = text, details = details, errorType = errorType)
+                    }
                 }
                 "table" -> {
                     val columns = obj["columns"]?.let { toStringList(it) }.orEmpty()

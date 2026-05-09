@@ -54,7 +54,7 @@ async def lab3_upload_dataset(file: UploadFile = File(...)) -> dict:
 @router.get("/profile")
 async def lab3_profile(dataset_name: str = Query(...)) -> dict:
     try:
-        return await get_profile(dataset_name)
+        return await get_profile(dataset_name, user_id=None)
     except Lab2PipelineError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
@@ -62,7 +62,7 @@ async def lab3_profile(dataset_name: str = Query(...)) -> dict:
 @router.post("/map-columns")
 async def lab3_map_columns(request: Lab3MapColumnsRequest) -> dict:
     try:
-        return await map_columns(request.dataset_name, request.user_overrides)
+        return await map_columns(request.dataset_name, request.user_overrides, user_id=None)
     except Lab2PipelineError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
@@ -80,6 +80,7 @@ async def lab3_run_tool(request: Lab3RunToolRequest) -> dict:
             tool=request.tool,
             arguments=request.arguments,
             column_overrides=request.column_overrides,
+            user_id=None,
         )
     except Lab2PipelineError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
@@ -105,6 +106,7 @@ async def lab3_ask(request: Lab3AskRequest, user: dict = Depends(get_current_use
             include_history=request.include_history,
             reset_session_flag=request.reset_session,
             max_code_steps=request.max_code_steps,
+            user_id=user["id"],
         )
         result["artifacts"] = register_result_artifacts(
             user_id=user["id"],
@@ -162,6 +164,7 @@ async def lab3_ask_stream(request: Lab3AskRequest, user: dict = Depends(get_curr
                     include_history=request.include_history,
                     reset_session_flag=request.reset_session,
                     max_code_steps=request.max_code_steps,
+                    user_id=user["id"],
                 )
                 artifacts = register_result_artifacts(
                     user_id=user["id"],

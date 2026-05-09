@@ -3,6 +3,7 @@
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -45,6 +46,7 @@ import coil.request.ImageRequest
 import okhttp3.Headers
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Icon
 import com.example.llmdataanalyst.R
 import com.example.llmdataanalyst.core.repository.ChatExecutionMode
@@ -131,6 +133,39 @@ fun ChatScreen(
                                         }
                                     } else {
                                         Text(viewModel.renderMarkdownLikeText(block.text))
+                                    }
+                                }
+                                is ChatContentBlock.WarningBlock -> {
+                                    var open by remember { mutableStateOf(false) }
+                                    Text(
+                                        text = block.errorType?.let { "Предупреждение ($it)" } ?: "Предупреждение",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(block.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                                    if (!block.details.isNullOrBlank()) {
+                                        Text(
+                                            text = if (open) "Скрыть детали" else "Показать детали",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.clickable { open = !open }
+                                        )
+                                        if (open) {
+                                            val hs = rememberScrollState()
+                                            val vs = rememberScrollState()
+                                            Card(modifier = Modifier.fillMaxWidth()) {
+                                                Text(
+                                                    text = block.details,
+                                                    modifier = Modifier
+                                                        .padding(8.dp)
+                                                        .heightIn(max = 180.dp)
+                                                        .horizontalScroll(hs)
+                                                        .verticalScroll(vs),
+                                                    fontFamily = FontFamily.Monospace,
+                                                    style = MaterialTheme.typography.bodySmall
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                                 is ChatContentBlock.ImageArtifactBlock -> {
@@ -221,14 +256,21 @@ fun ChatScreen(
             label = { Text(stringResource(R.string.chat_message)) },
             enabled = !state.loading,
             trailingIcon = {
-                IconButton(onClick = viewModel::sendMessage, enabled = !state.loading && state.input.isNotBlank()) {
-                    Icon(Icons.Default.ArrowForward, contentDescription = "Отправить")
+                if (state.loading) {
+                    IconButton(onClick = viewModel::stopStreaming) {
+                        Icon(Icons.Default.Stop, contentDescription = stringResource(R.string.chat_stop))
+                    }
+                } else {
+                    IconButton(onClick = viewModel::sendMessage, enabled = state.input.isNotBlank()) {
+                        Icon(Icons.Default.ArrowForward, contentDescription = "Отправить")
+                    }
                 }
             }
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Button(onClick = viewModel::stopStreaming, enabled = state.loading) { Text(stringResource(R.string.chat_stop)) }
-            if (state.loading) CircularProgressIndicator(modifier = Modifier.padding(start = 8.dp))
+        if (state.loading) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(modifier = Modifier.padding(start = 8.dp))
+            }
         }
     }
 }

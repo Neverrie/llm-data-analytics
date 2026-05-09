@@ -264,6 +264,7 @@ class ChatMessageCreateRequest(BaseModel):
     content: str
     blocks: list[Any] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
+    client_message_id: str | None = None
 
 
 class ChatMessageItem(BaseModel):

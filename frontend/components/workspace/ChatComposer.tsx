@@ -1,14 +1,16 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 
 export function ChatComposer({
   onSend,
+  onStop,
   loading,
   draft,
   onDraftChange
 }: {
   onSend: (text: string) => void;
+  onStop?: () => void;
   loading: boolean;
   draft?: string;
   onDraftChange?: (text: string) => void;
@@ -38,9 +40,15 @@ export function ChatComposer({
       />
       <div className="composer-row">
         <span className="muted">Ctrl/Cmd + Enter</span>
-        <button className="btn-primary" disabled={loading || !value.trim()} onClick={submit}>
-          {loading ? "Выполняется..." : "Отправить"}
-        </button>
+        {loading ? (
+          <button className="btn-primary" type="button" onClick={() => onStop?.()}>
+            Остановить
+          </button>
+        ) : (
+          <button className="btn-primary" disabled={!value.trim()} onClick={submit}>
+            Отправить
+          </button>
+        )}
       </div>
     </div>
   );

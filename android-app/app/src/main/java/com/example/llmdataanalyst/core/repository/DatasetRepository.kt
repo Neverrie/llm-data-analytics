@@ -30,5 +30,9 @@ class DatasetRepository(
     suspend fun profileDataset(datasetId: String): AppResult<DatasetProfileResponse> = safeApiCall {
         apiProvider.api().datasetProfile(datasetId)
     }
-}
 
+    suspend fun deleteDataset(datasetId: String): AppResult<Unit> = safeApiCall {
+        apiProvider.api().deleteDataset(datasetId)
+        Unit
+    }
+}

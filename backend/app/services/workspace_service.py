@@ -75,16 +75,53 @@ def get_chat(user_id: str, chat_id: str) -> dict:
     return {"chat": chat, "messages": messages}
 
 
-def add_message(user_id: str, chat_id: str, role: str, content: str, blocks: list | None, metadata: dict | None) -> dict:
+def get_message_by_client_id(user_id: str, chat_id: str, role: str, client_message_id: str) -> dict | None:
+    if not client_message_id:
+        return None
     with get_connection() as conn:
         chat = fetch_one(conn, "SELECT id FROM chats WHERE id = ? AND user_id = ?", (chat_id, user_id))
         if not chat:
             raise ValueError("Chat not found")
+        message = fetch_one(
+            conn,
+            "SELECT * FROM messages WHERE chat_id = ? AND role = ? AND client_message_id = ? ORDER BY created_at DESC LIMIT 1",
+            (chat_id, role, client_message_id),
+        )
+    if not message:
+        return None
+    message["blocks"] = loads_json(message.pop("blocks_json")) or []
+    message["metadata"] = loads_json(message.pop("metadata_json")) or {}
+    return message
+
+
+def add_message(
+    user_id: str,
+    chat_id: str,
+    role: str,
+    content: str,
+    blocks: list | None,
+    metadata: dict | None,
+    client_message_id: str | None = None,
+) -> dict:
+    with get_connection() as conn:
+        chat = fetch_one(conn, "SELECT id FROM chats WHERE id = ? AND user_id = ?", (chat_id, user_id))
+        if not chat:
+            raise ValueError("Chat not found")
+        if client_message_id:
+            existing = fetch_one(
+                conn,
+                "SELECT * FROM messages WHERE chat_id = ? AND role = ? AND client_message_id = ? ORDER BY created_at DESC LIMIT 1",
+                (chat_id, role, client_message_id),
+            )
+            if existing:
+                existing["blocks"] = loads_json(existing.pop("blocks_json")) or []
+                existing["metadata"] = loads_json(existing.pop("metadata_json")) or {}
+                return existing
         message_id = str(uuid.uuid4())
         now = utcnow_iso()
         conn.execute(
-            "INSERT INTO messages (id, chat_id, role, content, blocks_json, metadata_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (message_id, chat_id, role, content, dumps_json(blocks or []), dumps_json(metadata or {}), now),
+            "INSERT INTO messages (id, chat_id, role, content, blocks_json, metadata_json, created_at, client_message_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (message_id, chat_id, role, content, dumps_json(blocks or []), dumps_json(metadata or {}), now, client_message_id),
         )
         conn.execute("UPDATE chats SET updated_at = ? WHERE id = ?", (now, chat_id))
         conn.commit()

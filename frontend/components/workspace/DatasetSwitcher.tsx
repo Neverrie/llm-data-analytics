@@ -17,7 +17,9 @@ export function DatasetSwitcher({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [draftDatasetId, setDraftDatasetId] = useState<string>("");
   const selectedDataset = useMemo(() => datasets.find((d) => d.id === selectedDatasetId), [datasets, selectedDatasetId]);
+  const activeDraftId = draftDatasetId || selectedDatasetId || "";
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
     return datasets.filter((d) => !q || d.name.toLowerCase().includes(q) || d.source.toLowerCase().includes(q));
@@ -45,10 +47,13 @@ export function DatasetSwitcher({
             {filtered.map((dataset) => (
               <button
                 key={dataset.id}
-                className={`mini-item ${dataset.id === selectedDatasetId ? "active" : ""}`}
+                className={`mini-item ${dataset.id === activeDraftId ? "active" : ""}`}
                 onClick={() => {
+                  // Apply dataset immediately on click to avoid "selected but not applied" UX.
+                  setDraftDatasetId(dataset.id);
                   onSelect(dataset.id);
                   setOpen(false);
+                  setDraftDatasetId("");
                 }}
               >
                 <strong>{dataset.name}</strong>
@@ -58,10 +63,19 @@ export function DatasetSwitcher({
             {!filtered.length ? <div className="empty-mini">Нет совпадений</div> : null}
           </div>
           <div className="dataset-popover-actions">
-            <button className="btn-ghost" onClick={() => selectedDatasetId && onPreview(selectedDatasetId)}>
+            <button className="btn-ghost" onClick={() => activeDraftId && onPreview(activeDraftId)}>
               Превью выбранного
             </button>
-            <button className="btn-primary" type="button">
+            <button
+              className="btn-primary"
+              type="button"
+              onClick={() => {
+                if (!activeDraftId) return;
+                onSelect(activeDraftId);
+                setOpen(false);
+                setDraftDatasetId("");
+              }}
+            >
               <Plus size={14} /> Добавить
             </button>
           </div>

@@ -10,6 +10,7 @@ import pandas as pd
 
 from app.config import settings
 from app.schemas import Lab3ColumnMapping, RoleMatch
+from app.services.dataset_resolver import resolve_dataset_for_user
 from app.services.lab2_service import Lab2PipelineError
 from app.services.llm_client import LLMClient, LLMClientError
 
@@ -92,17 +93,9 @@ def _datasets_root() -> Path:
     return Path(settings.datasets_dir).resolve()
 
 
-def resolve_dataset_path(dataset_name: str) -> Path:
-    root = _datasets_root()
-    normalized = dataset_name.replace("\\", "/").strip().lstrip("/")
-    if not normalized:
-        raise Lab2PipelineError("Dataset name is required.", status_code=400)
-
-    candidate = (root / normalized).resolve()
-    if root not in candidate.parents and candidate != root:
-        raise Lab2PipelineError("Dataset path traversal is not allowed.", status_code=400)
-    if not candidate.exists() or not candidate.is_file():
-        raise Lab2PipelineError(f"Dataset '{dataset_name}' was not found in {settings.datasets_dir}.", status_code=404)
+def resolve_dataset_path(dataset_name: str, user_id: str | None = None) -> Path:
+    resolved = resolve_dataset_for_user(dataset_name, user_id)
+    candidate = resolved.path
     if candidate.suffix.lower() not in ALLOWED_DATASET_SUFFIXES:
         raise Lab2PipelineError(f"Unsupported dataset type for '{dataset_name}'.", status_code=400)
     return candidate
@@ -128,8 +121,8 @@ def list_datasets() -> list[dict[str, str]]:
     return items
 
 
-def load_dataset(dataset_name: str) -> pd.DataFrame:
-    dataset_path = resolve_dataset_path(dataset_name)
+def load_dataset(dataset_name: str, user_id: str | None = None) -> pd.DataFrame:
+    dataset_path = resolve_dataset_path(dataset_name, user_id=user_id)
     suffix = dataset_path.suffix.lower()
     if suffix == ".csv":
         return pd.read_csv(dataset_path)
@@ -187,8 +180,8 @@ def _is_date_like_series(column_name: str, series: pd.Series) -> bool:
     return parsed.notna().mean() >= 0.7
 
 
-def profile_dataset(dataset_name: str) -> dict[str, Any]:
-    frame = load_dataset(dataset_name)
+def profile_dataset(dataset_name: str, user_id: str | None = None) -> dict[str, Any]:
+    frame = load_dataset(dataset_name, user_id=user_id)
     dtypes = {column: str(dtype) for column, dtype in frame.dtypes.items()}
     missing_values = {column: int(frame[column].isna().sum()) for column in frame.columns}
     sample_values = {column: _sample_values(frame[column]) for column in frame.columns}
@@ -283,13 +276,13 @@ def _infer_target_column(frame: pd.DataFrame, columns: list[str], categorical_co
     return _role(None, 0.0, "no suitable target column found")
 
 
-def infer_column_roles_heuristic(profile: dict[str, Any]) -> Lab3ColumnMapping:
+def infer_column_roles_heuristic(profile: dict[str, Any], user_id: str | None = None) -> Lab3ColumnMapping:
     columns: list[str] = profile["columns"]
     numeric_columns: list[str] = profile["numeric_columns"]
     text_like_columns: list[str] = profile["text_like_columns"]
     date_like_columns: list[str] = profile["date_like_columns"]
     categorical_columns: list[str] = profile["categorical_columns"]
-    frame = load_dataset(profile["dataset_name"])
+    frame = load_dataset(profile["dataset_name"], user_id=user_id)
 
     roles: dict[str, RoleMatch] = {}
 
@@ -463,9 +456,10 @@ async def get_effective_column_mapping(
     dataset_name: str,
     user_overrides: dict[str, str | None],
     use_llm_assist: bool = True,
+    user_id: str | None = None,
 ) -> tuple[dict[str, Any], Lab3ColumnMapping, bool]:
-    profile = profile_dataset(dataset_name)
-    heuristic = infer_column_roles_heuristic(profile)
+    profile = profile_dataset(dataset_name, user_id=user_id)
+    heuristic = infer_column_roles_heuristic(profile, user_id=user_id)
 
     llm_used = False
     mapping = heuristic

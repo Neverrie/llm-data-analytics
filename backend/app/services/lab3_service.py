@@ -63,15 +63,20 @@ def get_datasets() -> dict[str, Any]:
     return {"datasets": datasets_for_lab3()}
 
 
-async def get_profile(dataset_name: str) -> dict[str, Any]:
-    profile = profile_dataset(dataset_name)
-    _, mapping, _ = await get_effective_column_mapping(dataset_name, user_overrides={}, use_llm_assist=False)
+async def get_profile(dataset_name: str, user_id: str | None = None) -> dict[str, Any]:
+    profile = profile_dataset(dataset_name, user_id=user_id)
+    _, mapping, _ = await get_effective_column_mapping(dataset_name, user_overrides={}, use_llm_assist=False, user_id=user_id)
     profile["column_mapping"] = mapping.model_dump()
     return profile
 
 
-async def map_columns(dataset_name: str, user_overrides: dict[str, str | None]) -> dict[str, Any]:
-    profile, mapping, _ = await get_effective_column_mapping(dataset_name, user_overrides=user_overrides, use_llm_assist=False)
+async def map_columns(dataset_name: str, user_overrides: dict[str, str | None], user_id: str | None = None) -> dict[str, Any]:
+    profile, mapping, _ = await get_effective_column_mapping(
+        dataset_name,
+        user_overrides=user_overrides,
+        use_llm_assist=False,
+        user_id=user_id,
+    )
     return {
         "dataset_name": dataset_name,
         "profile_summary": {"rows": profile["total_rows"], "columns": profile["columns"]},
@@ -84,8 +89,19 @@ def get_tools() -> dict[str, Any]:
     return {"tools": tools}
 
 
-async def run_tool(dataset_name: str, tool: str, arguments: dict[str, Any], column_overrides: dict[str, str | None]) -> dict[str, Any]:
-    _, mapping, _ = await get_effective_column_mapping(dataset_name, user_overrides=column_overrides, use_llm_assist=False)
+async def run_tool(
+    dataset_name: str,
+    tool: str,
+    arguments: dict[str, Any],
+    column_overrides: dict[str, str | None],
+    user_id: str | None = None,
+) -> dict[str, Any]:
+    _, mapping, _ = await get_effective_column_mapping(
+        dataset_name,
+        user_overrides=column_overrides,
+        use_llm_assist=False,
+        user_id=user_id,
+    )
     return execute_tool(dataset_name, tool, mapping.model_dump(), arguments)
 
 
@@ -100,6 +116,11 @@ async def ask_agent(
     include_history: bool = True,
     reset_session_flag: bool = False,
     max_code_steps: int | None = None,
+    conversation_context: dict[str, Any] | None = None,
+    resolved_task: str | None = None,
+    followup_intent: dict[str, Any] | None = None,
+    user_id: str | None = None,
+    run_id: str | None = None,
 ) -> dict[str, Any]:
     llm = LLMClient()
     started = time.perf_counter()
@@ -111,7 +132,7 @@ async def ask_agent(
         llm.resolve_model(),
         len(question or ""),
     )
-    profile = profile_dataset(dataset_name)
+    profile = profile_dataset(dataset_name, user_id=user_id)
     logger.info(
         "LAB3_PROFILE_READY rows=%s columns=%s",
         profile.get("total_rows"),
@@ -128,6 +149,11 @@ async def ask_agent(
         include_history=include_history,
         reset_session=reset_session_flag,
         max_code_steps=max_code_steps,
+        conversation_context=conversation_context,
+        resolved_task=resolved_task,
+        followup_intent=followup_intent,
+        user_id=user_id,
+        run_id=run_id,
     )
     logger.info("LAB3_ASK_DONE elapsed=%.3f", time.perf_counter() - started)
     return result
