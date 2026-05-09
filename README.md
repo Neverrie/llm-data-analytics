@@ -37,9 +37,7 @@ User
 
 Ключевые моменты:
 - **LangChain** используется как абстракция LLM-моделей, сообщений и tool-calling.
-- **LangGraph legacy interpreter** оставлен, но не основной runtime.
 - Основной режим: `LAB3_CODE_INTERPRETER_ENGINE=tool_calling`.
-- Legacy режим: `LAB3_CODE_INTERPRETER_ENGINE=legacy_langgraph` (fallback/debug).
 
 ## 3) Dataset-agent flow
 
@@ -212,7 +210,7 @@ UI принципы:
 Актуальный поток для dataset-agent:
 - использовать `POST /api/chats/{chat_id}/agent/stream`
 - после `done` выполнять `syncChat(chatId)`
-- `GET /api/lab3/result` — debug/legacy endpoint, не источник истины для чатового UI
+- `GET /api/lab3/result` не источник истины для чатового UI
 - нельзя подмешивать глобальный `lab3_result` в UI текущего чата
 
 ## 13) Quick start
@@ -244,12 +242,10 @@ docker compose exec backend docker version
 - Для production лучше выносить sandbox в отдельный sandbox-manager service.
 - Sandbox должен работать без сети и с жёсткими resource limits.
 
-## 15) Legacy / устаревшее
+## 15) Важные ограничения
 
-Legacy элементы:
-- Протокол `<PYTHON>/<FINAL>` не основной runtime (используется только в `legacy_langgraph` режиме).
 - `lab3_result` не является источником истины для chat UI.
-- Утверждение "все датасеты только в `/datasets`" устарело (есть private uploaded storage).
+- Утверждение "все датасеты только в `/datasets`" неверно (есть private uploaded storage).
 
 ---
 
