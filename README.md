@@ -260,17 +260,8 @@ docker compose exec backend docker version
 ```text
 backend/app/services/lab2_service.py
 
-открывает code block, но дальше на скрине он, похоже, не закрыт. Из-за этого весь текст ниже может отображаться как код.
-
-Лучше оформить так:
-
-## Lab 2 — API-пайплайн: данные → LLM → JSON
-
-Реализация: `backend/app/services/lab2_service.py`
-
 Lab 2 реализует автоматический pipeline:
 
-```text
 CSV/XLSX dataset → LLM API → structured JSON result
 
 Пайплайн:
@@ -280,7 +271,8 @@ CSV/XLSX dataset → LLM API → structured JSON result
 Отправляет данные в LLM через API батчами.
 Получает строгий JSON-ответ.
 Валидирует структуру, row_id, дубли и пропущенные строки.
-Сохраняет результат в /outputs/lab2_result.json.
+Сохраняет результат в:
+/outputs/lab2_result.json
 
 Основные endpoints:
 
