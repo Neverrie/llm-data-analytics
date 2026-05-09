@@ -251,3 +251,47 @@ docker compose exec backend docker version
 - `android-app/` — Android Compose client
 - `datasets/` — built-in datasets
 - `outputs/` — SQLite, run artifacts, uploaded datasets
+
+
+## Lab 2 — API-пайплайн: данные → LLM → JSON
+
+Реализация:
+
+```text
+backend/app/services/lab2_service.py
+
+открывает code block, но дальше на скрине он, похоже, не закрыт. Из-за этого весь текст ниже может отображаться как код.
+
+Лучше оформить так:
+
+## Lab 2 — API-пайплайн: данные → LLM → JSON
+
+Реализация: `backend/app/services/lab2_service.py`
+
+Lab 2 реализует автоматический pipeline:
+
+```text
+CSV/XLSX dataset → LLM API → structured JSON result
+
+Пайплайн:
+
+Читает датасет отзывов из /datasets.
+Берёт текст отзыва из колонки content.
+Отправляет данные в LLM через API батчами.
+Получает строгий JSON-ответ.
+Валидирует структуру, row_id, дубли и пропущенные строки.
+Сохраняет результат в /outputs/lab2_result.json.
+
+Основные endpoints:
+
+GET  /api/lab2/sample
+POST /api/lab2/run
+GET  /api/lab2/result
+
+Датасет задаётся через .env:
+
+LAB2_DATASET_FILENAME=customers_reviews
+
+Пример файла:
+
+datasets/customers_reviews.csv
