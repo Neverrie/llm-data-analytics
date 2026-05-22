@@ -1,10 +1,12 @@
 ﻿"use client";
 
+import { useState } from "react";
 import { MessageBlock } from "@/lib/messageBlocks";
 import { api } from "@/lib/api";
 import { AuthenticatedImage } from "./AuthenticatedImage";
 import { DataTable } from "./DataTable";
 import { ExecutionStepsAccordion } from "./ExecutionStepsAccordion";
+import { ImageLightbox } from "./ImageLightbox";
 import { MarkdownBlock } from "./MarkdownBlock";
 
 async function downloadArtifact(artifactId: string, filename?: string) {
@@ -30,6 +32,9 @@ export function MessageBubble({
   content: string;
   blocks?: MessageBlock[];
 }) {
+  const [lightboxSrc, setLightboxSrc] = useState("");
+  const [lightboxAlt, setLightboxAlt] = useState("");
+  const [artifactPreviewSrc, setArtifactPreviewSrc] = useState<Record<string, string>>({});
   const renderBlocks = blocks.length ? blocks : ([{ type: "markdown", content }] as MessageBlock[]);
   const hasChart = renderBlocks.some((b) => b.type === "chart");
   const stepBlocks = renderBlocks.filter((b) => b.type === "code" || b.type === "execution");
@@ -38,7 +43,7 @@ export function MessageBubble({
 
   return (
     <div className={`message ${role}`}>
-      {role !== "assistant" ? <p>{content}</p> : null}
+      {role !== "assistant" ? <MarkdownBlock content={content} /> : null}
       {role === "assistant" ? (
         <div className="assistant-blocks">
           {primaryBlocks.map((block, i) => {
@@ -48,16 +53,49 @@ export function MessageBubble({
               if (block.artifact_id) {
                 return (
                   <article key={i} className="block-card">
-                    <AuthenticatedImage artifactId={block.artifact_id} className="message-chart" alt={block.title || "chart"} />
-                    {block.artifact_id ? (
+                    <button
+                      type="button"
+                      className="chart-open-btn"
+                      onClick={() => {
+                        const id = block.artifact_id as string;
+                        const src = artifactPreviewSrc[id] || "";
+                        if (!src) return;
+                        setLightboxSrc(src);
+                        setLightboxAlt(block.title || "chart");
+                      }}
+                      title="Открыть в полный размер"
+                    >
+                      <AuthenticatedImage
+                        artifactId={block.artifact_id}
+                        className="message-chart"
+                        alt={block.title || "chart"}
+                        onLoadedSrc={(src) =>
+                          setArtifactPreviewSrc((prev) => ({ ...prev, [block.artifact_id as string]: src }))
+                        }
+                      />
+                    </button>
+                    <div className="panel-row">
                       <button type="button" className="muted" onClick={() => void downloadArtifact(block.artifact_id as string, block.title || "chart")}>
                         Скачать
                       </button>
-                    ) : null}
+                    </div>
                   </article>
                 );
               }
-              return <img key={i} className="message-chart" src={block.preview_url || block.url} alt={block.title || "chart"} />;
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  className="chart-open-btn"
+                  onClick={() => {
+                    setLightboxSrc(block.preview_url || block.url || "");
+                    setLightboxAlt(block.title || "chart");
+                  }}
+                  title="Открыть в полный размер"
+                >
+                  <img className="message-chart" src={block.preview_url || block.url} alt={block.title || "chart"} />
+                </button>
+              );
             }
             if (block.type === "file") {
               return (
@@ -97,6 +135,7 @@ export function MessageBubble({
             return null;
           })}
           <ExecutionStepsAccordion blocks={stepBlocks} />
+          <ImageLightbox src={lightboxSrc} alt={lightboxAlt} open={Boolean(lightboxSrc)} onClose={() => setLightboxSrc("")} />
         </div>
       ) : null}
     </div>

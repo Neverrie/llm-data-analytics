@@ -1,4 +1,4 @@
-from typing import Any, Literal
+﻿from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -66,7 +66,7 @@ class CreateChatRequest(BaseModel):
 
 
 class ChatMessageCreateRequest(BaseModel):
-    role: Literal["user", "assistant", "system"]
+    role: str
     content: str
     blocks: list[Any] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
@@ -101,3 +101,11 @@ class ArtifactRegisterRequest(BaseModel):
     chat_id: str | None = None
     message_id: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ChatAgentStreamRequest(BaseModel):
+    question: str
+    dataset_path: str | None = None
+    max_steps: int = Field(default=30, ge=1, le=30)
+    client_message_id: str | None = None
+

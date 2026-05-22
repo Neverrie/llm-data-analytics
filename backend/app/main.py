@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+﻿from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
@@ -6,6 +6,10 @@ from app.db import init_db
 from app.routers.artifacts import router as artifacts_router
 from app.routers.auth import router as auth_router
 from app.routers.datasets import router as datasets_router
+from app.routers.dev_agent import router as dev_agent_router
+from app.routers.dev_llm import router as dev_llm_router
+from app.routers.dev_mcp import router as dev_mcp_router
+from app.routers.dev_sandbox import router as dev_sandbox_router
 from app.routers.health import router as health_router
 from app.routers.workspace import router as workspace_router
 from app.services.auth_service import ensure_demo_user
@@ -33,3 +37,7 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(workspace_router, prefix="/api")
 app.include_router(datasets_router, prefix="/api")
 app.include_router(artifacts_router, prefix="/api")
+app.include_router(dev_sandbox_router, prefix="/api")
+app.include_router(dev_mcp_router, prefix="/api")
+app.include_router(dev_llm_router, prefix="/api")
+app.include_router(dev_agent_router, prefix="/api")

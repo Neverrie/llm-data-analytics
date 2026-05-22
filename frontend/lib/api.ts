@@ -14,7 +14,7 @@ export type AuthResponse = {
 export type Chat = {
   id: string;
   title: string;
-  kind: "lab3_chat" | "lab2_pipeline" | "general";
+  kind: "general" | "workspace" | string;
   dataset_name?: string | null;
   created_at: string;
   updated_at: string;
@@ -64,20 +64,31 @@ export type SseEvent = {
 };
 
 const TOKEN_KEY = "workspace_access_token";
+let loggedApiBase = false;
 
 export function getApiBaseUrl() {
-  const configured = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
-  if (configured) return configured.replace(/\/$/, "");
-
   if (typeof window !== "undefined") {
     const { protocol, hostname } = window.location;
     const localHosts = new Set(["localhost", "127.0.0.1"]);
-    if (localHosts.has(hostname)) {
-      return "http://localhost:8003/api";
+    const fromHost = localHosts.has(hostname)
+      ? "http://localhost:8003/api"
+      : `${protocol}//${hostname}:8003/api`;
+
+    const configured = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+    const hasOverride = Boolean(configured && configured.toLowerCase() !== "auto");
+    const resolved = hasOverride ? configured!.replace(/\/$/, "") : fromHost;
+
+    if (!loggedApiBase) {
+      loggedApiBase = true;
+      console.info(`[api] frontend host=${hostname}; backend base=${resolved}`);
     }
-    return `${protocol}//${hostname}:8003/api`;
+    return resolved;
   }
 
+  const configured = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+  if (configured && configured.toLowerCase() !== "auto") {
+    return configured.replace(/\/$/, "");
+  }
   return "http://localhost:8003/api";
 }
 
@@ -144,11 +155,7 @@ async function requestRaw(path: string, init: RequestInit = {}): Promise<Respons
   });
 }
 
-async function streamSse(
-  path: string,
-  init: RequestInit,
-  onEvent: (event: SseEvent) => void | Promise<void>
-): Promise<void> {
+async function streamSse(path: string, init: RequestInit, onEvent: (event: SseEvent) => void | Promise<void>): Promise<void> {
   const token = getAuthToken();
   const headers = new Headers(init.headers || {});
   headers.set("Accept", "text/event-stream");
@@ -182,7 +189,6 @@ async function streamSse(
     while (splitIndex !== -1) {
       const rawEvent = buffer.slice(0, splitIndex).trim();
       buffer = buffer.slice(splitIndex + 2);
-
       if (rawEvent) {
         const lines = rawEvent.split("\n");
         let eventType = "message";
@@ -202,29 +208,16 @@ async function streamSse(
         }
         await onEvent({ event: eventType, data: parsed });
       }
-
       splitIndex = buffer.indexOf("\n\n");
     }
   }
 }
 
 export const api = {
-  getHealth: <T = { status: string; service: string }>() => request<T>("/health"),
-
   demoLogin: () => request<AuthResponse>("/auth/demo-login", { method: "POST" }),
-  login: (email: string, password: string) =>
-    request<AuthResponse>("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password })
-    }),
-  register: (email: string, password: string, display_name: string) =>
-    request<AuthResponse>("/auth/register", {
-      method: "POST",
-      body: JSON.stringify({ email, password, display_name })
-    }),
+  login: (email: string, password: string) => request<AuthResponse>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+  register: (email: string, password: string, display_name: string) => request<AuthResponse>("/auth/register", { method: "POST", body: JSON.stringify({ email, password, display_name }) }),
   me: () => request<User>("/auth/me"),
-
-  getWorkspace: () => request<{ user: User; counts: { chats: number; datasets: number; artifacts: number }; recent_chats: Chat[]; recent_artifacts: ArtifactItem[] }>("/workspace"),
 
   listChats: (params?: { kind?: string; archived?: boolean }) => {
     const search = new URLSearchParams();
@@ -233,18 +226,14 @@ export const api = {
     const qs = search.toString() ? `?${search.toString()}` : "";
     return request<{ items: Chat[] }>(`/chats${qs}`);
   },
-  createChat: (body: { title: string; kind: "lab3_chat" | "lab2_pipeline" | "general"; dataset_name?: string | null }) =>
-    request<Chat>("/chats", { method: "POST", body: JSON.stringify(body) }),
+  createChat: (body: { title: string; kind: string; dataset_name?: string | null }) => request<Chat>("/chats", { method: "POST", body: JSON.stringify(body) }),
   getChat: (chatId: string) => request<{ chat: Chat; messages: ChatMessage[] }>(`/chats/${chatId}`),
-  addMessage: (chatId: string, body: { role: "user" | "assistant" | "system"; content: string; blocks?: unknown[]; metadata?: Record<string, unknown> }) =>
+  addMessage: (chatId: string, body: { role: "user" | "assistant" | "system"; content: string; blocks?: unknown[]; metadata?: Record<string, unknown>; client_message_id?: string }) =>
     request<ChatMessage>(`/chats/${chatId}/messages`, { method: "POST", body: JSON.stringify(body) }),
-  streamChatMessage: (
-    chatId: string,
-    body: { role: "user" | "assistant" | "system"; content: string; blocks?: unknown[]; metadata?: Record<string, unknown> },
-    onEvent: (event: SseEvent) => void | Promise<void>
-  ) => streamSse(`/chats/${chatId}/messages/stream`, { method: "POST", body: JSON.stringify(body) }, onEvent),
-  updateChat: (chatId: string, body: { title?: string; archived?: boolean; dataset_name?: string | null }) =>
-    request<Chat>(`/chats/${chatId}`, { method: "PATCH", body: JSON.stringify(body) }),
+  streamChatMessage: (chatId: string, body: { role: "user" | "assistant" | "system"; content: string; blocks?: unknown[]; metadata?: Record<string, unknown>; client_message_id?: string }, onEvent: (event: SseEvent) => void | Promise<void>, signal?: AbortSignal) =>
+    streamSse(`/chats/${chatId}/messages/stream`, { method: "POST", body: JSON.stringify(body), signal }, onEvent),
+  cancelChatRun: (chatId: string) => request<{ status: string; chat_id: string }>(`/chats/${chatId}/cancel`, { method: "POST" }),
+  updateChat: (chatId: string, body: { title?: string; archived?: boolean; dataset_name?: string | null }) => request<Chat>(`/chats/${chatId}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteChat: (chatId: string) => request<Chat>(`/chats/${chatId}`, { method: "DELETE" }),
 
   listDatasets: () => request<{ items: DatasetItem[] }>("/datasets"),
@@ -265,36 +254,11 @@ export const api = {
     return request<{ items: ArtifactItem[] }>(`/artifacts${qs}`);
   },
   getArtifact: (id: string) => request<ArtifactItem>(`/artifacts/${id}`),
+  deleteArtifact: (id: string) => request<{ status: string; id: string }>(`/artifacts/${id}`, { method: "DELETE" }),
   registerArtifact: (body: { kind: string; title: string; path: string; chat_id?: string | null; message_id?: string | null; metadata?: Record<string, unknown> }) =>
     request<any>("/artifacts/register", { method: "POST", body: JSON.stringify(body) }),
   artifactPreviewUrl: (id: string) => `${getApiBaseUrl()}/artifacts/${id}/preview`,
   artifactDownloadUrl: (id: string) => `${getApiBaseUrl()}/artifacts/${id}/download`,
   fetchArtifactPreview: (id: string) => requestRaw(`/artifacts/${id}/preview`),
   fetchArtifactDownload: (id: string) => requestRaw(`/artifacts/${id}/download`),
-
-  runLab2Pipeline: (body: { limit: number; min_score?: number | null; max_score?: number | null; process_all?: boolean; batch_size?: number }) =>
-    request<any>("/lab2/run", { method: "POST", body: JSON.stringify(body) }),
-  getLab2SampleData: (params: { limit?: number; min_score?: number | null; max_score?: number | null }) => {
-    const search = new URLSearchParams();
-    if (typeof params.limit === "number") search.set("limit", String(params.limit));
-    if (typeof params.min_score === "number") search.set("min_score", String(params.min_score));
-    if (typeof params.max_score === "number") search.set("max_score", String(params.max_score));
-    return request<any>(`/lab2/sample-data?${search.toString()}`);
-  },
-  askLab3Agent: (body: { dataset_name: string; question: string; analysis_mode?: "code_interpreter" | "fast" | "balanced" | "full"; include_history?: boolean; max_code_steps?: number; max_tool_calls?: number; use_critic?: boolean; column_overrides?: Record<string, string | null> }) =>
-    request<any>("/lab3/ask", { method: "POST", body: JSON.stringify(body) }),
-  askLab3AgentStream: (
-    body: { dataset_name: string; question: string; analysis_mode?: "code_interpreter" | "fast" | "balanced" | "full"; include_history?: boolean; max_code_steps?: number; max_tool_calls?: number; use_critic?: boolean; column_overrides?: Record<string, string | null> },
-    onEvent: (event: SseEvent) => void | Promise<void>
-  ) => streamSse("/lab3/ask/stream", { method: "POST", body: JSON.stringify(body) }, onEvent),
-  streamChatAgent: (
-    chatId: string,
-    body: { dataset_name?: string; question: string; analysis_mode?: "code_interpreter" | "fast" | "balanced" | "full"; include_history?: boolean; max_code_steps?: number; max_tool_calls?: number; use_critic?: boolean; column_overrides?: Record<string, string | null>; session_id?: string; client_message_id?: string },
-    onEvent: (event: SseEvent) => void | Promise<void>,
-    signal?: AbortSignal
-  ) => streamSse(`/chats/${chatId}/agent/stream`, { method: "POST", body: JSON.stringify(body), signal }, onEvent),
-  cancelAgentRun: (runId: string) => request<{ status: string; run_id: string }>(`/agent-runs/${runId}/cancel`, { method: "POST" }),
-  getLab3Result: () => request<any>("/lab3/result"),
-  getLab3Status: () => request<any>("/lab3/status")
 };
-

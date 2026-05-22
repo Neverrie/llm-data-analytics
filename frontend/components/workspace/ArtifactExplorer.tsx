@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, ArtifactItem } from "@/lib/api";
 import { DataTable } from "./DataTable";
+import { ImageLightbox } from "./ImageLightbox";
 
 type PreviewState =
   | { kind: "none" }
@@ -23,6 +24,7 @@ export function ArtifactExplorer({
   const [preview, setPreview] = useState<PreviewState>({ kind: "none" });
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState("all");
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
@@ -115,7 +117,16 @@ export function ArtifactExplorer({
           <div className="artifact-preview">
             {!selected ? <div className="empty-state"><h3>Выберите артефакт</h3><p>Откройте файл из списка слева, чтобы увидеть превью.</p></div> : null}
             {selected ? <h3>{selected.filename}</h3> : null}
-            {preview.kind === "image" ? <img src={preview.url} alt={selected?.filename || "artifact"} /> : null}
+            {preview.kind === "image" ? (
+              <button
+                type="button"
+                className="artifact-image-btn"
+                onClick={() => setLightboxOpen(true)}
+                title="Открыть в полный размер"
+              >
+                <img src={preview.url} alt={selected?.filename || "artifact"} />
+              </button>
+            ) : null}
             {preview.kind === "table" ? <DataTable columns={preview.columns} rows={preview.rows.slice(0, 30)} maxHeight={500} /> : null}
             {preview.kind === "json" ? <pre className="code-pre">{JSON.stringify(preview.value, null, 2)}</pre> : null}
             {preview.kind === "text" ? <pre className="code-pre">{preview.value}</pre> : null}
@@ -129,6 +140,12 @@ export function ArtifactExplorer({
           </div>
         </div>
       </div>
+      <ImageLightbox
+        src={preview.kind === "image" ? preview.url : ""}
+        alt={selected?.filename || "artifact"}
+        open={lightboxOpen && preview.kind === "image"}
+        onClose={() => setLightboxOpen(false)}
+      />
     </section>
   );
 }

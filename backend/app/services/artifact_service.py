@@ -88,6 +88,16 @@ def get_artifact(user_id: str, artifact_id: str) -> dict:
     return _artifact_public(item)
 
 
+def delete_artifact(user_id: str, artifact_id: str) -> dict:
+    with get_connection() as conn:
+        item = fetch_one(conn, "SELECT * FROM artifacts WHERE id = ? AND user_id = ?", (artifact_id, user_id))
+        if not item:
+            raise HTTPException(status_code=404, detail="Artifact not found.")
+        conn.execute("DELETE FROM artifacts WHERE id = ? AND user_id = ?", (artifact_id, user_id))
+        conn.commit()
+    return {"status": "deleted", "id": artifact_id}
+
+
 def _artifact_public(item: dict) -> dict:
     metadata = loads_json(item.get("metadata_json")) or {}
     return {

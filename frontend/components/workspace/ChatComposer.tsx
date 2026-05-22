@@ -30,7 +30,7 @@ export function ChatComposer({
       <textarea
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="Спросите агента о данных..."
+        placeholder="Напишите сообщение..."
         onKeyDown={(e) => {
           if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
             e.preventDefault();
@@ -53,3 +53,4 @@ export function ChatComposer({
     </div>
   );
 }
+

@@ -10,7 +10,7 @@ export type MessageBlock =
   | { type: "warning"; content: string; details?: string; error_type?: string }
   | { type: "raw"; payload: unknown; title?: string };
 
-export function normalizeLab3ResponseToBlocks(response: any): MessageBlock[] {
+export function normalizeResponseToBlocks(response: any): MessageBlock[] {
   const finalAnswer = String(response?.final_answer || "").trim();
   const blocks: MessageBlock[] = [];
   if (finalAnswer) blocks.push({ type: "markdown", content: finalAnswer });
@@ -50,3 +50,4 @@ export function getMessageBlocks(message: ChatMessage): MessageBlock[] {
     return block;
   });
 }
+

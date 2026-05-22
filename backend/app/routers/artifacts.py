@@ -3,7 +3,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 
-from app.services.artifact_service import artifact_preview, get_artifact, list_artifacts, register_artifact
+from app.services.artifact_service import artifact_preview, delete_artifact, get_artifact, list_artifacts, register_artifact
 from app.services.auth_service import get_current_user
 from app.schemas import ArtifactRegisterRequest
 
@@ -48,3 +48,8 @@ def preview_artifact(artifact_id: str, user: dict = Depends(get_current_user)):
 def download_artifact(artifact_id: str, user: dict = Depends(get_current_user)):
     artifact = get_artifact(user["id"], artifact_id)
     return FileResponse(path=Path(artifact["path"]), media_type=artifact["mime_type"], filename=artifact["filename"])
+
+
+@router.delete("/artifacts/{artifact_id}")
+def remove_artifact(artifact_id: str, user: dict = Depends(get_current_user)):
+    return delete_artifact(user["id"], artifact_id)

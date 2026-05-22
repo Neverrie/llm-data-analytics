@@ -1,4 +1,4 @@
-services:
+﻿services:
   backend:
     build: ./backend
     container_name: llm-analytics-backend
@@ -11,10 +11,23 @@ services:
       - ./backend:/app
       - ./datasets:/datasets
       - ./outputs:/outputs
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       DATASETS_DIR: /datasets
       OUTPUTS_DIR: /outputs
+      HOST_OUTPUTS_DIR: ${HOST_OUTPUTS_DIR:-}
+      HOST_DATASETS_DIR: ${HOST_DATASETS_DIR:-}
+      SANDBOX_DOCKER_IMAGE: ${SANDBOX_DOCKER_IMAGE:-llm-data-analytics-sandbox:latest}
+      SANDBOX_DOCKER_USER: ${SANDBOX_DOCKER_USER:-1000:1000}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3003,http://127.0.0.1:3003}
+
+  sandbox-runner-image:
+    build:
+      context: ./backend
+      dockerfile: sandbox.Dockerfile
+    image: llm-data-analytics-sandbox:latest
+    container_name: llm-analytics-sandbox-image
+    command: ["tail", "-f", "/dev/null"]
 
   frontend:
     build: ./frontend
@@ -25,6 +38,7 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
+      - /app/.next
     depends_on:
       - backend
     environment:

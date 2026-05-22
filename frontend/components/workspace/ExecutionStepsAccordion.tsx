@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { MessageBlock } from "@/lib/messageBlocks";
 
@@ -15,7 +15,16 @@ type StepView = {
 function preview(text: string, max = 220) {
   const clean = (text || "").trim();
   if (!clean) return "";
-  return clean.length > max ? `${clean.slice(0, max)}…` : clean;
+  return clean.length > max ? `${clean.slice(0, max)}...` : clean;
+}
+
+function normalizeStatus(status?: string) {
+  const s = String(status || "").toLowerCase();
+  if (!s) return "pending";
+  if (s === "success") return "success";
+  if (s === "error" || s === "timeout") return s;
+  if (s === "llm_tool_plan") return "planned";
+  return s;
 }
 
 export function ExecutionStepsAccordion({ blocks }: { blocks: MessageBlock[] }) {
@@ -26,7 +35,7 @@ export function ExecutionStepsAccordion({ blocks }: { blocks: MessageBlock[] }) 
     const curr = stepMap.get(step) || { step };
     if (b.type === "code") {
       curr.code = b.code;
-      curr.status = b.status || curr.status;
+      curr.status = curr.status || b.status;
     }
     if (b.type === "execution") {
       curr.stdout = b.stdout || "";
@@ -42,43 +51,35 @@ export function ExecutionStepsAccordion({ blocks }: { blocks: MessageBlock[] }) 
 
   return (
     <section className="execution-steps">
-      {steps.map((s) => {
-        const topPreview = s.stderr ? preview(s.stderr) : preview(s.stdout || "");
-        return (
-          <details key={s.step} className="block-card">
-            <summary className="step-summary">
-              <strong>Шаг {s.step}</strong>
-              <span>{s.status || "unknown"}</span>
-              {topPreview ? <em>{topPreview}</em> : null}
-            </summary>
-            {s.code ? (
-              <details className="raw compact">
-                <summary>Показать код</summary>
-                <pre className="code-pre">{s.code}</pre>
-              </details>
-            ) : null}
-            {s.stdout ? (
-              <details className="raw compact">
-                <summary>stdout</summary>
-                <pre className="code-pre">{s.stdout}</pre>
-              </details>
-            ) : null}
-            {s.stderr ? (
-              <details className="raw compact">
-                <summary>stderr</summary>
-                <pre className="code-pre error">{s.stderr}</pre>
-              </details>
-            ) : null}
-            {typeof s.elapsedSeconds === "number" ? <div className="muted">elapsed: {s.elapsedSeconds}s</div> : null}
-            {Array.isArray(s.files) && s.files.length ? (
-              <ul className="muted">
-                {s.files.slice(0, 10).map((f, idx) => <li key={idx}>{String((f as any).name || (f as any).path || "file")}</li>)}
-              </ul>
-            ) : null}
-          </details>
-        );
-      })}
+      <details className="block-card">
+        <summary className="step-summary">
+          <strong>Выполненный код</strong>
+          <span>{steps.length} шагов</span>
+          <em>{steps.map((s) => normalizeStatus(s.status)).join(", ")}</em>
+        </summary>
+        {steps.map((s) => {
+          const topPreview = s.stderr ? preview(s.stderr) : preview(s.stdout || "");
+          const status = normalizeStatus(s.status);
+          return (
+            <article key={s.step} className="raw compact">
+              <div className="step-summary">
+                <strong>Шаг {s.step}</strong>
+                <span>{status}</span>
+                {topPreview ? <em>{topPreview}</em> : null}
+              </div>
+              {s.code ? <pre className="code-pre">{s.code}</pre> : null}
+              {s.stdout ? <pre className="code-pre">{s.stdout}</pre> : null}
+              {s.stderr ? <pre className="code-pre error">{s.stderr}</pre> : null}
+              {typeof s.elapsedSeconds === "number" ? <div className="muted">elapsed: {s.elapsedSeconds}s</div> : null}
+              {Array.isArray(s.files) && s.files.length ? (
+                <ul className="muted">
+                  {s.files.slice(0, 10).map((f, idx) => <li key={idx}>{String((f as any).filename || (f as any).path || "file")}</li>)}
+                </ul>
+              ) : null}
+            </article>
+          );
+        })}
+      </details>
     </section>
   );
 }
-

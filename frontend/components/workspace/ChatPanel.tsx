@@ -12,7 +12,7 @@ export function ChatPanel({
   onSend,
   onStop,
   loading,
-  lab3Response,
+  chatResponse,
   datasetName,
   datasetNotice,
   interruptedRequest,
@@ -22,15 +22,13 @@ export function ChatPanel({
   onSend: (text: string) => void;
   onStop?: () => void;
   loading: boolean;
-  lab3Response: any;
+  chatResponse: any;
   datasetName?: string;
   datasetNotice?: string;
   interruptedRequest?: { text: string } | null;
   onRetryInterrupted?: (text: string) => void;
 }) {
   const [draft, setDraft] = useState("");
-  const streamLogs = Array.isArray(lab3Response?.logs) ? lab3Response.logs : Array.isArray(lab3Response?.stream_logs) ? lab3Response.stream_logs : [];
-  const statusLine = streamLogs.length ? String(streamLogs[streamLogs.length - 1]) : "Обрабатываю запрос...";
 
   return (
     <section className="workspace-page agent-chat-page">
@@ -54,8 +52,7 @@ export function ChatPanel({
           </article>
         ) : null}
         {!messages.length ? <EmptyChatState datasetName={datasetName} onPrompt={setDraft} /> : <ChatThread messages={messages} />}
-        {loading ? <div className="agent-status-line muted">{statusLine}</div> : null}
-        {lab3Response?.error ? <article className="workspace-section"><strong>Ошибка</strong><pre className="code-pre error">{String(lab3Response.error)}</pre></article> : null}
+        {chatResponse?.error ? <article className="workspace-section"><strong>Ошибка</strong><pre className="code-pre error">{String(chatResponse.error)}</pre></article> : null}
       </div>
       <div className="agent-chat-composer">
         <article className="workspace-section">
@@ -65,3 +62,4 @@ export function ChatPanel({
     </section>
   );
 }
+

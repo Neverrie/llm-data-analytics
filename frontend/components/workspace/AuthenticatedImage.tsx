@@ -7,10 +7,12 @@ export function AuthenticatedImage({
   artifactId,
   alt,
   className,
+  onLoadedSrc,
 }: {
   artifactId: string;
   alt: string;
   className?: string;
+  onLoadedSrc?: (src: string) => void;
 }) {
   const [src, setSrc] = useState("");
 
@@ -24,7 +26,10 @@ export function AuthenticatedImage({
         if (!resp.ok) return;
         const blob = await resp.blob();
         objectUrl = URL.createObjectURL(blob);
-        if (active) setSrc(objectUrl);
+        if (active) {
+          setSrc(objectUrl);
+          onLoadedSrc?.(objectUrl);
+        }
       } catch {
         if (active) setSrc("");
       }
@@ -39,4 +44,3 @@ export function AuthenticatedImage({
   if (!src) return <span className="muted">Загрузка превью...</span>;
   return <img className={className} src={src} alt={alt} />;
 }
-

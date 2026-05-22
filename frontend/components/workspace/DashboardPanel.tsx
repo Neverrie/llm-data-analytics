@@ -8,7 +8,6 @@ export function DashboardPanel({
   artifacts,
   onOpenChat,
   onCreateChat,
-  onOpenPipeline,
   onOpenDatasets,
   onOpenArtifacts
 }: {
@@ -17,7 +16,6 @@ export function DashboardPanel({
   artifacts: ArtifactItem[];
   onOpenChat: (id: string) => void;
   onCreateChat: () => void;
-  onOpenPipeline: () => void;
   onOpenDatasets: () => void;
   onOpenArtifacts: () => void;
 }) {
@@ -26,17 +24,17 @@ export function DashboardPanel({
       <div className="workspace-screen-scroll">
       <article className="dash-card hero-card">
         <h3>Dashboard</h3>
-        <p className="muted">Последние анализы, датасеты и запуски pipeline</p>
+        <p className="muted">Минимальный workspace: чаты, датасеты, артефакты</p>
         <div className="panel-row">
-          <button className="btn-primary" onClick={onCreateChat}>Новый анализ</button>
-          <button className="btn-secondary" onClick={onOpenPipeline}>Открыть Lab 2 Pipeline</button>
-          <button className="btn-secondary" onClick={onOpenDatasets}>Загрузить датасет</button>
+          <button className="btn-primary" onClick={onCreateChat}>Новый чат</button>
+          <button className="btn-secondary" onClick={onOpenDatasets}>Открыть датасеты</button>
+          <button className="btn-secondary" onClick={onOpenArtifacts}>Открыть артефакты</button>
         </div>
       </article>
 
       <div className="dashboard-grid">
         <article className="dash-card">
-          <div className="group-head"><h4>Недавние проекты</h4></div>
+          <div className="group-head"><h4>Недавние чаты</h4></div>
           <div className="mini-list">
             {chats.slice(0, 5).map((chat) => (
               <button key={chat.id} className="mini-item" onClick={() => onOpenChat(chat.id)}>
@@ -45,12 +43,6 @@ export function DashboardPanel({
               </button>
             ))}
           </div>
-        </article>
-
-        <article className="dash-card pipeline-hero">
-          <h4>Lab 2 Pipeline</h4>
-          <p className="muted">CSV → OpenRouter → JSON-классификация отзывов</p>
-          <button className="btn-secondary" onClick={onOpenPipeline}>Открыть pipeline</button>
         </article>
 
         <article className="dash-card">
@@ -69,3 +61,4 @@ export function DashboardPanel({
     </section>
   );
 }
+
