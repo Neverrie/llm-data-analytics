@@ -1,8 +1,7 @@
-import mimetypes
 import json
+import mimetypes
 import uuid
 from pathlib import Path
-from typing import Any
 
 import pandas as pd
 from fastapi import HTTPException
@@ -131,74 +130,6 @@ def artifact_preview(user_id: str, artifact_id: str, limit: int = 20) -> dict | 
     return "binary"
 
 
-def _artifact_kind_by_path(path: str) -> str:
-    suffix = Path(path).suffix.lower()
-    if suffix in {".png", ".jpg", ".jpeg", ".webp"}:
-        return "chart"
-    if suffix == ".md":
-        return "report"
-    if suffix == ".json":
-        return "json"
-    if suffix in {".csv", ".xlsx", ".xls"}:
-        return "table"
-    return "other"
-
-
-def _collect_paths_from_result(result: dict[str, Any]) -> list[tuple[str, str]]:
-    pairs: list[tuple[str, str]] = []
-    output_files = result.get("output_files") or {}
-    if isinstance(output_files, dict):
-        for key, path in output_files.items():
-            if isinstance(path, str) and path.strip():
-                pairs.append((str(key), path))
-    generated_files = result.get("generated_files") or []
-    if isinstance(generated_files, list):
-        for item in generated_files:
-            if not isinstance(item, dict):
-                continue
-            path = item.get("path")
-            if isinstance(path, str) and path.strip():
-                title = str(item.get("title") or item.get("name") or Path(path).name)
-                pairs.append((title, path))
-    files = result.get("files") or []
-    if isinstance(files, list):
-        for item in files:
-            if not isinstance(item, dict):
-                continue
-            path = item.get("path")
-            if isinstance(path, str) and path.strip():
-                title = str(item.get("title") or item.get("name") or Path(path).name)
-                pairs.append((title, path))
-    return pairs
-
-
-def register_result_artifacts(
-    user_id: str,
-    result: dict[str, Any],
-    *,
-    chat_id: str | None,
-    message_id: str | None,
-    source: str = "lab3",
-) -> list[dict]:
-    created: list[dict] = []
-    for title, path in _collect_paths_from_result(result):
-        try:
-            created.append(
-                register_artifact(
-                    user_id=user_id,
-                    kind=_artifact_kind_by_path(path),
-                    title=title,
-                    path=path,
-                    chat_id=chat_id,
-                    message_id=message_id,
-                    metadata={"source": source},
-                )
-            )
-        except Exception:
-            continue
-    return created
-
-
 def artifact_to_message_block(user_id: str, artifact: dict) -> dict:
     mime = str(artifact.get("mime_type") or "")
     kind = str(artifact.get("kind") or "")
@@ -239,13 +170,3 @@ def artifact_to_message_block(user_id: str, artifact: dict) -> dict:
         "preview_url": artifact.get("preview_url"),
         "mime_type": mime,
     }
-
-
-def register_lab3_artifacts(user_id: str, chat_id: str | None, output_files: dict[str, str] | None) -> list[dict]:
-    if not output_files:
-        return []
-    items: list[dict] = []
-    for key, path in output_files.items():
-        kind = "report" if path.endswith(".md") else "json" if path.endswith(".json") else "other"
-        items.append(register_artifact(user_id, kind, key, path, chat_id, None, metadata={"source": "lab3"}))
-    return items
