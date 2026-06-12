@@ -98,6 +98,42 @@ def _code_budget_error(call_id: str | None, code: str) -> McpToolResult:
     )
 
 
+def _finalize_user_answer(
+    llm: LlmClient,
+    messages: list[dict[str, Any]],
+    draft: str,
+    files: dict[str, dict[str, Any]],
+) -> str:
+    filenames = sorted(
+        {
+            str(item.get("filename") or "")
+            for item in files.values()
+            if item.get("filename")
+        }
+    )
+    final_messages = [
+        *messages,
+        {"role": "assistant", "content": draft},
+        {
+            "role": "system",
+            "content": (
+                "Write the final user-facing answer now. Do not describe what you will check, do next, "
+                "or verify later. State the actual calculated findings and conclusions from the tool results. "
+                "Treat every clause of the current user request as a completion checklist. "
+                "Include every explicitly requested metric, both overall and grouped values when requested, "
+                "and answer all requested comparisons. Mention generated files by name when present. "
+                "Use concise Markdown and do not call tools."
+                + (f" Generated files: {', '.join(filenames)}." if filenames else "")
+            ),
+        },
+    ]
+    response = llm.chat(
+        messages=[LlmMessage.model_validate(message) for message in final_messages],
+        tools=None,
+    )
+    return (response.content or "").strip()
+
+
 def run_dataset_agent(
     chat_id: str,
     user_message: str,
@@ -394,8 +430,24 @@ def run_dataset_agent(
             )
             continue
 
+        final_text = (llm_resp.content or "").strip()
+        if had_tool_call:
+            try:
+                finalized = _finalize_user_answer(llm, messages, final_text, files_by_path)
+                if finalized:
+                    final_text = finalized
+                    steps.append(
+                        AgentStep(
+                            step_index=idx + 1,
+                            type="llm",
+                            content={"content": final_text, "tool_calls": []},
+                        )
+                    )
+            except LlmClientError:
+                pass
+
         return AgentResult(
-            final_answer=llm_resp.content,
+            final_answer=final_text,
             steps=steps,
             files=list(files_by_path.values()),
             status="success",
