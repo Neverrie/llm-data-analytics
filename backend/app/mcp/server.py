@@ -13,9 +13,9 @@ class McpToolServer:
             {
                 "name": "run_python",
                 "description": (
-                    "Execute one focused Python action in an isolated Docker sandbox. "
-                    "Dataset is available as /input/dataset.csv if provided. "
-                    "Use /work for persistent files and prefer small incremental calls."
+                    "Выполнить одно сфокусированное действие на Python в изолированном Docker sandbox. "
+                    "Если выбран датасет, он доступен как /input/dataset.csv. "
+                    "Постоянные файлы нужно сохранять в /work."
                 ),
                 "input_schema": {
                     "type": "object",
@@ -54,5 +54,5 @@ class McpToolServer:
             name=call.name,
             status="error",
             content={},
-            error=f"Unknown tool: {call.name}",
+            error=f"Неизвестный инструмент: {call.name}",
         )
