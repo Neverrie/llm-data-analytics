@@ -113,7 +113,6 @@ def _finalize_user_answer(
     )
     final_messages = [
         *messages,
-        {"role": "assistant", "content": draft},
         {
             "role": "system",
             "content": (
@@ -126,12 +125,44 @@ def _finalize_user_answer(
                 + (f" Generated files: {', '.join(filenames)}." if filenames else "")
             ),
         },
+        {
+            "role": "user",
+            "content": (
+                "Return the completed final answer only. Use the executed tool results above. "
+                f"The previous draft was incomplete: {draft}"
+            ),
+        },
     ]
     response = llm.chat(
         messages=[LlmMessage.model_validate(message) for message in final_messages],
         tools=None,
     )
     return (response.content or "").strip()
+
+
+def _needs_finalization(text: str) -> bool:
+    normalized = " ".join((text or "").lower().split())
+    if len(normalized) < 8 or not any(char.isalnum() for char in normalized):
+        return True
+    transitional_markers = (
+        "проверю итог",
+        "проверим итог",
+        "сейчас провер",
+        "далее провер",
+        "i will check",
+        "let me check",
+        "i'll verify",
+    )
+    return any(marker in normalized for marker in transitional_markers)
+
+
+def _is_usable_finalization(text: str) -> bool:
+    normalized = (text or "").strip()
+    if len(normalized) < 8:
+        return False
+    if not any(char.isalnum() for char in normalized):
+        return False
+    return not _needs_finalization(normalized)
 
 
 def run_dataset_agent(
@@ -431,10 +462,10 @@ def run_dataset_agent(
             continue
 
         final_text = (llm_resp.content or "").strip()
-        if had_tool_call:
+        if had_tool_call and _needs_finalization(final_text):
             try:
                 finalized = _finalize_user_answer(llm, messages, final_text, files_by_path)
-                if finalized:
+                if _is_usable_finalization(finalized):
                     final_text = finalized
                     steps.append(
                         AgentStep(
