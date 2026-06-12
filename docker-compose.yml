@@ -19,6 +19,7 @@
       HOST_DATASETS_DIR: ${HOST_DATASETS_DIR:-}
       SANDBOX_DOCKER_IMAGE: ${SANDBOX_DOCKER_IMAGE:-llm-data-analytics-sandbox:latest}
       SANDBOX_DOCKER_USER: ${SANDBOX_DOCKER_USER:-1000:1000}
+      ENABLE_DEV_ENDPOINTS: ${ENABLE_DEV_ENDPOINTS:-false}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3003,http://127.0.0.1:3003}
 
   sandbox-runner-image:

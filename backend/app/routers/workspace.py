@@ -427,12 +427,6 @@ def stream_agent(chat_id: str, payload: ChatAgentStreamRequest, user: dict = Dep
     return StreamingResponse(gen(), media_type="text/event-stream")
 
 
-@router.post("/agent-runs/{run_id}/cancel")
-def cancel_agent_run(run_id: str, user: dict = Depends(get_current_user)):
-    _ = user
-    return {"status": "not_implemented", "run_id": run_id}
-
-
 @router.post("/chats/{chat_id}/cancel")
 def cancel_chat_run(chat_id: str, user: dict = Depends(get_current_user)):
     _ = user

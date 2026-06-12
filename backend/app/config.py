@@ -8,6 +8,7 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 class Settings(BaseSettings):
     app_name: str = "llm-data-analyst-lab-backend"
     app_version: str = "0.1.0"
+    enable_dev_endpoints: bool = False
 
     llm_provider: str = "openrouter"
     openrouter_api_key: str | None = None

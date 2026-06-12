@@ -144,7 +144,18 @@ const ChatListItem = memo(function ChatListItem({ chat, active, onSelect, onRena
 const DatasetListItem = memo(function DatasetListItem({ dataset, active, onUseDataset, onPreviewDataset, onDeleteDataset }: { dataset: DatasetItem; active: boolean; onUseDataset: (id: string) => void; onPreviewDataset: (id: string) => void; onDeleteDataset: (id: string) => void; }) {
   const canDelete = dataset.source === "uploaded" || dataset.source === "upload";
   return (
-    <button className={`mini-item dataset-row ${active ? "active" : ""}`} onClick={() => onUseDataset(dataset.id)}>
+    <div
+      className={`mini-item dataset-row ${active ? "active" : ""}`}
+      role="button"
+      tabIndex={0}
+      onClick={() => onUseDataset(dataset.id)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onUseDataset(dataset.id);
+        }
+      }}
+    >
       <strong>{dataset.name}</strong>
       <span>{dataset.source} · {dataset.rows_count ?? "?"} rows</span>
       <div className="row-actions">
@@ -152,18 +163,29 @@ const DatasetListItem = memo(function DatasetListItem({ dataset, active, onUseDa
         <button className="link-btn" title="Превью" onClick={(e) => { e.stopPropagation(); onPreviewDataset(dataset.id); }}>Превью</button>
         {canDelete ? <button className="link-btn danger" title="Удалить" onClick={(e) => { e.stopPropagation(); if (window.confirm(`Удалить датасет \"${dataset.name}\"?`)) onDeleteDataset(dataset.id); }}>Удалить</button> : null}
       </div>
-    </button>
+    </div>
   );
 });
 
 const ArtifactListItem = memo(function ArtifactListItem({ artifact, onSelectArtifact, onDeleteArtifact }: { artifact: ArtifactItem; onSelectArtifact: (id: string) => void; onDeleteArtifact: (id: string) => void; }) {
   return (
-    <button className="mini-item" onClick={() => onSelectArtifact(artifact.id)}>
+    <div
+      className="mini-item"
+      role="button"
+      tabIndex={0}
+      onClick={() => onSelectArtifact(artifact.id)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelectArtifact(artifact.id);
+        }
+      }}
+    >
       <strong>{artifact.title}</strong>
       <span>{artifact.kind} · {artifact.filename}</span>
       <div className="row-actions">
         <button className="link-btn danger" title="Удалить" onClick={(e) => { e.stopPropagation(); if (window.confirm(`Удалить артефакт \"${artifact.title}\"?`)) onDeleteArtifact(artifact.id); }}>Удалить</button>
       </div>
-    </button>
+    </div>
   );
 });

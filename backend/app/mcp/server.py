@@ -12,7 +12,11 @@ class McpToolServer:
         return [
             {
                 "name": "run_python",
-                "description": "Execute Python code in an isolated Docker sandbox. Dataset is available as /input/dataset.csv if provided.",
+                "description": (
+                    "Execute one focused Python action in an isolated Docker sandbox. "
+                    "Dataset is available as /input/dataset.csv if provided. "
+                    "Use /work for persistent files and prefer small incremental calls."
+                ),
                 "input_schema": {
                     "type": "object",
                     "properties": {
